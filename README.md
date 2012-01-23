@@ -9,3 +9,6 @@ The steps taken in this process are:
 2. Construct a linear model based on the various contributions to the DWI data. 
 3. Solve the linear model with a defined set of constraints. If needed, solve in stages for different components of the biophysical model (fiber component, isotropic tissue component, etc.)
 4. Compare the model predictions to the DWI data. Compare different models.   
+
+
+Microtrack is copyright of the [VISTA lab](http://white.stanford.edu/) at Stanford University and is released under the terms of the [GPL license](http://www.gnu.org/copyleft/gpl.html).  
