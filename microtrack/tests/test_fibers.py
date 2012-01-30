@@ -39,4 +39,4 @@ def test_Fiber_xform():
 def test_read_from_pdb():
     file_name = "/Users/arokem/source/microtrack/data/FG_w_stats.pdb"
     out = mtf.fg_from_pdb(file_name)
-    npt.assert_equal(out, (3276, np.eye(4), 3, 7,[-28.9261, -25.5907, 1.0729]))
+    npt.assert_equal(out, (3276, np.eye(4), 3, 7))

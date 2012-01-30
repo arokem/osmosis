@@ -15,26 +15,29 @@ class Fiber(object):
     
     """
     
-    def __init__(self, coords, affine=None, stats=None):
+    def __init__(self, coords, affine=None, fiber_stats=None, node_stats=None):
         """
         Initialize a fiber
 
         Parameters
         ----------
-        coords: np.array of shape n x 3
+        coords: np.array of shape 3 x n
             The xyz coordinates of the nodes comprising the fiber.
 
         affine: np.array of shape 4 x 4
             homogenous affine giving relationship between voxel-based
             coordinates and world-based (acpc) coordinates. 
 
-        stats: dict containing statistics as: scalar or np.array, corresponding
+        fiber_stats: dict containing statistics as scalars, corresponding to the
+               entire fiber
+               
+        node_stats: dict containing statistics as np.array, corresponding
             to point-by-point values of the statistic.
             
         """
         if len(coords.shape)>2 or coords.shape[-1]!=3:
             e_s = "coords input has shape ("
-            e_s += str(["%s, "%n for n in coords.shape])
+            e_s += ''.join(["%s, "%n for n in coords.shape])
             e_s += "); please reshape to be n by 3"
             raise ValueError(e_s)
 
@@ -42,7 +45,7 @@ class Fiber(object):
 
         # Count the nodes
         if len(coords.shape)>1:
-            self.nnodes = coords.shape[-1]
+            self.nnodes = coords.shape[0]
         # This is the case in which there is only one coordinate/node:
         else:
             self.nnodes = 1
@@ -59,21 +62,17 @@ class Fiber(object):
         else:
             self.affine = np.matrix(affine)
 
-        if stats is not None:
-            # Check that there as many stat items as there are fibers:
-            for k,v in stats.items():
-                # There's either just one value per fiber or one value per node: 
-                if (v.__class__ not in [int,float] and
-                    v.shape[-1] != coords.shape[-1] and
-                    v.shape != (1,)):
-                    e_s = "stats need to either one value"
-                    e_s = " per fiber or one value per node." 
-                    raise ValueError(e_s)
-                else:
-                    self.stats = stats
+        if fiber_stats is not None:
+            self.fiber_stats = fiber_stats
         else:
             # The default
-            self.stats = {}
+            self.fiber_stats = {}
+
+        if node_stats is not None:
+            self.node_stats = node_stats
+        else:
+            # The default
+            self.node_stats = {}
     
     def xform(self, affine=None, inplace=False):
         """
@@ -87,7 +86,8 @@ class FiberGroup(object):
     This represents a group of fibers.
     """
     def __init__(self, fibers):
-        NotImplementedError
+        # XXX Need more stuff (more inputs!) here:
+        self.fibers = fibers
 
 def _unpacker(x, i, n, fmt='int'):
 
@@ -224,7 +224,6 @@ def fg_from_pdb(file_name, verbose=True):
     # number, which is one int length before the fibers:  
     i = offset - 4
     version, i = _unpacker(f_read, i, 1)
-    print version
     if version != 3:
         raise ValueError("Can only read PDB version 3 files")
     elif verbose:
@@ -232,11 +231,14 @@ def fg_from_pdb(file_name, verbose=True):
 
     # How many fibers?
     numpaths, i = _unpacker(f_read, i, 1)
+    # The next few bytes encode the number of points in each fiber:
     pts_per_fiber, i = _unpacker(f_read, i, numpaths)
     total_pts = np.sum(pts_per_fiber)
+    # Next we have the xyz coords of the nodes in all fibers: 
     fiber_pts, i = _unpacker(f_read, i, total_pts * 3, 'double')
-    pts_read = 0 
 
+    # We extract the information on a fiber-by-fiber basis
+    pts_read = 0 
     pts = []
     for p_idx in range(numpaths):
         n_nodes = pts_per_fiber[p_idx]
@@ -244,38 +246,42 @@ def fg_from_pdb(file_name, verbose=True):
                    fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
                    (3, n_nodes)))
         pts_read += n_nodes
-        if verbose and np.mod(p_idx, 1000):
+        if verbose and np.mod(p_idx+1, 1000)==0:
             print("Loaded %s of %s paths"%(p_idx, numpaths[0]))            
-        
-        # XXX This is where we will initialize this fiber? 
 
-    for stat_idx in numstats:
+    f_stats_dict = {}
+    for stat_idx in range(numstats):
         per_fiber_stat, i = _unpacker(f_read, i, numpaths, 'double')
+        f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
 
-    fiber_pts_stat = []
+    n_stats_dict = {}
     for stat_idx in range(numstats):
         pts_read = 0
         if stats_header["computed_per_point"][stat_idx]:
+            name = stats_header["local_name"][stat_idx]
+            n_stats_dict[name] = []
             per_point_stat, i = _unpacker(f_read, i, total_pts, 'double')
             for p_idx in range(numpaths):
-                fiber_pts_stat.append(
+                n_stats_dict[name].append(
                     per_point_stat[pts_read : pts_read + pts_per_fiber[p_idx]])
                 
                 pts_read += pts_per_fiber[p_idx]
-                
-        ## hdr_sz, i =  _unpacker(f_read, i, 1)
-        ## n_pts, i = _unpacker(f_read, i, 1)
-        ## alg_id, i = _unpacker(f_read, i, 1)
-        ## seed_pt_idx, i = _unpacker(f_read, i, 1)
-        ## for stat_idx in range(numstats):
-        ##     stat_val, i = _unpacker(f_read, i, 1, 'double') 
-        ## for pt in n_pts:
-        ##     pos , i = _unpacker(f_read, i, 3, 'double')
-        ##     for stat_idx in range(numstats):
-        ##         if stats_header["computed_per_point"][stat_idx]:
-        ##             stat_val_this_pt,i = _unpacker(f_read, i, 1, 'double')
+        else:
+            fiber_pts_stat.append([])
 
-    return offset, xform , numstats, numpaths, fiber_pts_stat
+    fibers = []
+    # Initialize all the fibers:
+    for p_idx in range(numpaths):
+        f_stat_k = f_stats_dict.keys()
+        f_stat_v = [f_stats_dict[k][p_idx] for k in f_stat_k]
+        n_stats_k = n_stats_dict.keys()
+        n_stats_v = [n_stats_dict[k][p_idx] for k in n_stats_k]
+        fibers.append(Fiber(pts[p_idx].T,
+                            xform,
+                            fiber_stats=dict(zip(f_stat_k, f_stat_v)),
+                            node_stats=dict(zip(n_stats_k, n_stats_v))))
+                
+    return FiberGroup(fibers)
     
 def _word_maker(arr):
     """
