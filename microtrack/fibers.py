@@ -1,6 +1,10 @@
+# Import from standard lib: 
+import struct 
+import os
+
+# Import from 3rd party: 
 import numpy as np
 import nibabel as ni
-import struct 
 
 class Fiber(object):
     """
@@ -61,7 +65,7 @@ class Fiber(object):
             raise ValueError(e_s)
         else:
             self.affine = np.matrix(affine)
-
+            
         if fiber_stats is not None:
             self.fiber_stats = fiber_stats
         else:
@@ -85,9 +89,39 @@ class FiberGroup(object):
     """
     This represents a group of fibers.
     """
-    def __init__(self, fibers):
+    def __init__(self, fibers,
+                 name="FG-1",
+                 color=[200, 200, 100],
+                 thickness=-0.5,
+                 ):
         # XXX Need more stuff (more inputs!) here:
         self.fibers = fibers
+        self.n_fibers = len(fibers)
+        # Gather all the unique fiber stat names:
+        k_list=[]
+        # Get all the keys from each fiber:
+        for f in self.fibers:
+            k_list += f.fiber_stats.keys()
+
+        # Get a set out (unique values):
+        keys = set(k_list)
+        # This will eventually hold all the fiber stats:
+        self.fiber_stats = {}
+        # Loop over unique stat names and... 
+        for k in keys:
+            # ... put them in a list in each one ...
+            self.fiber_stats[k] = []
+            # ... from each fiber:
+            for f_idx in range(self.n_fibers):
+                this_fs = self.fibers[f_idx].fiber_stats
+                # But only if that fiber has that stat: 
+                if k in this_fs.keys():
+                    self.fiber_stats[k].append(this_fs[k])
+                # Otherwise, put a nan there:
+                else:
+                    self.fiber_stats[k].append(np.nan)
+
+        self.name = name
 
 def _unpacker(x, i, n, fmt='int'):
 
@@ -280,8 +314,9 @@ def fg_from_pdb(file_name, verbose=True):
                             xform,
                             fiber_stats=dict(zip(f_stat_k, f_stat_v)),
                             node_stats=dict(zip(n_stats_k, n_stats_v))))
-                
-    return FiberGroup(fibers)
+        
+    name = os.path.split(file_name)[-1].split('.')[0]
+    return FiberGroup(fibers, name=name)
     
 def _word_maker(arr):
     """
