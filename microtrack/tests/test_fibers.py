@@ -16,8 +16,8 @@ def test_Fiber():
     arr1d = np.array([1,2,3])
     # This is the most basic example possible:
     f1 = mtf.Fiber(arr1d)
-    # 2D arrays should be n by 3:
-    arr2d = np.array([[1,2,3],[2,3,4]])
+    # 2D arrays should be 3 by n:
+    arr2d = np.array([[1,2], [3,4],[5,6]])
     # So this is OK:
     f2 = mtf.Fiber(arr2d)    
     # But this raises a ValueError:
@@ -30,7 +30,7 @@ def test_Fiber():
 
 def test_Fiber_xform():
 
-    arr2d = np.array([[1,2,3],[2,3,4]])
+    arr2d = np.array([[1,2], [3,4],[5,6]])
     f1 = mtf.Fiber(arr2d)
     # XXX This is true, but not so good... 
     npt.assert_raises(NotImplementedError, f1.xform)
@@ -40,7 +40,7 @@ def test_FiberGroup():
     Testing intialization of FiberGroup class.
     """
     
-    arr2d = np.array([[1,2,3],[2,3,4]])
+    arr2d = np.array([[1,2], [3,4],[5,6]])
     arr1d = np.array([5,6,7])
     f1 = mtf.Fiber(arr2d, fiber_stats=dict(a=1, b=2))
     f2 = mtf.Fiber(arr1d, fiber_stats=dict(a=1))
@@ -48,7 +48,6 @@ def test_FiberGroup():
     npt.assert_equal(fg1.n_fibers, 2)
     # We have to sort, because it could also come out as ['b', 'a']:
     npt.assert_equal(np.sort(fg1.fiber_stats.keys()), ['a', 'b'])
-
     
 def test_read_from_pdb():
     data_path = os.path.split(mt.__file__)[0] + '/data/'
@@ -61,3 +60,6 @@ def test_read_from_pdb():
     v = mat_fg.item()
     mat_fg_dict = dict(zip(k,v))
     npt.assert_equal(fg.name, mat_fg_dict["name"])
+    npt.assert_equal(fg.fibers[0].coords, mat_fg_dict["fibers"][0])
+    npt.assert_equal(fg.fiber_stats["eccentricity"],
+                     mat_fg_dict["params"][0].item()[-1])

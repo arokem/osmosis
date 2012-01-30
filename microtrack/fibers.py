@@ -39,10 +39,10 @@ class Fiber(object):
             to point-by-point values of the statistic.
             
         """
-        if len(coords.shape)>2 or coords.shape[-1]!=3:
+        if len(coords.shape)>2 or coords.shape[0]!=3:
             e_s = "coords input has shape ("
             e_s += ''.join(["%s, "%n for n in coords.shape])
-            e_s += "); please reshape to be n by 3"
+            e_s += "); please reshape to be 3 by n"
             raise ValueError(e_s)
 
         self.coords = coords
@@ -278,7 +278,7 @@ def fg_from_pdb(file_name, verbose=True):
         n_nodes = pts_per_fiber[p_idx]
         pts.append(np.reshape(
                    fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
-                   (3, n_nodes)))
+                   (n_nodes, 3)).T)
         pts_read += n_nodes
         if verbose and np.mod(p_idx+1, 1000)==0:
             print("Loaded %s of %s paths"%(p_idx, numpaths[0]))            
@@ -310,7 +310,7 @@ def fg_from_pdb(file_name, verbose=True):
         f_stat_v = [f_stats_dict[k][p_idx] for k in f_stat_k]
         n_stats_k = n_stats_dict.keys()
         n_stats_v = [n_stats_dict[k][p_idx] for k in n_stats_k]
-        fibers.append(Fiber(pts[p_idx].T,
+        fibers.append(Fiber(pts[p_idx],
                             xform,
                             fiber_stats=dict(zip(f_stat_k, f_stat_v)),
                             node_stats=dict(zip(n_stats_k, n_stats_v))))
