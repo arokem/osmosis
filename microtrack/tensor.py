@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as la
 
 class Tensor(object):
     """
@@ -65,7 +66,7 @@ class Tensor(object):
             e_s = "Please provide symmetrical Q"
             raise ValueError(e_s)
 
-    def ADC(bvecs):
+    def ADC(self,bvecs):
         """
         Calculate the Apparent diffusion coefficient for the tensor
 
@@ -76,20 +77,36 @@ class Tensor(object):
 
         Notes
         -----
-        This is calculated as $ADC = \arrow{b} Q \arrow{b}^T$
-        
-        """ 
-        np.diag(bvecs*self.Q*bvecs.T)
+        This is calculated as $ADC = \vec{b} Q \vec{b}^T$
+        """
+        # Make sure it's a matrix:
+        bvecs = np.matrix(bvecs)       
+        return np.diag(bvecs*self.Q*bvecs.T)
 
-
-def fiber_tensors(fiber):
+# XXX Consider putting these somewhere else, to separate concerns (fibers and
+# tensors...) ? 
+def fiber_tensors(fiber, axial_diffusivity, radial_diffusivity):
     """
     Produce the tensors for a given a fiber.
-
-    Note
-    ----
-    This follows the conventions from vistasoft's fgTensors.m:
     
-    dParms(1) = d_ad; dParms(2) = d_rd; dParms(3) = d_rd;
+    """
+    grad = np.array(np.gradient(fiber.coords)[0])
+    u,s,v = la.svd(grad)
+    Q = (np.matrix(u).T *
+         np.matrix(np.diag([axial_diffusivity,
+                            radial_diffusivity,
+                            radial_diffusivity])) *
+            np.matrix(u))
+
+    return Tensor(Q)
+
+def fiber_signal(tensor_list, ):
 
     """
+    Compute the fiber contribution to the signal, based on a simplified
+    Stejskal/Tanner equation.
+
+    Parameters
+    ----------
+    """
+    raise NotImplementedError
