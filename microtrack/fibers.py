@@ -8,17 +8,9 @@ import nibabel as ni
 
 class Fiber(object):
     """
-    This represents a single fiber.
-
-    Should have the following attributes:
-
-    1. X/Y/Z coordinates. 
-    2. An affine transformation. 
-    3. Empty container for pathway statistics
-    4. 
-    
+    This represents a single fiber, its node coordinates and statistics
     """
-    
+
     def __init__(self, coords, affine=None, fiber_stats=None, node_stats=None):
         """
         Initialize a fiber
@@ -30,7 +22,8 @@ class Fiber(object):
 
         affine: np.array of shape 4 x 4
             homogenous affine giving relationship between voxel-based
-            coordinates and world-based (acpc) coordinates. 
+            coordinates and world-based (acpc) coordinates. Defaults to None,
+            which implies the identity matrix.
 
         fiber_stats: dict containing statistics as scalars, corresponding to the
                entire fiber
@@ -39,6 +32,7 @@ class Fiber(object):
             to point-by-point values of the statistic.
             
         """
+        coords = np.asarray(coords)
         if len(coords.shape)>2 or coords.shape[0]!=3:
             e_s = "coords input has shape ("
             e_s += ''.join(["%s, "%n for n in coords.shape])
@@ -49,18 +43,17 @@ class Fiber(object):
 
         # Count the nodes
         if len(coords.shape)>1:
-            self.nnodes = coords.shape[0]
+            self.n_nodes = coords.shape[0]
         # This is the case in which there is only one coordinate/node:
         else:
-            self.nnodes = 1
+            self.n_nodes = 1
             
         if affine is None: 
-            # Set to default value: the identity matrix
-            affine = np.matrix(np.eye(4))
+            self.affine = None # This implies np.eye(4), see below in xform
         elif affine.shape != (4,4):
             # Raise an erro if the affine doesn't make sense:
             e_s = "affine input has shape ("
-            e_s += str(["%s, "%n for n in affine.shape])
+            e_s += ''.join(["%s, "%n for n in affine.shape])
             e_s += "); please reshape to be 4 by 4"
             raise ValueError(e_s)
         else:
@@ -77,14 +70,75 @@ class Fiber(object):
         else:
             # The default
             self.node_stats = {}
-    
-    def xform(self, affine=None, inplace=False):
+
+    def xform(self, affine=None, inplace=True):
         """
-        Transform the fiber coordinates to 
-        """
+        Transform the fiber coordinates according to an affine transformation
+
+        Parameters
+        ----------
+        affine: optional, 4 by 4 matrix
+            Per default, the fiber's own affine will be used. If this input is
+            provided, this affine will be used instead of the fiber's
+            affine, and the new affine will be the inverse of this matrix.
+
+        inplace: optional, bool
+            Per default, the transformation occurs inplace, meaning that the
+            Fiber is mutated inplace. However, if you don't want that to
+            happen, setting this to False will cause this function to return
+            another Fiber with transformed coordinates and the inverse of the
+            original affine.
+
+        Note
+        ----
+        Transforming inverts the affine, such that calling xform() twice gives
+        you back what you had in the first place.
         
-        raise NotImplementedError
-    
+        """
+        xyz_orig = self.coords
+
+        # If this is a single point: 
+        if len(xyz_orig.shape) == 1:
+            xyz_orig1 = np.vstack([np.array([xyz_orig]).T,1])
+        else:
+            xyz_orig1 = np.vstack([xyz_orig,np.ones(xyz_orig.shape[-1])])
+            
+        # If the affine optional kwarg was provided use that:
+        if affine is None:
+            if self.affine is None:
+                if inplace:
+                    return # Don't do anything and return
+                else:
+                    # Give me back an identical Fiber:
+                    return Fiber(self.coords,
+                                 None,
+                                 self.fiber_stats,
+                                 self.node_stats)
+                
+            # Use the affine provided on initialization:
+            else:
+                affine = self.affine
+            
+        # Do it:
+        xyz1 = affine * xyz_orig1
+
+        xyz_new = np.array([np.array(xyz1[0]).squeeze(),
+                    np.array(xyz1[1]).squeeze(),
+                    np.array(xyz1[2]).squeeze()])
+
+        # Just put the new coords instead of the old ones:
+        if inplace:
+            self.coords = xyz_new
+            # And adjust the affine to be the inverse transform:
+            self.affine = affine.getI()
+        # Generate a new fiber and return it:
+        else: 
+            return Fiber(self.coords,
+                         affine.getI(),
+                         self.fiber_stats,
+                         self.node_stats)
+            
+        
 class FiberGroup(object):
     """
     This represents a group of fibers.
@@ -93,10 +147,12 @@ class FiberGroup(object):
                  name="FG-1",
                  color=[200, 200, 100],
                  thickness=-0.5,
+                 affine=None
                  ):
         # XXX Need more stuff (more inputs!) here:
         self.fibers = fibers
         self.n_fibers = len(fibers)
+        self.n_nodes = np.sum([f.n_nodes for f in self.fibers])
         # Gather all the unique fiber stat names:
         k_list=[]
         # Get all the keys from each fiber:
@@ -121,8 +177,63 @@ class FiberGroup(object):
                 else:
                     self.fiber_stats[k].append(np.nan)
 
-        self.name = name
+        # If you want to give the FG an affine of its own to apply to the
+        # fibers in it:
+        if affine is not None:
+            self.affine = np.matrix(affine)
+        else:
+            self.affine = None
 
+        self.name = name
+    def xform(self, affine=None, inplace=True):
+        """
+        Transform each fiber in the fiber group according to an affine
+        
+        Precedence order : input > Fiber.affine > FiberGroup.affine 
+
+        Parameters
+        ----------
+        affine: 4 by 4 array/matrix
+            An affine to apply instead of the affine provided by the Fibers
+            themselves and instead of the affine provided by the FiberGroup
+
+        inplace: Whether to change the FiberGroup/Fibers inplace.
+        """
+        if affine is None:
+            affine = self.affine
+
+        if not inplace:
+            fibs = np.copy(self.fibers) # Make a copy, to be able to do this not
+                                        # inplace
+        else:
+            fibs = self.fibers
+            
+        for f in fibs:
+            if f.affine is None:
+                if affine is not None:
+                    # Make sure it's a matrix:
+                    affine = np.matrix(affine)
+                    # Do it inplace (for the copy, if you made one above): 
+                    f.xform(affine)
+            else:
+                f.xform(f.affine, inplace)
+
+        # If this was self.affine, it will be assigned there now and stick:
+        if affine is not None: 
+            affine = affine.getI()
+
+        if inplace:
+            self.affine = affine
+
+        # If we asked to do things inplace, we are done. Otherwise, we return a
+        # FiberGroup
+        else:
+            return FiberGroup(fibs,
+                              name="FG-1",
+                              color=[200, 200, 100],
+                              thickness=-0.5,
+                              affine=affine) # It's already been inverted above
+                
 def _unpacker(x, i, n, fmt='int'):
 
     """
@@ -322,7 +433,7 @@ def _word_maker(arr):
     """
     Helper function Make a string out of pdb stats header "name" variables 
     """
-    make_a_word = [] 
+    make_a_word = []
     for x in arr:
         if x: # The sign that you reached the end of the word is an empty char 
             make_a_word.append(x)
