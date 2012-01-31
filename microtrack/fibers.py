@@ -1,10 +1,13 @@
+"""
+This module implements representations of DWI-derived fibers and fiber groups.
+"""
+
 # Import from standard lib: 
 import struct 
 import os
 
 # Import from 3rd party: 
 import numpy as np
-import nibabel as ni
 
 class Fiber(object):
     """
@@ -50,7 +53,7 @@ class Fiber(object):
             
         if affine is None: 
             self.affine = None # This implies np.eye(4), see below in xform
-        elif affine.shape != (4,4):
+        elif affine.shape != (4, 4):
             # Raise an erro if the affine doesn't make sense:
             e_s = "affine input has shape ("
             e_s += ''.join(["%s, "%n for n in affine.shape])
@@ -99,9 +102,9 @@ class Fiber(object):
 
         # If this is a single point: 
         if len(xyz_orig.shape) == 1:
-            xyz_orig1 = np.vstack([np.array([xyz_orig]).T,1])
+            xyz_orig1 = np.vstack([np.array([xyz_orig]).T, 1])
         else:
-            xyz_orig1 = np.vstack([xyz_orig,np.ones(xyz_orig.shape[-1])])
+            xyz_orig1 = np.vstack([xyz_orig, np.ones(xyz_orig.shape[-1])])
             
         # If the affine optional kwarg was provided use that:
         if affine is None:
@@ -143,21 +146,60 @@ class FiberGroup(object):
     """
     This represents a group of fibers.
     """
-    def __init__(self, fibers,
-                 name="FG-1",
-                 color=[200, 200, 100],
-                 thickness=-0.5,
+    def __init__(self,
+                 fibers,
+                 name=None,
+                 color=None,
+                 thickness=None,
                  affine=None
                  ):
+        """
+        Initialize a group of fibers
+
+        Parameters
+        ----------
+        fibers: list
+            A set of Fiber objects, which will populate this FiberGroup.
+
+        name: str
+            Name of this fiber group, defaults to "FG-1"
+
+        color: 3-long array or array like
+            RGB for display of fibers from this FiberGroup. Defaults to
+            [200, 200, 100]
+
+        thickness: float
+            The thickness when displaying this FiberGroup. Defaults to -0.5
+
+        affine: 4 by 4 array or matrix
+            Homogenous affine giving relationship between voxel-based
+            coordinates and world-based (acpc) coordinates. Defaults to None,
+            which implies the identity matrix.
+        """
+        # Descriptive variables: 
+
+        # Name 
+        if name is None:
+            name = "FG-1"
+        self.name = name
+
+        if color is None:
+            color = [200, 200, 100] # RGB
+        self.color = np.asarray(color)
+
+        if thickness is None:
+            thickness = -0.5
+        self.thickness = thickness
+        
         # XXX Need more stuff (more inputs!) here:
         self.fibers = fibers
         self.n_fibers = len(fibers)
         self.n_nodes = np.sum([f.n_nodes for f in self.fibers])
         # Gather all the unique fiber stat names:
-        k_list=[]
+        k_list = []
         # Get all the keys from each fiber:
-        for f in self.fibers:
-            k_list += f.fiber_stats.keys()
+        for fiber in self.fibers:
+            k_list += fiber.fiber_stats.keys()
 
         # Get a set out (unique values):
         keys = set(k_list)
@@ -184,7 +226,6 @@ class FiberGroup(object):
         else:
             self.affine = None
 
-        self.name = name
     def xform(self, affine=None, inplace=True):
         """
         Transform each fiber in the fiber group according to an affine
@@ -208,15 +249,15 @@ class FiberGroup(object):
         else:
             fibs = self.fibers
             
-        for f in fibs:
-            if f.affine is None:
+        for this_f in fibs:
+            if this_f.affine is None:
                 if affine is not None:
                     # Make sure it's a matrix:
                     affine = np.matrix(affine)
                     # Do it inplace (for the copy, if you made one above): 
-                    f.xform(affine)
+                    this_f.xform(affine)
             else:
-                f.xform(f.affine, inplace)
+                this_f.xform(this_f.affine, inplace)
 
         # If this was self.affine, it will be assigned there now and stick:
         if affine is not None: 
@@ -234,7 +275,7 @@ class FiberGroup(object):
                               thickness=-0.5,
                               affine=affine) # It's already been inverted above
                 
-def _unpacker(x, i, n, fmt='int'):
+def _unpacker(file_read, idx, obj_to_read, fmt='int'):
 
     """
     Helper function to unpack binary data from files with the struct library.
@@ -243,9 +284,9 @@ def _unpacker(x, i, n, fmt='int'):
 
     Parameters
     ----------
-    x: The output of file.read() from a file object
-    i: An index into x
-    n: How many objects to read
+    file_read: The output of file.read() from a file object
+    idx: An index into x
+    obj_to_read: How many objects to read
     fmt: A format string, telling us what to read from there 
     """
     # For each one, this is [fmt_string, size] 
@@ -260,12 +301,13 @@ def _unpacker(x, i, n, fmt='int'):
     fmt_sz = fmt_dict[fmt][1]
     
     out = np.array([struct.unpack(fmt_str,
-                                  x[i + fmt_sz * j:i + fmt_sz + fmt_sz * j])[0]
-        for j in range(n)])
+                    file_read[idx + fmt_sz * j:idx + fmt_sz + fmt_sz * j])[0]
+        for j in range(obj_to_read)])
                          
-    i = i + n * fmt_sz
-    return out, i
+    idx += obj_to_read * fmt_sz
+    return out, idx
 
+# XXX The following function is way too long. Break it up!
 def fg_from_pdb(file_name, verbose=True):
     """
     Read the definition of a fiber-group from a .pdb file
@@ -325,20 +367,19 @@ def fg_from_pdb(file_name, verbose=True):
                [ statistical value for this point ] - double
     """
     # Read the file as binary info:
-    f = file(file_name, 'r')
-    f_read = f.read()
+    f_read = file(file_name, 'r').read()
     # This is an updatable index into this read:
-    i = 0
+    idx = 0
     
     # First part is an int encoding the offset (what's that?): 
-    offset, i = _unpacker(f_read, i, 1)  
+    offset, idx = _unpacker(f_read, idx, 1)  
 
     # Next bit are doubles, encoding the xform (4 by 4 = 16 of them):
-    xform, i  = _unpacker(f_read, i, 16, 'double')
-    xform = np.reshape(xform, (4,4))
+    xform, idx  = _unpacker(f_read, idx, 16, 'double')
+    xform = np.reshape(xform, (4, 4))
    
     # Next is an int encoding the number of stats: 
-    numstats, i = _unpacker(f_read, i, 1)
+    numstats, idx = _unpacker(f_read, idx, 1)
 
     # The stats header is a dict with lists holding the stat per 
     stats_header = dict(luminance_encoding=[],  # int => bool
@@ -354,33 +395,33 @@ def fg_from_pdb(file_name, verbose=True):
         for k in ["luminance_encoding",
                   "computed_per_point",
                   "viewable"]:
-            this, i = _unpacker(f_read, i, 1)
+            this, idx = _unpacker(f_read, idx, 1)
             stats_header[k].append(np.bool(this))
 
         for k in ["agg_name", "local_name"]:
-            this, i = _unpacker(f_read, i, 255, 'char')
+            this, idx = _unpacker(f_read, idx, 255, 'char')
             stats_header[k].append(_word_maker(this))
         # Must have integer reads be word aligned (?): 
-        i += 2
-        this, i = _unpacker(f_read, i, 1)
+        idx += 2
+        this, idx = _unpacker(f_read, idx, 1)
         stats_header["uid"].append(this)
 
     # We skip the whole bit with the algorithms and go straight to the version
     # number, which is one int length before the fibers:  
-    i = offset - 4
-    version, i = _unpacker(f_read, i, 1)
+    idx = offset - 4
+    version, idx = _unpacker(f_read, idx, 1)
     if version != 3:
         raise ValueError("Can only read PDB version 3 files")
     elif verbose:
         print("Loading a PDB version 3 file from: %s"%file_name)
 
     # How many fibers?
-    numpaths, i = _unpacker(f_read, i, 1)
+    numpaths, idx = _unpacker(f_read, idx, 1)
     # The next few bytes encode the number of points in each fiber:
-    pts_per_fiber, i = _unpacker(f_read, i, numpaths)
+    pts_per_fiber, idx = _unpacker(f_read, idx, numpaths)
     total_pts = np.sum(pts_per_fiber)
     # Next we have the xyz coords of the nodes in all fibers: 
-    fiber_pts, i = _unpacker(f_read, i, total_pts * 3, 'double')
+    fiber_pts, idx = _unpacker(f_read, idx, total_pts * 3, 'double')
 
     # We extract the information on a fiber-by-fiber basis
     pts_read = 0 
@@ -396,7 +437,7 @@ def fg_from_pdb(file_name, verbose=True):
 
     f_stats_dict = {}
     for stat_idx in range(numstats):
-        per_fiber_stat, i = _unpacker(f_read, i, numpaths, 'double')
+        per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
         f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
 
     n_stats_dict = {}
@@ -405,14 +446,14 @@ def fg_from_pdb(file_name, verbose=True):
         if stats_header["computed_per_point"][stat_idx]:
             name = stats_header["local_name"][stat_idx]
             n_stats_dict[name] = []
-            per_point_stat, i = _unpacker(f_read, i, total_pts, 'double')
+            per_point_stat, idx = _unpacker(f_read, idx, total_pts, 'double')
             for p_idx in range(numpaths):
                 n_stats_dict[name].append(
                     per_point_stat[pts_read : pts_read + pts_per_fiber[p_idx]])
                 
                 pts_read += pts_per_fiber[p_idx]
         else:
-            fiber_pts_stat.append([])
+            per_point_stat.append([])
 
     fibers = []
     # Initialize all the fibers:
@@ -434,9 +475,10 @@ def _word_maker(arr):
     Helper function Make a string out of pdb stats header "name" variables 
     """
     make_a_word = []
-    for x in arr:
-        if x: # The sign that you reached the end of the word is an empty char 
-            make_a_word.append(x)
+    for this in arr:
+        if this: # The sign that you reached the end of the word is an empty
+                 # char
+            make_a_word.append(this)
         else:
             break
     return ''.join(make_a_word)
