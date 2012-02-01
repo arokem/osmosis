@@ -62,11 +62,11 @@ class Tensor(object):
             raise ValueError(e_s)
 
         # It needs to be symmetrical
-        if not np.all(self.Q.T == self.Q):
+        if not np.allclose(self.Q.T, self.Q): # Within some tolerance...
             e_s = "Please provide symmetrical Q"
             raise ValueError(e_s)
 
-    def ADC(self,bvecs):
+    def ADC(self, bvecs):
         """
         Calculate the Apparent diffusion coefficient for the tensor
 
@@ -82,31 +82,72 @@ class Tensor(object):
         # Make sure it's a matrix:
         bvecs = np.matrix(bvecs)       
         return np.diag(bvecs*self.Q*bvecs.T)
-
+    
 # XXX Consider putting these somewhere else, to separate concerns (fibers and
 # tensors...) ? 
 def fiber_tensors(fiber, axial_diffusivity, radial_diffusivity):
     """
-    Produce the tensors for a given a fiber.
+    Produce the tensors for a given a fiber, along its coords.
+
+    Parameters
+    ----------
+    fiber: A Fiber object.
+
+    axial_diffusivity: float
+         The estimated axial diffusivity of a single fiber tensor. 
+
+    radial_diffusivity: float
+         The estimated radial diffusivity of a single fiber tensor.
+         
+    Note
+    ----
+    Estimates of the radial/axial diffusivities may rely on empirical
+    measurements (for example, the AD in the Corpus Callosum), or may be based
+    on a biophysical model of some kind. 
+    """
+    tensors = []
+
+    grad = np.array(np.gradient(fiber.coords)[1])
+    for this_grad in grad.T:
+        u,s,v = la.svd(np.matrix(this_grad.T))
+        this_Q = (np.matrix(v) *
+             np.matrix(np.diag([axial_diffusivity,
+                                radial_diffusivity,
+                                radial_diffusivity])) *
+            np.matrix(v).T)
+        tensors.append(Tensor(this_Q))
+    return tensors
+
+def fiber_signal(S0, bvecs, bvals, tensor_list):
+    """
+    Compute the fiber contribution to the signal in a particular voxel,
+    based on a simplified Stejskal/Tanner equation:
+
+    .. math::
     
-    """
-    grad = np.array(np.gradient(fiber.coords)[0])
-    u,s,v = la.svd(grad)
-    Q = (np.matrix(u).T *
-         np.matrix(np.diag([axial_diffusivity,
-                            radial_diffusivity,
-                            radial_diffusivity])) *
-            np.matrix(u))
+       S = S0 exp^{-bval (\vec{b}*Q*\vec{b}^T)}
 
-    return Tensor(Q)
-
-def fiber_signal(tensor_list, ):
-
-    """
-    Compute the fiber contribution to the signal, based on a simplified
-    Stejskal/Tanner equation.
+    Where $\vec{b} * Q * \vec{b}^t$ is the ADC for each tensor
+    
 
     Parameters
     ----------
     """
-    raise NotImplementedError
+    n_tensors = len(tensor_list)
+    
+    # Calculate all the ADCs and hold them in an ordered list: 
+    ADC = []
+    for T in tensor_list:
+        ADC.append(T.ADC(bvecs))
+
+    # Cast as array:
+    ADC = np.asarray(ADC)
+
+    # This is the equation itself: 
+    S = (S0 *
+         np.exp(
+             -1 * np.tile(bvals, ADC.shape[0]) * ADC.ravel()
+             ).reshape(ADC.shape))
+
+    # We sum over all the niodes in the voxel:
+    return np.sum(S,0)

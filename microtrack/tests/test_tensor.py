@@ -32,22 +32,41 @@ def test_Tensor():
     mtt.Tensor(Q4)
 
 def test_Tensor_ADC():
-    bvec = np.array([1,0,0])
-    Q1 = np.eye(3)
+    # If we have a diagonal tensor: 
+    Q1_diag = np.random.rand(3)
+    Q1 = np.diag(Q1_diag)
     T1 = mtt.Tensor(Q1)
-    npt.assert_equal(T1.ADC(bvec), 1)
+    # And the bvecs are unit vectors: 
+    bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
+    # We should simply get back the diagonal elements of the tensor:
+    npt.assert_equal(T1.ADC(bvecs), Q1_diag)
 
-    # This also works with multiple bvecs:
-    bvecs = np.array([[0,0,1],[0,1,0]])
-    npt.assert_equal(T1.ADC(bvecs), [1, 1])
-
-# XXX This might need to be in some other place? 
+# XXX These might end up in some other place? 
 def test_fiber_tensors():
-    f1 = mtf.Fiber([[1,2],[3,4],[5,6]])
-
+    f1 = mtf.Fiber([[2,2,3],[3,3,4],[4,4,5]])
+    # Values for axial and radial diffusivity randomly chosen:
+    ad = np.random.rand()
+    rd = np.random.rand()
+    tensors = mtt.fiber_tensors(f1, ad, rd)
+    npt.assert_equal(tensors[0].Q, np.diag([ad, rd, rd]))
+    
+def test_fiber_signal():
+    f1 = mtf.Fiber([[2,2],[3,3],[4,4]])
     # Values for axial and radial diffusivity
     ad = 1.5
     rd = 0.5
-    mtt.fiber_tensors(f1, ad, rd)
-    
-    
+    tensor_list = mtt.fiber_tensors(f1, ad, rd)
+
+    # Simple bvecs/bvals:
+    bvecs = [[1,0,0], [0,1,0], [1,0,0], [0,0,0]]
+    bvals = [1,1,1,0]
+    S0 = 1
+    fs = mtt.fiber_signal(S0, bvecs, bvals, tensor_list)
+
+    ind_nodes = [S0 * np.exp(-tensor_list[i].ADC(bvecs[0])) for i
+                 in range(len(tensor_list))]
+    # Summing over individual nodes: 
+    sum_ind_nodes =  np.sum(ind_nodes)
+
+    # Should give you the total signal:
+    npt.assert_equal(fs[0],sum_ind_nodes)
