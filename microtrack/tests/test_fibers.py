@@ -82,6 +82,36 @@ def test_Fiber_xform():
     npt.assert_equal(f5.xform(inplace=False).xform(inplace=False).affine,
                      f5.affine)
 
+
+def test_Fiber_unique_coords():
+    """
+    Test class method Fiber.unique_coords
+    """
+
+    arr = np.array([[1,1,1],[2,2,2],[3,3,3]])
+    npt.assert_equal(mtf.Fiber(arr).unique_coords, np.array([[1],[2],[3]]))
+
+    arr = np.array([[3,2,3],[2,2,2],[10,10,10]])
+    npt.assert_equal(mtf.Fiber(arr).unique_coords,
+                     np.array([[3,2],[2,2],[10,10]]))
+
+    for x in range(1000):
+        x1 = np.random.randn()
+        x2 = np.random.randn()
+        y1 = np.random.randn()
+        y2 = np.random.randn()
+        z1 = np.random.randn()
+        z2 = np.random.randn()
+        # So the next line isn't too long:
+        npta = npt.assert_equal
+        npta(mtf.Fiber([[x1,x2,x1],[y1,y2,y1],[z1,z2,z1]]).unique_coords,
+                                   np.array([[x1,x2],[y1,y2],[z1,z2]]))
+        
+    arr2d = np.array([[1,2,1], [3,4,3],[5,6,5]])
+    f1 = mtf.Fiber(arr2d)
+
+    npt.assert_equal(f1.unique_coords, np.array([[1,2],[3,4],[5,6]]))
+
 def test_FiberGroup():
     """
     Testing intialization of FiberGroup class.
@@ -157,6 +187,33 @@ def test_FiberGroup_xform():
     # Even to the fibers:
     npt.assert_equal(f8.affine, np.eye(4))
 
+def test_FiberGroup_unique_coords():
+    """
+    Test class method Fiber.unique_coords
+    """
+    for x in range(1000):
+        x1 = np.random.randn()
+        x2 = np.random.randn()
+        y1 = np.random.randn()
+        y2 = np.random.randn()
+        z1 = np.random.randn()
+        z2 = np.random.randn()
+        # So the next line isn't too long:
+        npta = npt.assert_equal
+        # Should work if both fibers have non-unique coords
+        npta(mtf.FiberGroup([mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]]),
+            mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]])]).unique_coords,
+            np.array([[x1,x2],[y1,y2],[z1,z2]]))
+
+        # And also for extracting across fibers with unique coords
+        npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
+                 mtf.Fiber([[x2],[y2],[z2]])]).unique_coords,
+            np.array([[x1,x2],[y1,y2],[z1,z2]]))
+        
+        # And also for extracting across shared coords
+        npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
+                 mtf.Fiber([[x2,x1],[y2,y1],[z2,z1]])]).unique_coords,
+            np.array([[x1,x2],[y1,y2],[z1,z2]]))
 
 def test_read_from_pdb():
     """

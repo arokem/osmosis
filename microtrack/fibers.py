@@ -8,8 +8,12 @@ import os
 
 # Import from 3rd party: 
 import numpy as np
+import scipy.stats as stats
 
-class Fiber(object):
+# Import local: 
+import descriptors as desc
+
+class Fiber(desc.ResetMixin):
     """
     This represents a single fiber, its node coordinates and statistics
     """
@@ -21,7 +25,7 @@ class Fiber(object):
         Parameters
         ----------
         coords: np.array of shape 3 x n
-            The xyz coordinates of the nodes comprising the fiber.
+            The x,y,z coordinates of the nodes comprising the fiber.
 
         affine: np.array of shape 4 x 4
             homogenous affine giving relationship between voxel-based
@@ -140,8 +144,25 @@ class Fiber(object):
                          affine.getI(),
                          self.fiber_stats,
                          self.node_stats)
-            
+
+    @desc.auto_attr
+    def unique_coords(self):
+        """
+        What are the unique spatial coordinates in the fiber
         
+        Parameters
+        ----------
+        res: array-like with 3 items for the resolution in the x/y/z
+        directions.
+        """
+        # This is like Matlab's unique(coords, 'rows'), but preserves order(!) 
+        return stats._support.unique(self.coords.T).T
+    
+    def resample_coords(self, inplace=True):
+        """
+        Resample the spatial coordinates
+        """
+    
 class FiberGroup(object):
     """
     This represents a group of fibers.
@@ -274,7 +295,22 @@ class FiberGroup(object):
                               color=[200, 200, 100],
                               thickness=-0.5,
                               affine=affine) # It's already been inverted above
-                
+
+
+    @desc.auto_attr
+    def unique_coords(self):
+        """
+        The unique spatial coordinates of all the fibers in the FiberGroup
+        """
+        tmp = []
+        for fiber in self.fibers:
+            tmp.append(fiber.unique_coords)
+
+        # Concatenate 'em together:
+        tmp = np.hstack(tmp)
+        tmp = stats._support.unique(tmp.T)
+        return np.reshape(tmp,(np.prod(tmp.shape)/3,3)).T
+        
 def _unpacker(file_read, idx, obj_to_read, fmt='int'):
 
     """
