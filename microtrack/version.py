@@ -53,7 +53,11 @@ MICRO = _version_micro
 VERSION = __version__
 PACKAGES = ['microtrack',
             'microtrack.tests',
+            'microtrack.fibers',
+            'microtrack.tensor',
+            'microtrack.viz'
             ]
-PACKAGE_DATA = {"nitime": ["LICENSE", "tests/*.txt", "tests/*.npy",
-                                  "data/*.nii.gz","data/*.txt", "data/*.csv"]}
+PACKAGE_DATA = {"microtrack": ["LICENSE", "data/*.pdb", "data/*.mat",
+                               "camino_pts/*.txt"]}
+
 REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel"]
