@@ -4,11 +4,12 @@ Utilities for sub-sampling b vectors from dwi experiments
 
 """ 
 
-
-import wmret
 import numpy as np
 import scipy
 from scipy import linalg as la
+
+import microtrack as mt
+
 def subsample(bvecs, n, elec_points=None):
     """
 
@@ -16,7 +17,7 @@ def subsample(bvecs, n, elec_points=None):
 
     Parameters
     ----------
-    bvecs: int array (3 by n), a set of cartesian coordinates for a set of
+    bvecs: int array (n by 3), a set of cartesian coordinates for a set of
     bvecs 
     n: int, how many bvecs to sub-sample from this set. 
     elec_points: optional, a set of points read from the camino points, using
@@ -33,8 +34,8 @@ def subsample(bvecs, n, elec_points=None):
 
     """
     if elec_points is None: 
-        wmret_path = wmret.__path__[0]
-        e_points = np.loadtxt('%s/camino_pts/Elec%03d.txt'%(wmret_path, n))
+        mt_path = mt.__path__[0]
+        e_points = np.loadtxt('%s/camino_pts/Elec%03d.txt'%(mt_path, n))
 
     else:
         e_points = elec_points.copy()
@@ -53,7 +54,7 @@ def subsample(bvecs, n, elec_points=None):
     xyz[rand_half_idx] *=-1
     
     # The seed bvec is the one relative to which all the rest are chosen:
-    seed = np.ceil(np.random.rand() * xyz.shape[0])
+    seed = np.ceil(np.random.rand() * xyz.shape[0]).astype(int)
     seed_coords = bvecs[seed]
 
     # Get the rotation matrix: 
