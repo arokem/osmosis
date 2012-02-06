@@ -13,6 +13,8 @@ import numpy as np
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None):
     """
     Display a 3-d volume of data as a 2-d mosaic
+
+    XXX This is broken. Needs to be fixed.
     
     """
     sq = int(np.ceil(np.sqrt(len(vol))))
@@ -22,7 +24,7 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None):
     height = im.shape[0]
     width = im.shape[1]
     for i in range(sq):
-        this_im = np.hstack(vol[9*i:9*(i+1)])
+        this_im = np.hstack(vol[(len(vol)/sq)*i:(len(vol)/sq)*(i+1)])
         wid_margin = width - this_im.shape[-1]
         if wid_margin: 
             this_im = np.hstack([this_im, np.zeros((height, wid_margin))])

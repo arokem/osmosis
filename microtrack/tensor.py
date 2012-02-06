@@ -1,5 +1,8 @@
+import warnings
+
 import numpy as np
 import scipy.linalg as la
+
 import descriptors as desc
 
 class Tensor(object):
@@ -66,16 +69,16 @@ class Tensor(object):
         if not np.allclose(self.Q.T, self.Q): # Within some tolerance...
             e_s = "Please provide symmetrical Q"
             raise ValueError(e_s)
-
+        
     def ADC(self, bvecs):
         """
         Calculate the Apparent diffusion coefficient for the tensor
-
+        
         Parameters
         ----------
         bvecs: n by 3 array
             unit vectors on the sphere
-
+            
         Notes
         -----
         This is calculated as $ADC = \vec{b} Q \vec{b}^T$
@@ -83,72 +86,91 @@ class Tensor(object):
         # Make sure it's a matrix:
         bvecs = np.matrix(bvecs)       
         return np.diag(bvecs*self.Q*bvecs.T)
-    
-# XXX Consider putting these somewhere else, to separate concerns (fibers and
-# tensors...) ? 
-def fiber_tensors(fiber, axial_diffusivity, radial_diffusivity):
-    """
-    Produce the tensors for a given a fiber, along its coords.
 
+    def predicted_signal(self, S0, bvecs, bvals):
+        """
+        Calculate the signal predicted from the properties of this tensor. 
+        
+        Parameters
+        ----------
+        S0: float
+            The baseline signal, relative to which the signal is calculated.
+            
+        bvecs: n by 3 array
+            Unit vectors on the sphere for which the calculation is performed.
+
+        bvals: float, or a len(n) array
+            The b-weighting values used in each of the directions in bvecs.
+
+        Returns
+        -------
+        The predicted signal in the directions given by bvecs
+        
+        Notes
+        -----
+        This implements the following formulation of the Stejskal/Tanner
+        equation (see
+        http://en.wikipedia.org/wiki/Diffusion_MRI#Diffusion_imaging):
+        
+        .. math::
+    
+            S = S0 exp^{-bval ADC }
+    
+        Where ADC is:
+
+        .. math::
+        
+            ADC = \vec{b} Q \vec{b}^T
+        
+        """
+
+        # We calculate ADC and pass that to the S/T equation:
+        return stejskal_tanner(S0, bvecs, bvals, None, self.ADC(bvecs))
+
+def stejskal_tanner(S0, bvecs, bvals, Q=None, ADC=None):
+    """
     Parameters
     ----------
-    fiber: A Fiber object.
+    S0: float
+       The signal observed in the voxel with 0 b-weighting (baseline).
 
-    axial_diffusivity: float
-         The estimated axial diffusivity of a single fiber tensor. 
+    bvecs: n by 3 array
+       Unit vectors on the sphere for which the calculation is performed.
 
-    radial_diffusivity: float
-         The estimated radial diffusivity of a single fiber tensor.
-         
-    Note
-    ----
-    Estimates of the radial/axial diffusivities may rely on empirical
-    measurements (for example, the AD in the Corpus Callosum), or may be based
-    on a biophysical model of some kind. 
-    """
-    tensors = []
+    bvals: float, or a len(n) array
+       The b-weighting values used in each of the directions in bvecs.
 
-    grad = np.array(np.gradient(fiber.coords)[1])
-    for this_grad in grad.T:
-        u,s,v = la.svd(np.matrix(this_grad.T))
-        this_Q = (np.matrix(v) *
-             np.matrix(np.diag([axial_diffusivity,
-                                radial_diffusivity,
-                                radial_diffusivity])) *
-            np.matrix(v).T)
-        tensors.append(Tensor(this_Q))
-    return tensors
+    Q: 3 by 3 matrix
+       The Q matrix of a tensor.
 
-def fiber_signal(S0, bvecs, bvals, tensor_list):
-    """
-    Compute the fiber contribution to the signal in a particular voxel,
-    based on a simplified Stejskal/Tanner equation:
+    ADC: float
+        The apparent diffusion coefficient.
+    
+    
+    Notes
+    -----
 
+    Need to provide either Q or ADC. If both are provided, the ADC value will
+    be used and the Q value will be ignored.
+
+    This is an implementation of the Stejskal Tanner equation, in the following
+    form: 
+    
     .. math::
     
-       S = S0 exp^{-bval (\vec{b}*Q*\vec{b}^T)}
+    S = S0 exp^{-bval (\vec{b}*Q*\vec{b}^T)}
 
-    Where $\vec{b} * Q * \vec{b}^t$ is the ADC for each tensor
-    
-
-    Parameters
-    ----------
     """
-    n_tensors = len(tensor_list)
+    if Q is None and ADC is None:
+        e_s = "Cannot calculate the Stejskal/Tanner equation without ADC or Q" 
+        e_s = "inputs."
+        raise ValueError()
+
+    if Q is not None and ADC is not None:
+        w_s = "Provided both Q and ADC. I will use the ADC you provided and"
+        w_s += " ignore Q"
+        warnings.warn(w_s)
+    if ADC is None:
+        ADC = np.diag(np.asarray(bvecs) * Q * np.asarray(bvecs).T)        
+    return S0 * np.exp(-np.asarray(bvals) * ADC)
     
-    # Calculate all the ADCs and hold them in an ordered list: 
-    ADC = []
-    for T in tensor_list:
-        ADC.append(T.ADC(bvecs))
-
-    # Cast as array:
-    ADC = np.asarray(ADC)
-
-    # This is the equation itself: 
-    S = (S0 *
-         np.exp(
-             -1 * np.tile(bvals, ADC.shape[0]) * ADC.ravel()
-             ).reshape(ADC.shape))
-
-    # We sum over all the niodes in the voxel:
-    return np.sum(S,0)

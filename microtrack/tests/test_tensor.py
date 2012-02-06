@@ -1,3 +1,5 @@
+import exceptions
+
 import microtrack.tensor as mtt
 import microtrack.fibers as mtf
 
@@ -41,32 +43,50 @@ def test_Tensor_ADC():
     # We should simply get back the diagonal elements of the tensor:
     npt.assert_equal(T1.ADC(bvecs), Q1_diag)
 
-# XXX These might end up in some other place? 
-def test_fiber_tensors():
-    f1 = mtf.Fiber([[2,2,3],[3,3,4],[4,4,5]])
-    # Values for axial and radial diffusivity randomly chosen:
-    ad = np.random.rand()
-    rd = np.random.rand()
-    tensors = mtt.fiber_tensors(f1, ad, rd)
-    npt.assert_equal(tensors[0].Q, np.diag([ad, rd, rd]))
+def test_Tensor_predicted_signal():
+    """
+    Test prediction of the signal from the Tensor:
+    """
+    Q1_diag = np.random.rand(3)
+    Q1 = np.diag(Q1_diag)
+    T1 = mtt.Tensor(Q1)
+    # And the bvecs are unit vectors: 
+    bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
+    bvals = [1,1,1]
+
+    # Should be possible to provide a value of S0 per bvec:
+    S0_1 = [1,1,1]
+
+    # In this case, that should give the same answer as just providing a single
+    # scalar value:
+    S0_2 = [1]
     
-def test_fiber_signal():
-    f1 = mtf.Fiber([[2,2],[3,3],[4,4]])
-    # Values for axial and radial diffusivity
-    ad = 1.5
-    rd = 0.5
-    tensor_list = mtt.fiber_tensors(f1, ad, rd)
+    npt.assert_equal(T1.predicted_signal(S0_1, bvecs, bvals),
+                     T1.predicted_signal(S0_2, bvecs, bvals))
+                     
 
-    # Simple bvecs/bvals:
-    bvecs = [[1,0,0], [0,1,0], [1,0,0], [0,0,0]]
-    bvals = [1,1,1,0]
+    
+def test_stejskal_tanner():
+    """
+    Test the implementation of the S/T equation.
+
+    """
+    bvecs = [[1,0,0],[0,1,0],[0,0,1]]
+    bvals = [1,1,1]
     S0 = 1
-    fs = mtt.fiber_signal(S0, bvecs, bvals, tensor_list)
 
-    ind_nodes = [S0 * np.exp(-tensor_list[i].ADC(bvecs[0])) for i
-                 in range(len(tensor_list))]
-    # Summing over individual nodes: 
-    sum_ind_nodes =  np.sum(ind_nodes)
+    # Input checking:
+    npt.assert_raises(ValueError, mtt.stejskal_tanner, S0, bvecs, bvals)
 
-    # Should give you the total signal:
-    npt.assert_equal(fs[0],sum_ind_nodes)
+    ADC = np.random.rand(3)
+    Q = np.diag(ADC)
+
+    # If you provide both, you get a warning
+    npt.assert_warns(exceptions.UserWarning, mtt.stejskal_tanner, S0,
+                      bvecs, bvals, Q, ADC)
+
+    # Otherwise, these should give the same answer: 
+    npt.assert_equal(mtt.stejskal_tanner(S0, bvecs, bvals, Q=Q),
+                     mtt.stejskal_tanner(S0, bvecs, bvals, ADC=ADC ))
+
+    

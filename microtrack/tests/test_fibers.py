@@ -112,6 +112,45 @@ def test_Fiber_unique_coords():
 
     npt.assert_equal(f1.unique_coords, np.array([[1,2],[3,4],[5,6]]))
 
+
+def test_Fiber_tensors():
+    """
+    Test generation of tensors from fiber coordinates
+    """ 
+
+    f1 = mtf.Fiber([[2,2,3],[3,3,4],[4,4,5]])
+    # Values for axial and radial diffusivity randomly chosen:
+    ad = np.random.rand()
+    rd = np.random.rand()
+    tensors = f1.tensors(ad, rd)
+    npt.assert_equal(tensors[0].Q, np.diag([ad, rd, rd]))
+    npt.assert_equal(len(tensors), len(f1.coords))
+
+
+def test_Fiber_predicted_signal():
+    """
+
+    Test fiber prediction of the signal along its coordinates
+
+    """
+    f1 = mtf.Fiber([[2,2,3,5],[3,3,4,6],[4,4,5,7]])
+    bvecs = [[1,0,0], [0,1,0], [0,0,1]]
+    bvals = [1,1,1]
+    # It should be possible to provide S0 on a per-voxel basis:
+    S0 = [1,2,3,4]
+    ad = np.random.rand()
+    rd = np.random.rand()
+    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
+
+    # Or on a per-voxel, per bvec basis: 
+    S0 = np.random.rand(f1.coords.shape[-1], len(bvecs))
+    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
+
+    # Or just one number:
+    S0 = np.random.rand()
+    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
+
+
 def test_FiberGroup():
     """
     Testing intialization of FiberGroup class.
