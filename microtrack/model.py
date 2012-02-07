@@ -34,7 +34,7 @@ class Model(object):
 
         # If you provided file-names and not a DWI class object, we will
         # generate one for you right here and replace it inplace: 
-        if class(DWI) in [list, np.ndarray, tuple]:
+        if DWI.__class__ in [list, np.ndarray, tuple]:
             DWI = dwi.DWI(DWI[0], DWI[1], DWI[2])
         
         self.data = DWI.data
