@@ -1,4 +1,12 @@
+import os
+
+import numpy as np
+import numpy.testing as npt
+
+import microtrack as mt
 import microtrack.model as mtm
+import microtrack.fibers as mtf
+import microtrack.dwi as dwi
 
 # Initially, we want to check whether the data is available (would have to be
 # downloaded separately, because it's huge): 
@@ -8,10 +16,23 @@ if 'dwi.nii.gz' in os.listdir(data_path):
 else:
     no_data = True
 
-
+# This takes some time, because it requires reading large data files and of
+# course, needs to be skipped if the data is no where to be found: 
+@npt.decorators.slow
+@npt.decorators.skipif(no_data)
 def test_Model():
     """
 
     Test the initialization of Model class objects
     
     """ 
+    ad = 1.5
+    rd = 0.5
+    FG = mtf.fg_from_pdb(data_path + 'FG_w_stats.pdb',
+                     verbose=False)
+
+    DWI = dwi.DWI(data_path + 'dwi.nii.gz',
+              data_path + 'dwi.bvecs',
+              data_path + 'dwi.bvals')
+
+    M1 = mtm.Model(DWI, FG, ad, rd)

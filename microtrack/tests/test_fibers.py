@@ -241,17 +241,17 @@ def test_FiberGroup_unique_coords():
         npta = npt.assert_equal
         # Should work if both fibers have non-unique coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]]),
-            mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]])]).unique_coords,
+            mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]])]).unique_coords(),
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
 
         # And also for extracting across fibers with unique coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
-                 mtf.Fiber([[x2],[y2],[z2]])]).unique_coords,
+                 mtf.Fiber([[x2],[y2],[z2]])]).unique_coords(),
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
         
         # And also for extracting across shared coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
-                 mtf.Fiber([[x2,x1],[y2,y1],[z2,z1]])]).unique_coords,
+                 mtf.Fiber([[x2,x1],[y2,y1],[z2,z1]])]).unique_coords(),
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
 
 def test_read_from_pdb():

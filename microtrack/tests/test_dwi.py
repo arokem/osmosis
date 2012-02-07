@@ -17,7 +17,8 @@ else:
     no_data = True
 
 
-# This takes some time, because it requires reading large data files
+# This takes some time, because it requires reading large data files and of
+# course, needs to be skipped if the data is no where to be found: 
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
 def test_DWI():

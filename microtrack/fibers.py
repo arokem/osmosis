@@ -337,28 +337,41 @@ class FiberGroup(object):
         """
         if affine is None:
             affine = self.affine
+            in_affine = False  # We need to be able to discriminate between
+                               # affines provided by the class instance and
+                               # affines provided as inputs
+        else:
+            in_affine = True
 
         if not inplace:
             fibs = np.copy(self.fibers) # Make a copy, to be able to do this not
                                         # inplace
         else:
-            fibs = self.fibers
+            fibs = self.fibers # Otherwise, save memory by pointing to the same
+                               # objects in memory
             
         for this_f in fibs:
-            if this_f.affine is None:
-                if affine is not None:
-                    # Make sure it's a matrix:
-                    affine = np.matrix(affine)
-                    # Do it inplace (for the copy, if you made one above): 
-                    this_f.xform(affine)
+            # This one takes the highest precedence: 
+            if in_affine:
+                this_f.xform(np.matrix(affine))
+
+            # Otherwise, the fiber affines take precedence: 
+            elif this_f.affine is not None:
+                this_f.xform()
+                affine = None # The resulting object should not have an
+                              # affine.
+                
+            # And finally resort to the FG's affine:
             else:
-                this_f.xform(this_f.affine, inplace)
+                this_f.xform(self.affine)
+                affine = self.affine # Invert the objects affine,
+                                        # before assigning to the output
 
-        # If this was self.affine, it will be assigned there now and stick:
-        if affine is not None: 
-            affine = affine.getI()
-
+        if affine is not None:
+            affine = np.matrix(affine).getI()
+            
         if inplace:
+            self.fibers = fibs
             self.affine = affine
 
         # If we asked to do things inplace, we are done. Otherwise, we return a
@@ -371,14 +384,13 @@ class FiberGroup(object):
                               affine=affine) # It's already been inverted above
 
 
-    @desc.auto_attr
     def unique_coords(self):
         """
         The unique spatial coordinates of all the fibers in the FiberGroup
         """
         tmp = []
         for fiber in self.fibers:
-            tmp.append(fiber.unique_coords)
+            tmp.append(fiber.coords)
 
         # Concatenate 'em together:
         tmp = np.hstack(tmp)
@@ -543,7 +555,7 @@ def fg_from_pdb(file_name, verbose=True):
                    fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
                    (n_nodes, 3)).T)
         pts_read += n_nodes
-        if verbose and np.mod(p_idx+1, 1000)==0:
+        if verbose and np.mod(p_idx, 1000)==0:
             print("Loaded %s of %s paths"%(p_idx, numpaths[0]))            
 
     f_stats_dict = {}
