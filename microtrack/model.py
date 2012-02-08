@@ -139,7 +139,7 @@ class FiberModel(TensorModel):
                                        self.radial_diffusivity,
                                        self.S0[idx[0],idx[1],idx[2]],
                                        self.bvecs[:, b_idx].squeeze(),
-                                       self.bvals[b_idx])
+                                       self.bvals[b_idx]).T
         
             # Bring everything to the common frame of reference: 
             pred_sig.append(this_sig[self.idx[0],
@@ -154,4 +154,4 @@ class FiberModel(TensorModel):
         The signal in the voxels corresponding to where the fibers pass through.
         """ 
 
-        return self.data[self.idx[0], self.idx[1], self.idx[2]].ravel()
+        return self.S_weighted[self.idx[0], self.idx[1], self.idx[2]].ravel()

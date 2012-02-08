@@ -36,4 +36,5 @@ def test_FiberModel():
               data_path + 'dwi.bvals')
 
     M = mtm.FiberModel(DWI, FG, ad, rd)
-    M.matrix
+    npt.assert_equal(M.matrix.shape[-1], M.sig.shape[0])
+    npt.assert_equal(M.matrix.shape[0], len(FG.fibers))

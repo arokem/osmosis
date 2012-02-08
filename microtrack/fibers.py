@@ -220,25 +220,15 @@ class Fiber(desc.ResetMixin):
         Parameters
         ----------
         """
-        tensor_list = self.tensors(bvecs,
-                                   bvals,
-                                   axial_diffusivity,
-                                   radial_diffusivity)
-        S = []
+        tens = self.tensors(bvecs,
+                            bvals,
+                            axial_diffusivity,
+                            radial_diffusivity)
+        
+        ADC = np.array([ten.ADC for ten in tens])
 
-        # There's either on S0 per voxel (and possibly bvec)
-        if np.iterable(S0) and len(S0) == len(tensor_list):
-            for idx, T in enumerate(tensor_list):
-                S.append(T.predicted_signal(S0[idx]))
-
-        # Or just one global S0:
-        else: 
-            for idx, T in enumerate(tensor_list):
-                S.append(T.predicted_signal(S0))
-                
-        return np.array(S) # XXX Consider how to sum over nodes in a single
-                            # voxel.
-
+        # Call S/T with the ADC as input:
+        return mtt.stejskal_tanner(S0, bvecs, bvals, ADC=ADC)
 
 class FiberGroup(object):
     """
@@ -386,6 +376,12 @@ class FiberGroup(object):
                               thickness=-0.5,
                               affine=affine) # It's already been inverted above
 
+    def __getitem__(self, i):
+        """
+        Overload __getitem__ to return the i'th fiber when indexing.
+        """
+        return self.fibers[i]
+    
     def coords(self):
         """
         Hold all the coords from all fibers:

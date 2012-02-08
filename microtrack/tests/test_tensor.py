@@ -96,19 +96,13 @@ def test_stejskal_tanner():
     bvecs = [[1,0,0],[0,1,0],[0,0,1]]
     bvals = [1,1,1]
     S0 = 1
-
-    # Input checking:
-    npt.assert_raises(ValueError, mtt.stejskal_tanner, S0, bvecs, bvals)
-
     ADC = np.random.rand(3)
     Q = np.diag(ADC)
 
-    # If you provide both, you get a warning
-    npt.assert_warns(exceptions.UserWarning, mtt.stejskal_tanner, S0,
-                      bvecs, bvals, Q, ADC)
+    # Calculate explicitely:
+    st = S0 * np.exp(-1 * np.asarray(bvecs).T * Q * np.asarray(bvecs))
 
-    # Otherwise, these should give the same answer: 
-    npt.assert_equal(mtt.stejskal_tanner(S0, bvecs, bvals, Q=Q),
-                     mtt.stejskal_tanner(S0, bvecs, bvals, ADC=ADC ))
+    # These should give the same answer: 
+    npt.assert_equal(mtt.stejskal_tanner(S0, bvecs, bvals, ADC), np.diag(st))
 
     

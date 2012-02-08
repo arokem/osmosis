@@ -155,9 +155,9 @@ class Tensor(object):
         """
 
         # We calculate ADC and pass that to the S/T equation:
-        return stejskal_tanner(S0, self.bvecs, self.bvals, None, self.ADC)
+        return stejskal_tanner(S0, self.bvecs, self.bvals, self.ADC)
 
-def stejskal_tanner(S0, bvecs, bvals, Q=None, ADC=None):
+def stejskal_tanner(S0, bvecs, bvals, ADC):
     """
     Parameters
     ----------
@@ -170,37 +170,24 @@ def stejskal_tanner(S0, bvecs, bvals, Q=None, ADC=None):
     bvals: float, or a len(n) array
        The b-weighting values used in each of the directions in bvecs.
 
-    Q: 3 by 3 matrix
-       The Q matrix of a tensor.
-
     ADC: float
         The apparent diffusion coefficient.
     
     
     Notes
     -----
-
-    Need to provide either Q or ADC. If both are provided, the ADC value will
-    be used and the Q value will be ignored.
-
+    
     This is an implementation of the Stejskal Tanner equation, in the following
     form: 
     
     .. math::
     
-    S = S0 exp^{-bval (\vec{b}*Q*\vec{b}^T)}
+    S = S0 exp^{-bval ADC}
+
+    Where $ADC = (\vec{b}*Q*\vec{b}^T)$
 
     """
-    if Q is None and ADC is None:
-        e_s = "Cannot calculate the Stejskal/Tanner equation without ADC or Q" 
-        e_s = "inputs."
-        raise ValueError()
 
-    if Q is not None and ADC is not None:
-        w_s = "Provided both Q and ADC. I will use the ADC you provided and"
-        w_s += " ignore Q"
-        warnings.warn(w_s)
-    if ADC is None:
-        ADC = np.diag(np.asarray(bvecs) * Q * np.asarray(bvecs).T)        
-    return S0 * np.exp(-np.asarray(bvals) * ADC)
+    e = np.exp(-np.asarray(bvals) * ADC)
+    return np.asarray(S0) * e.T 
     

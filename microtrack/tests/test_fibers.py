@@ -144,10 +144,6 @@ def test_Fiber_predicted_signal():
     rd = np.random.rand()
     sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
 
-    # Or on a per-voxel, per bvec basis: 
-    S0 = np.random.rand(f1.coords.shape[-1], len(bvecs))
-    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
-
     # Or just one number:
     S0 = np.random.rand()
     sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
