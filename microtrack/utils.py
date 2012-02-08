@@ -31,11 +31,11 @@ def unique_rows(in_array, dtype='f4'):
                   xrange(in_array.shape[0])],
         dtype=(''.join(['%s,'%dtype]* in_array.shape[-1])[:-1])) 
 
-    u,i = np.unique(x,return_inverse=True)
-    u_i = u[np.unique(i)]
+    u,i = np.unique(x,return_index=True)
+    u_i = x[np.sort(i)]
     u_return = np.empty((in_array.shape[-1],len(u_i)))
-    for i in range(len(u_i)):
-        u_return[i] = np.array([x for x in u_i[i]])
+    for j in xrange(len(u_i)):
+        u_return[:,j] = np.array([x for x in u_i[j]])
 
     # Return back the same dtype as you originally had:
     return u_return.T.astype(in_array.dtype)
