@@ -11,37 +11,57 @@ def test_Tensor():
     """
     Test initialization of tensor objects
     """
-
-    npt.assert_raises(ValueError,mtt.Tensor, np.arange(20))
+    bvecs = [[1,0,0],[0,1,0],[0,0,1]]
+    bvals = [1,1,1]
+    
+    npt.assert_raises(ValueError,mtt.Tensor, np.arange(20), bvecs, bvals)
     
     Q1 = [0,1,2,3,4,5]
-    t1 = mtt.Tensor(Q1)
+    t1 = mtt.Tensor(Q1, bvecs, bvals)
     
     # Follows conventions from vistasoft's dt6to33:
     npt.assert_equal(t1.Q, [[0,3,4],[3,1,5],[4,5,2]])
 
     # This should not be an acceptable input (would lead to asymmetric output):
     Q2 = [0,1,2,3,4,5,6,7,8]
-    npt.assert_raises(ValueError, mtt.Tensor, Q2)
+    npt.assert_raises(ValueError, mtt.Tensor, Q2, bvecs, bvals)
 
     # Same here: 
     Q3 = [[0,1,2],[3,4,5],[6,7,8]]
-    npt.assert_raises(ValueError, mtt.Tensor, Q2)
+    npt.assert_raises(ValueError, mtt.Tensor, Q2, bvecs, bvals)
 
     # No problem here:
-
     Q4 = [[0,3,4],[3,1,5],[4,5,2]]
-    mtt.Tensor(Q4)
+    mtt.Tensor(Q4,bvecs,bvals)
+
+    # More error handling:
+    # bvecs and bvals need to be the same length:
+    Q5 = npt.assert_raises(ValueError, mtt.Tensor, Q4, bvecs[:2], bvals)
+
+    # bvecs needs to be 3 by n:
+    Q6 = npt.assert_raises(ValueError, mtt.Tensor, Q4, [[1,0,0,0],
+                                                        [0,1,0,0],
+                                                        [0,0,1,0],
+                                                        [0,0,0,1]],
+        bvals)
+
+    # bvecs need to be unit length!
+    Q7 = npt.assert_raises(ValueError, mtt.Tensor, Q4, [[1,0,0],[0,1,0],[0,1,1]],
+                           bvals)
+    
 
 def test_Tensor_ADC():
     # If we have a diagonal tensor: 
     Q1_diag = np.random.rand(3)
     Q1 = np.diag(Q1_diag)
-    T1 = mtt.Tensor(Q1)
+
     # And the bvecs are unit vectors: 
     bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
+    bvals = [1,1,1]
+    # Initialize: 
+    T1 = mtt.Tensor(Q1,bvecs,bvals)
     # We should simply get back the diagonal elements of the tensor:
-    npt.assert_equal(T1.ADC(bvecs), Q1_diag)
+    npt.assert_equal(T1.ADC, Q1_diag)
 
 def test_Tensor_predicted_signal():
     """
@@ -49,10 +69,12 @@ def test_Tensor_predicted_signal():
     """
     Q1_diag = np.random.rand(3)
     Q1 = np.diag(Q1_diag)
-    T1 = mtt.Tensor(Q1)
+
     # And the bvecs are unit vectors: 
     bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
     bvals = [1,1,1]
+
+    T1 = mtt.Tensor(Q1, bvecs, bvals)
 
     # Should be possible to provide a value of S0 per bvec:
     S0_1 = [1,1,1]
@@ -61,8 +83,8 @@ def test_Tensor_predicted_signal():
     # scalar value:
     S0_2 = [1]
     
-    npt.assert_equal(T1.predicted_signal(S0_1, bvecs, bvals),
-                     T1.predicted_signal(S0_2, bvecs, bvals))
+    npt.assert_equal(T1.predicted_signal(S0_1),
+                     T1.predicted_signal(S0_2))
                      
 
     

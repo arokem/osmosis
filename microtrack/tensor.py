@@ -10,7 +10,7 @@ class Tensor(object):
     Represent a diffusion tensor.
     """
 
-    def __init__(self, Q):
+    def __init__(self, Q, bvecs, bvals):
         """
         Initialize a Tensor object
 
@@ -26,6 +26,12 @@ class Tensor(object):
            parameters are provided, you can recover the other ones from that.
            For length 6
 
+        bvecs: 3 by n array
+            unit vectors on the sphere used in acquiring DWI data. 
+
+        bvals: an array with n items
+            The b-weighting used to measure the DWI data.
+        
         Note
         ----
 
@@ -64,30 +70,54 @@ class Tensor(object):
             e_s += ''.join(["%s, "%n for n in Q.shape])
             e_s += "), but should have shape (9) or (3,3)"
             raise ValueError(e_s)
-
+        
         # It needs to be symmetrical
         if not np.allclose(self.Q.T, self.Q): # Within some tolerance...
             e_s = "Please provide symmetrical Q"
             raise ValueError(e_s)
+
+        # Check inputs:
+        bvecs = np.asarray(bvecs)
+        if len(bvecs.shape)>2 or bvecs.shape[0]!=3:
+            e_s = "bvecs input has shape ("
+            e_s += ''.join(["%s, "%n for n in bvecs.shape])
+            e_s += "); please reshape to be 3 by n"
+            raise ValueError(e_s)
+
+        # They should all be unit-length (to within tolerance):
+        for bv in bvecs.T:
+            norm = np.sqrt(np.dot(bv,bv))
+            if not np.allclose(norm, 1):
+                e_s = "One of the bvecs is length %s "%norm
+                e_s += "; make sure they're all approximately"
+                e_s += " unit length"
+                raise ValueError(e_s)
         
-    def ADC(self, bvecs):
+        bvals = np.asarray(bvals)
+        if bvecs.shape[-1] != bvals.shape[0]:
+            e_s = "bvecs input has shape ("
+            e_s += ''.join(["%s, "%n for n in bvecs.shape])
+            e_s += ") and bvals input has shape: (%s)"%bvals.shape[0]
+            e_s += "; please reshape so they both have the same "
+            raise ValueError(e_s)
+
+        self.bvecs = bvecs
+        self.bvals = bvals
+        
+    @desc.auto_attr
+    def ADC(self):
         """
         Calculate the Apparent diffusion coefficient for the tensor
-        
-        Parameters
-        ----------
-        bvecs: n by 3 array
-            unit vectors on the sphere
             
         Notes
         -----
         This is calculated as $ADC = \vec{b} Q \vec{b}^T$
         """
         # Make sure it's a matrix:
-        bvecs = np.matrix(bvecs)       
-        return np.diag(bvecs*self.Q*bvecs.T)
+        bvecs = np.matrix(self.bvecs)       
+        return np.diag(bvecs.T*self.Q*bvecs)
 
-    def predicted_signal(self, S0, bvecs, bvals):
+    def predicted_signal(self, S0):
         """
         Calculate the signal predicted from the properties of this tensor. 
         
@@ -125,7 +155,7 @@ class Tensor(object):
         """
 
         # We calculate ADC and pass that to the S/T equation:
-        return stejskal_tanner(S0, bvecs, bvals, None, self.ADC(bvecs))
+        return stejskal_tanner(S0, self.bvecs, self.bvals, None, self.ADC)
 
 def stejskal_tanner(S0, bvecs, bvals, Q=None, ADC=None):
     """

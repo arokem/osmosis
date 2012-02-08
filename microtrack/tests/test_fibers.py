@@ -118,11 +118,13 @@ def test_Fiber_tensors():
     Test generation of tensors from fiber coordinates
     """ 
 
+    bvecs = [[1,0,0],[0,1,0],[0,0,1]]
+    bvals = [1,1,1]
     f1 = mtf.Fiber([[2,2,3],[3,3,4],[4,4,5]])
     # Values for axial and radial diffusivity randomly chosen:
     ad = np.random.rand()
     rd = np.random.rand()
-    tensors = f1.tensors(ad, rd)
+    tensors = f1.tensors(bvecs, bvals, ad, rd)
     npt.assert_equal(tensors[0].Q, np.diag([ad, rd, rd]))
     npt.assert_equal(len(tensors), len(f1.coords))
 

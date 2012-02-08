@@ -20,10 +20,10 @@ else:
 # course, needs to be skipped if the data is no where to be found: 
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
-def test_Model():
+def test_FiberModel():
     """
 
-    Test the initialization of Model class objects
+    Test the initialization of FiberModel class instances
     
     """ 
     ad = 1.5
@@ -35,4 +35,5 @@ def test_Model():
               data_path + 'dwi.bvecs',
               data_path + 'dwi.bvals')
 
-    M1 = mtm.Model(DWI, FG, ad, rd)
+    M = mtm.FiberModel(DWI, FG, ad, rd)
+    M.matrix
