@@ -3,14 +3,12 @@
 A module for representing diffusion weighted imaging data
 
 """
-
-import os
 import warnings
 
 import numpy as np
 import nibabel as ni
 
-import descriptors as desc
+import microtrack.descriptors as desc
 
 class DWI(desc.ResetMixin):
     """
@@ -49,16 +47,17 @@ class DWI(desc.ResetMixin):
         # strings, in which case file reads are required, or arrays, in which
         # case no file reads are needed and we assign these arrays into the
         # attributes:
-        for name, val in zip(['data','bvecs','bvals'], [data, bvecs, bvals]): 
+        for name, val in zip(['data', 'bvecs', 'bvals'],
+                             [data, bvecs, bvals]): 
             if isinstance(val, str):
-                exec("self.%s_file = '%s'"%(name, val))
+                exec("self.%s_file = '%s'"% (name, val))
             elif isinstance(val, np.ndarray):
                 # This time we need to give it the name-space:
-                exec("self.%s = val"%name, dict(self=self, val=val))
+                exec("self.%s = val"% name, dict(self=self, val=val))
             else:
-                e_s = "%s seems to be neither an array, "%name
+                e_s = "%s seems to be neither an array, "% name
                 e_s += "nor a file-name\n"
-                e_s += "The value provided was: %s" %val
+                e_s += "The value provided was: %s" % val
                 raise ValueError(e_s)
 
         # You can provide your own affine, if you want and that bypasses the

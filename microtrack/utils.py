@@ -25,7 +25,7 @@ def intersect(arr_list):
     
     arr = arr_list[0].ravel()
     for this_arr in arr_list[1:]:
-        arr = np.intersect1d(arr,this_arr.ravel())
+        arr = np.intersect1d(arr, this_arr.ravel())
 
     return arr
 
@@ -52,7 +52,7 @@ def unique_rows(in_array, dtype='f4'):
                   xrange(in_array.shape[0])],
         dtype=(''.join(['%s,'%dtype]* in_array.shape[-1])[:-1])) 
 
-    u,i = np.unique(x,return_index=True)
+    u,i = np.unique(x, return_index=True)
     u_i = x[np.sort(i)]
     u_return = np.empty((in_array.shape[-1],len(u_i)))
     for j in xrange(len(u_i)):
@@ -61,19 +61,32 @@ def unique_rows(in_array, dtype='f4'):
     # Return back the same dtype as you originally had:
     return u_return.T.astype(in_array.dtype)
         
-def l2_norm(x):
+def l2_norm(arr):
     """
-    The l2 norm of a vector x is is defined as: sqrt(||x||), where ||x|| is the
+    The l2 norm of an array is is defined as: sqrt(||x||), where ||x|| is the
     dot product of the vector.
     """
-    return np.sqrt(np.dot(x,x))
+    return np.sqrt(np.dot(arr, arr))
 
 
-def unit_vector(x, norm=l2_norm):
+def unit_vector(arr, norm_func=l2_norm):
     """
-    Normalize the vector by a norm function (defaults to the l2_norm)
+    Normalize the array by a norm function (defaults to the l2_norm)
+
+    Parameters
+    ----------
+    arr: ndarray
+
+    norm_func: callable
+       A function that is used here to normalize the array.
+
+    Note
+    ----
+    The norm_func is the thing that defines what a unit vector is for the
+    particular application.
+    
     """
-    return x/l2_norm(x)
+    return arr/norm_func(arr)
 
 
 def null_space(A, eps=1e-15):

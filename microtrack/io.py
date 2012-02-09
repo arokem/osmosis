@@ -1,3 +1,9 @@
+"""
+
+File input and output
+
+"""
+
 # Import from standard lib: 
 import struct 
 import os
@@ -65,7 +71,7 @@ def fg_from_pdb(file_name, verbose=True):
         [ currently unused ] - char[255]
         [ unique ID - unique identifier for this stat across files ] - int
 
-    # XXX The algorithms bit is not really working as advertised: 
+    ** The algorithms bit is not really working as advertised: **
     [ number of algorithms ] - int
     for each algorithm:
        [ algorithm name ] - char[255]
@@ -79,8 +85,8 @@ def fg_from_pdb(file_name, verbose=True):
     for each pathway:
        [ header size ] - int
        -- PATHWAY HEADER FOLLOWS --
-       # XXX The following are not actually encoded in the fiber header and are
-         currently set in an arbitrary fashion:
+        ** The following are not actually encoded in the fiber header and are
+         currently set in an arbitrary fashion: **
        [ number of points ] - int
        [ algorithm ID ] - int
        [ seed point index ] - int
@@ -121,7 +127,9 @@ def fg_from_pdb(file_name, verbose=True):
         )
 
     # Read the stats header:
-    for stat in range(numstats):
+    counter = 0
+    while counter < numstats:
+        counter += 1
         for k in ["luminance_encoding",
                   "computed_per_point",
                   "viewable"]:

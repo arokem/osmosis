@@ -172,10 +172,3 @@ def auto_attr(func):
     """
     return OneTimeProperty(func)
 
-
-#-----------------------------------------------------------------------------
-# Deprecated API
-#-----------------------------------------------------------------------------
-
-# For backwards compatibility
-setattr_on_read = auto_attr

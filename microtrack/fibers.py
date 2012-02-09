@@ -7,7 +7,7 @@ import scipy.stats as stats
 import scipy.linalg as la
 
 # Import locally: 
-import descriptors as desc
+import microtrack.descriptors as desc
 import microtrack.tensor as mtt
 import microtrack.utils as mtu
 
@@ -153,8 +153,7 @@ class Fiber(desc.ResetMixin):
         res: array-like with 3 items for the resolution in the x/y/z
         directions.
         """
-        # This is like Matlab's unique(coords, 'rows'), but preserves order(!) 
-        return stats._support.unique(self.coords.T).T
+        return mtu.unique_rows(self.coords.T).T
     
     def tensors(self, bvecs, bvals, axial_diffusivity, radial_diffusivity):
         """
@@ -182,12 +181,12 @@ class Fiber(desc.ResetMixin):
 
         grad = np.array(np.gradient(self.coords)[1])
         for this_grad in grad.T:
-            u,s,v = la.svd(np.matrix(this_grad.T))
-            this_Q = (np.matrix(v) *
+            usv = la.svd(np.matrix(this_grad.T))
+            this_Q = (np.matrix(usv[2]) *
                  np.matrix(np.diag([axial_diffusivity,
                                     radial_diffusivity,
                                     radial_diffusivity])) *
-                np.matrix(v).T)
+                np.matrix(usv[2]).T)
             tensors.append(mtt.Tensor(this_Q, bvecs, bvals))
         return tensors
 
@@ -196,7 +195,7 @@ class Fiber(desc.ResetMixin):
                          bvals,
                          axial_diffusivity,
                          radial_diffusivity,
-                         S0):
+                         signal_unweighted):
         """
         Compute the fiber contribution to the signal along its coords.
 
@@ -210,7 +209,8 @@ class Fiber(desc.ResetMixin):
 
            S = S0 exp^{-bval (\vec{b}*Q*\vec{b}^T)}
 
-        Where $\vec{b} * Q * \vec{b}^t$ is the ADC for each tensor
+        Where $S0$ is the unweighted signal and $\vec{b} * Q * \vec{b}^t$ is
+        the ADC for each tensor.
 
 
         Parameters
@@ -224,7 +224,7 @@ class Fiber(desc.ResetMixin):
         ADC = np.array([ten.ADC for ten in tens])
 
         # Call S/T with the ADC as input:
-        return mtt.stejskal_tanner(S0, bvals, ADC)
+        return mtt.stejskal_tanner(signal_unweighted, bvals, ADC)
 
 class FiberGroup(desc.ResetMixin):
     """
@@ -275,7 +275,6 @@ class FiberGroup(desc.ResetMixin):
             thickness = -0.5
         self.thickness = thickness
         
-        # XXX Need more stuff (more inputs!) here:
         self.fibers = fibers
         self.n_fibers = len(fibers)
         self.n_nodes = np.sum([f.n_nodes for f in self.fibers])
