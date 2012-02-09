@@ -8,7 +8,8 @@ import scipy.linalg as la
 
 # Import locally: 
 import descriptors as desc
-import tensor as mtt
+import microtrack.tensor as mtt
+import microtrack.utils as mtu
 
 class Fiber(desc.ResetMixin):
     """
@@ -47,7 +48,7 @@ class Fiber(desc.ResetMixin):
 
         # Count the nodes
         if len(coords.shape)>1:
-            self.n_nodes = coords.shape[0]
+            self.n_nodes = coords.shape[-1]
         # This is the case in which there is only one coordinate/node:
         else:
             self.n_nodes = 1
@@ -191,11 +192,11 @@ class Fiber(desc.ResetMixin):
         return tensors
 
     def predicted_signal(self,
+                         bvecs,
+                         bvals,
                          axial_diffusivity,
                          radial_diffusivity,
-                         S0,
-                         bvecs,
-                         bvals):
+                         S0):
         """
         Compute the fiber contribution to the signal along its coords.
 
@@ -219,13 +220,13 @@ class Fiber(desc.ResetMixin):
                             bvals,
                             axial_diffusivity,
                             radial_diffusivity)
-        
+
         ADC = np.array([ten.ADC for ten in tens])
 
         # Call S/T with the ADC as input:
-        return mtt.stejskal_tanner(S0, bvecs, bvals, ADC=ADC)
+        return mtt.stejskal_tanner(S0, bvals, ADC)
 
-class FiberGroup(object):
+class FiberGroup(desc.ResetMixin):
     """
     This represents a group of fibers.
     """
@@ -376,7 +377,8 @@ class FiberGroup(object):
         Overload __getitem__ to return the i'th fiber when indexing.
         """
         return self.fibers[i]
-    
+
+    @desc.auto_attr
     def coords(self):
         """
         Hold all the coords from all fibers:
@@ -390,19 +392,11 @@ class FiberGroup(object):
             
         return tmp
 
+    @desc.auto_attr
     def unique_coords(self):
         """
         The unique spatial coordinates of all the fibers in the FiberGroup.
 
-        XXX This is hella slow.
         """
-        tmp = []
-        for fiber in self.fibers:
-            tmp.append(fiber.coords)
-
-        # Concatenate 'em together:
-        tmp = np.hstack(tmp)
-
-        tmp = stats._support.unique(tmp.T)
-        return np.reshape(tmp,(np.prod(tmp.shape)/3,3)).T
-
+        
+        return mtu.unique_rows(self.coords.T).T 

@@ -155,23 +155,20 @@ class Tensor(object):
         """
 
         # We calculate ADC and pass that to the S/T equation:
-        return stejskal_tanner(S0, self.bvecs, self.bvals, self.ADC)
+        return stejskal_tanner(S0, self.bvals, self.ADC)
 
-def stejskal_tanner(S0, bvecs, bvals, ADC):
+def stejskal_tanner(S0, bvals, ADC):
     """
     Parameters
     ----------
     S0: float
        The signal observed in the voxel with 0 b-weighting (baseline).
 
-    bvecs: n by 3 array
-       Unit vectors on the sphere for which the calculation is performed.
-
     bvals: float, or a len(n) array
        The b-weighting values used in each of the directions in bvecs.
 
     ADC: float
-        The apparent diffusion coefficient.
+        The apparent diffusion coefficient in the order of the relevant bvecs.
     
     
     Notes

@@ -7,6 +7,27 @@ import numpy as np
 import scipy
 import scipy.linalg as la
 
+def intersect(arr_list):
+    """
+    Return the values that are in all arrays.
+
+    Parameters
+    ----------
+    arr_list: list
+        list of ndarrays.
+    
+
+    Returns
+    -------
+    arr: 1-d array with all the values.
+
+    """
+    
+    arr = arr_list[0].ravel()
+    for this_arr in arr_list[1:]:
+        arr = np.intersect1d(arr,this_arr.ravel())
+
+    return arr
 
 def unique_rows(in_array, dtype='f4'): 
     """

@@ -103,6 +103,6 @@ def test_stejskal_tanner():
     st = S0 * np.exp(-1 * np.asarray(bvecs).T * Q * np.asarray(bvecs))
 
     # These should give the same answer: 
-    npt.assert_equal(mtt.stejskal_tanner(S0, bvecs, bvals, ADC), np.diag(st))
+    npt.assert_equal(mtt.stejskal_tanner(S0, bvals, ADC), np.diag(st))
 
     

@@ -196,6 +196,8 @@ def fg_from_pdb(file_name, verbose=True):
                             xform,
                             fiber_stats=dict(zip(f_stat_k, f_stat_v)),
                             node_stats=dict(zip(n_stats_k, n_stats_v))))
+    if verbose:
+        print("Done reading from file")
         
     name = os.path.split(file_name)[-1].split('.')[0]
     return mtf.FiberGroup(fibers, name=name)

@@ -24,3 +24,13 @@ def test_unique_coords():
                              [6,7,8],[0,1,0],[1,0,1]])
     
     npt.assert_equal(mtu.unique_rows(arr), arr_w_unique)
+
+def test_intersect():
+    """
+    Testing the multi-intersect utility function
+    """
+
+    arr1 = np.array(np.arange(1000).reshape(2,500))
+    arr2 = np.array([[1,0.1,0.2],[0.3,0.4, 0.5]])
+    arr3 = np.array(1)
+    npt.assert_equal(1, mtu.intersect([arr1, arr2, arr3]))

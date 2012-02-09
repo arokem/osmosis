@@ -142,11 +142,11 @@ def test_Fiber_predicted_signal():
     S0 = [1,2,3,4]
     ad = np.random.rand()
     rd = np.random.rand()
-    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
+    sig = f1.predicted_signal(bvecs, bvals, ad, rd, S0)
 
     # Or just one number:
     S0 = np.random.rand()
-    sig = f1.predicted_signal(ad, rd, S0, bvecs, bvals)
+    sig = f1.predicted_signal(bvecs, bvals, ad, rd, S0)
 
 
 def test_FiberGroup():
@@ -236,19 +236,19 @@ def test_FiberGroup_unique_coords():
         z1 = np.random.randn()
         z2 = np.random.randn()
         # So the next line isn't too long:
-        npta = npt.assert_equal
+        npta = npt.assert_almost_equal
         # Should work if both fibers have non-unique coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]]),
-            mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]])]).unique_coords(),
+            mtf.Fiber([[x1,x1,x2],[y1,y1,y2],[z1,z1,z2]])]).unique_coords,
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
 
         # And also for extracting across fibers with unique coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
-                 mtf.Fiber([[x2],[y2],[z2]])]).unique_coords(),
+                 mtf.Fiber([[x2],[y2],[z2]])]).unique_coords,
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
         
         # And also for extracting across shared coords
         npta(mtf.FiberGroup([mtf.Fiber([[x1],[y1],[z1]]),
-                 mtf.Fiber([[x2,x1],[y2,y1],[z2,z1]])]).unique_coords(),
+                 mtf.Fiber([[x2,x1],[y2,y1],[z2,z1]])]).unique_coords,
             np.array([[x1,x2],[y1,y2],[z1,z2]]))
 

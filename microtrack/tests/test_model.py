@@ -7,6 +7,7 @@ import microtrack as mt
 import microtrack.model as mtm
 import microtrack.fibers as mtf
 import microtrack.dwi as dwi
+import microtrack.io as mio
 
 # Initially, we want to check whether the data is available (would have to be
 # downloaded separately, because it's huge): 
@@ -28,7 +29,7 @@ def test_FiberModel():
     """ 
     ad = 1.5
     rd = 0.5
-    FG = mtf.fg_from_pdb(data_path + 'FG_w_stats.pdb',
+    FG = mio.fg_from_pdb(data_path + 'FG_w_stats.pdb',
                      verbose=False)
 
     DWI = dwi.DWI(data_path + 'dwi.nii.gz',
@@ -36,5 +37,6 @@ def test_FiberModel():
               data_path + 'dwi.bvals')
 
     M = mtm.FiberModel(DWI, FG, ad, rd)
-    npt.assert_equal(M.matrix.shape[-1], M.sig.shape[0])
-    npt.assert_equal(M.matrix.shape[0], len(FG.fibers))
+
+    npt.assert_equal(M.matrix.shape[0], M.sig.shape[0])
+    npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
