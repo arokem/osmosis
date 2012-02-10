@@ -176,18 +176,18 @@ class Fiber(desc.ResetMixin):
         empirical measurements (for example, the AD in the Corpus Callosum), or
         may be based on a biophysical model of some kind.
         """
-
-        tensors = []
-
+        
+        d_matrix = np.matrix(np.diag([axial_diffusivity,
+                                         radial_diffusivity,
+                                         radial_diffusivity]))
         grad = np.array(np.gradient(self.coords)[1])
-        for this_grad in grad.T:
+        # Preallocate:
+        tensors = np.empty(grad.shape[-1], dtype='object')
+
+        for grad_idx, this_grad in enumerate(grad.T):
             usv = la.svd(np.matrix(this_grad.T))
-            this_Q = (np.matrix(usv[2]) *
-                 np.matrix(np.diag([axial_diffusivity,
-                                    radial_diffusivity,
-                                    radial_diffusivity])) *
-                np.matrix(usv[2]).T)
-            tensors.append(mtt.Tensor(this_Q, bvecs, bvals))
+            this_Q = (np.matrix(usv[2]) * d_matrix * np.matrix(usv[2]).T)
+            tensors[grad_idx]= mtt.Tensor(this_Q, bvecs, bvals)
         return tensors
 
     def predicted_signal(self,

@@ -194,6 +194,7 @@ class FiberModel(BaseModel):
     @desc.auto_attr
     def fg_idx_unique(self):
         return mtu.unique_rows(self.fg_idx)
+
     
     @desc.auto_attr
     def matrix(self):
