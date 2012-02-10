@@ -6,38 +6,29 @@ This module is used to construct and solve models of diffusion data
 import numpy as np
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
+import dipy.reconst.dti as dti
 
-import descriptors as desc
+import microtrack.descriptors as desc
 import microtrack.fibers as mtf
 import microtrack.tensor as mtt
 import microtrack.dwi as dwi
 import microtrack.utils as mtu
 
-class TensorModel(object):
-    """
-    A class for representing and solving a simple forward model. Just the
-    diffusion tensor.
-    
-    """
 
-    def __init__(self,
-                 DWI,
-                 axial_diffusivity=1.5,
-                 radial_diffusivity=0.5,
-                 scaling_factor=1000):
+# Global constants:
+AD = 1.5
+RD = 0.5
+# This converts b values from , so that it matches the units of ADC we use in
+# the Stejskal/Tanner equation: 
+SCALE_FACTOR = 1000
+
+class BaseModel(desc.ResetMixin):
+    """
+    Base-class for models.
+    """
+    def __init__(self,DWI,scaling_factor=SCALE_FACTOR):
         """
-        Parameters
-        -----------
-
-        DWI: A microtrack.dwi.DWI class instance, or a list containing: [the
-        name of nifti file, from which data should be read, bvecs file, bvals
-        file]
-
-        axial_diffusivity: The axial diffusivity of a single fiber population.
-
-        radial_diffusivity: The radial diffusivity of a single fiber population.
-
-        scaling_factor: This scales the b value for the Stejskal/Tanner equation
+        
         """
         # If you provided file-names and not a DWI class object, we will
         # generate one for you right here and replace it inplace: 
@@ -45,18 +36,16 @@ class TensorModel(object):
             DWI = dwi.DWI(DWI[0], DWI[1], DWI[2])
         
         self.data = DWI.data
-        self.bvecs = DWI.bvecs # Transpose so that they fit the conventions
-                                 # in microtrack.tensor
+        self.bvecs = DWI.bvecs
         
-        # XXX What is this factor? 
+        # This factor makes sure that we have the right units for the way we
+        # calculate the ADC: 
         self.bvals = DWI.bvals/scaling_factor
 
         # Get the inverse of the DWI affine, which xforms from fiber
         # coordinates (which are in xyz) to image coordinates (which are in ijk):
         self.affine = DWI.affine.getI()
-        self.axial_diffusivity = axial_diffusivity
-        self.radial_diffusivity = radial_diffusivity
-
+        
     @desc.auto_attr
     def b_idx(self):
         """
@@ -86,17 +75,79 @@ class TensorModel(object):
         """
         return self.data[...,self.b_idx].squeeze()
 
+    def fit(self):
+        """
+        The pattern is that each one of the models will have a fit method that
+        goes and fits the particulars of that model.
+
+        XXX Need to consider the commonalities which can be outlined here. 
+        """
+        pass
+    
+class TensorModel(BaseModel):
+    """
+    A class for representing and solving a simple forward model. Just the
+    diffusion tensor.
+    
+    """
+    def __init__(self,
+                 DWI,
+                 scaling_factor=SCALE_FACTOR,
+                 mask=None):
+        """
+        Parameters
+        -----------
+        DWI: A microtrack.dwi.DWI class instance, or a list containing: [the
+        name of nifti file, from which data should be read, bvecs file, bvals
+        file]
+
+        scaling_factor: This scales the b value for the Stejskal/Tanner equation
+        """
+        # Initialize the super-class:
+        BaseModel.__init__(self,
+                           DWI,
+                           scaling_factor=scaling_factor)
+
+        if mask is not None:
+            self.mask = mask
         
-class FiberModel(TensorModel):
+    @desc.auto_attr
+    def DT(self):
+        """
+        The diffusion tensor parameters estimated from the data
+        """
+        return dti.Tensor(self.data, self.bvals, self.bvecs.T, self.mask)
+
+    @desc.auto_attr
+    def FA(self):
+        return self.DT.fa()
+
+    @desc.auto_attr
+    def evecs(self):
+        return self.DT.evecs
+
+    @desc.auto_attr
+    def evals(self):
+        return self.DT.evals
+
+    def tensors():
+        """
+        Generate a volume with tensor objects
+        """
+        
+    def predicted_signal(self):
+        pass
+    
+class FiberModel(BaseModel):
     """
     A class for representing and solving microtrack models
     """
     def __init__(self,
                  DWI,
                  FG,
-                 axial_diffusivity=1.5,
-                 radial_diffusivity=0.5,
-                 scaling_factor=1000):
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 scaling_factor=SCALE_FACTOR):
         """
         Parameters
         ----------
@@ -114,13 +165,15 @@ class FiberModel(TensorModel):
         
         """
         # Initialize the super-class:
-        TensorModel.__init__(self,
+        BaseModel.__init__(self,
                              DWI,
-                             axial_diffusivity=axial_diffusivity,
-                             radial_diffusivity=radial_diffusivity,
                              scaling_factor=scaling_factor)
 
-        # The only additional thing is that this one also has a fiber group:
+        self.axial_diffusivity = axial_diffusivity
+        self.radial_diffusivity = radial_diffusivity
+
+        # The only additional thing is that this one also has a fiber group,
+        # which is xformed to match the coordinates of the DWI:
         self.FG = FG.xform(self.affine, inplace=False)
 
 
@@ -147,7 +200,6 @@ class FiberModel(TensorModel):
         """
         The matrix of fiber-contributions to the DWI signal.
         """
-
         # Assign some local variables, for shorthand:
         vox_coords = self.fg_idx_unique
         n_vox = vox_coords.shape[-1]
