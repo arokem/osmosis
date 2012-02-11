@@ -42,7 +42,7 @@ def test_pdb_from_fg():
     coords2 = np.arange(900).reshape(3,300) + 100
 
     fiber_stats = dict(foo=1,bar=2)
-    node_stats = dict(ecc=np.random.rand(coords1.shape[-1]))
+    node_stats = dict(ecc=np.arange(300))
     
     
     fg = mtf.FiberGroup([mtf.Fiber(coords1,
@@ -52,5 +52,4 @@ def test_pdb_from_fg():
                                    fiber_stats=fiber_stats,
                                    node_stats=node_stats)])
 
-    
     mio.pdb_from_fg(fg, '/tmp/fg.pdb')

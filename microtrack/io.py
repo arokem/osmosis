@@ -215,24 +215,21 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
     """
 
     fwrite = file(file_name, 'w')
-    int_size = _fmt_dict['int'][1]
-    double_size = _fmt_dict['double'][1]
-    stats_hdr_sz = (3 * _fmt_dict['bool'][1] +
-                    int_size +
-                    2 * _fmt_dict['char'][1] * 255)
-    
 
     # The total number of stats are both node-stats and fiber-stats:
     n_stats = len(fg[0].fiber_stats.keys()) + len(fg[0].node_stats.keys())
-    n_algs = 0  # Always 0. This seems like a misimplementation of the spec
+    stats_hdr_sz = (4 * _fmt_dict['int'][1] + 2 * _fmt_dict['char'][1] * 257)
+
     
     # This is the 'offset' to the beginning of the fiber-data. Note that we are
     # just skipping the whole algorithms thing, since that seems to be unused
     # in mrDiffusion anyway. 
-    hdr_sz = (4 * int_size + # ints: hdr_sz itself, n_stats, n_algs (always 0),
-                             # version
-             16 * double_size + # doubles: the 4 by 4 affine
-             n_stats * stats_hdr_sz) # The stats part of the header
+    hdr_sz = (4 * _fmt_dict['int'][1] + # ints: hdr_sz itself, n_stats, n_algs
+                                        # (always 0), version
+             16 *_fmt_dict['double'][1] +      # doubles: the 4 by 4 affine
+             n_stats * stats_hdr_sz) # The stats part of the header, add
+                                        # one for good measure(?).
+
     
     _packer(fwrite, hdr_sz)
     if fg.affine is None:
@@ -243,38 +240,52 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
     _packer(fwrite, affine, 'double')
     _packer(fwrite, n_stats)
 
-    # This is the number of algorithms. Always 0.
-    _packer(fwrite, 0)
-    # This is the PDB file version:
-    _packer(fwrite, 3)
-
+    
     # We are going to assume that fibers are homogenous on the following
     # properties. XXX Should we check that when making FiberGroup instances? 
     uid = 0
     for f_stat in fg[0].fiber_stats:
-        _packer(fwrite, True, 'bool')   # currently unused
-        _packer(fwrite, False, 'bool')  # Is this per-point
-        _packer(fwrite, True, 'bool')   # currently unused
+        _packer(fwrite, True)   # currently unused
+        _packer(fwrite, False)  # Is this per-point
+        _packer(fwrite, True)   # currently unused
         _stat_hdr_set(fwrite, f_stat, uid)
         uid += 1  # We keep tracking that across fiber and node stats
-
+        
     for n_stat in fg[0].node_stats:
         # Three True bools for this one:
         for x in range(3):
-            _packer(fwrite, True, 'bool')
-
+            _packer(fwrite, True)
         _stat_hdr_set(fwrite, n_stat, uid)
         uid += 1
+
+    fwrite.seek(hdr_sz - _fmt_dict['int'][1])
     
+    # This is the PDB file version:
+    _packer(fwrite, 3)
     _packer(fwrite, fg.n_fibers)
+    
     for fib in fg.fibers:
         # How many coords in each fiber:
         _packer(fwrite, fib.coords.shape[-1])
 
     # x,y,z coords in each fiber:
     for fib in fg.fibers:
-        _packer(fwrite, fib.coords.T, 'double')
+        _packer(fwrite, fib.coords.T.ravel(), 'double')
 
+    for stat in fg[0].fiber_stats:
+        for fib in fg.fibers:
+            _packer(fwrite, fib.fiber_stats[stat],'double')
+
+    # The per-node stats have to be inserted in here as well, with 0s.
+    # XXX Maybe use the mean instead? 
+    for stat in fg[1].node_stats:
+        for fib in fg.fibers:
+            _packer(fwrite, 0, 'double')
+     
+    for stat in fg[1].node_stats:
+        for fib in fg.fibers:
+            _packer(fwrite, fib.node_stats[stat], 'double')
+    
     if verbose:
         "Done saving data in file%s"%file_name
 
@@ -349,7 +360,7 @@ def _char_list_maker(name):
     while x<255:
         l.append('g')
         x += 1
-    return l 
+    return l
 
 def _stat_hdr_set(fwrite, stat, uid):
     """
@@ -359,8 +370,11 @@ def _stat_hdr_set(fwrite, stat, uid):
     char_list = _char_list_maker(stat)
     _packer(fwrite, char_list, 'char')  
     _packer(fwrite, char_list, 'char')  # Twice for some reason
+    _packer(fwrite, ['g','g'], 'char')  # Add this, so that that the uid ends
+                                        # up "word-aligned".
+
     _packer(fwrite, uid) # These might get reordered upon
-                                    # resaving on different platforms, because
-                                    # dict keys come in no particular order...
+                         # resaving on different platforms, because
+                         # dict keys come in no particular order...
 
     
