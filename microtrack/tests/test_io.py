@@ -33,6 +33,7 @@ def test_fg_from_pdb():
     npt.assert_equal(fg.fiber_stats["eccentricity"],
                      mat_fg_dict["params"][0].item()[-1])
     
+    mio.pdb_from_fg(fg, data_path + 'fg_new.pdb')
 
 def test_pdb_from_fg():
     """

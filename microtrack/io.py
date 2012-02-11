@@ -219,7 +219,7 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
 
     # The total number of stats are both node-stats and fiber-stats:
     n_stats = len(fg[0].fiber_stats.keys()) + len(fg[0].node_stats.keys())
-    stats_hdr_sz = (4 * _fmt_dict['int'][1] + 2 * _fmt_dict['char'][1] * 257)
+    stats_hdr_sz = (4 * _fmt_dict['int'][1] + 2 * _fmt_dict['char'][1] * 255 + 2)
 
     
     # This is the 'offset' to the beginning of the fiber-data. Note that we are
@@ -247,7 +247,7 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
     uid = 0
     for f_stat in fg[0].fiber_stats:
         _packer(fwrite, True)   # currently unused
-        _packer(fwrite, False)  # Is this per-point
+        _packer(fwrite, False)  # Is this per-point?
         _packer(fwrite, True)   # currently unused
         _stat_hdr_set(fwrite, f_stat, uid)
         uid += 1  # We keep tracking that across fiber and node stats
@@ -259,6 +259,8 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
         _stat_hdr_set(fwrite, n_stat, uid)
         uid += 1
 
+    _packer(fwrite, 0) # Number of algorithms - set to 0 always
+     
     fwrite.seek(hdr_sz - _fmt_dict['int'][1])
     
     # This is the PDB file version:
@@ -357,10 +359,8 @@ def _char_list_maker(name):
 
     l = list(name)
     l.append('\x00')  # The null character
-    x = len(l)
-    while x<255:
+    while len(l)<255:
         l.append('g')
-        x += 1
     return l
 
 def _stat_hdr_set(fwrite, stat, uid):
