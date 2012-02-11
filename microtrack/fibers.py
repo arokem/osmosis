@@ -178,16 +178,18 @@ class Fiber(desc.ResetMixin):
         """
         
         d_matrix = np.matrix(np.diag([axial_diffusivity,
-                                         radial_diffusivity,
-                                         radial_diffusivity]))
+                                      radial_diffusivity,
+                                      radial_diffusivity]))
+
         grad = np.array(np.gradient(self.coords)[1])
         # Preallocate:
         tensors = np.empty(grad.shape[-1], dtype='object')
 
         for grad_idx, this_grad in enumerate(grad.T):
-            usv = la.svd(np.matrix(this_grad.T))
-            this_Q = (np.matrix(usv[2]) * d_matrix * np.matrix(usv[2]).T)
+            usv = la.svd(np.matrix(this_grad), overwrite_a=True)
+            this_Q = (np.matrix(usv[2]).T * d_matrix * np.matrix(usv[2]))
             tensors[grad_idx]= mtt.Tensor(this_Q, bvecs, bvals)
+
         return tensors
 
     def predicted_signal(self,
@@ -397,5 +399,4 @@ class FiberGroup(desc.ResetMixin):
         The unique spatial coordinates of all the fibers in the FiberGroup.
 
         """
-        
         return mtu.unique_rows(self.coords.T).T 

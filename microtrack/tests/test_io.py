@@ -5,9 +5,11 @@ import numpy.testing as npt
 import scipy.io as sio 
 
 import microtrack.io as mio
+import microtrack.fibers as mtf
 import microtrack as mt
 
-def test_read_from_pdb():
+
+def test_fg_from_pdb():
     """
     Test initialization of the FiberGroup from pdb file
 
@@ -31,3 +33,24 @@ def test_read_from_pdb():
                      mat_fg_dict["params"][0].item()[-1])
     
 
+def test_pdb_from_fg():
+    """
+    Test writing a fiber-group to file
+    """
+
+    coords1 = np.arange(900).reshape(3,300)
+    coords2 = np.arange(900).reshape(3,300) + 100
+
+    fiber_stats = dict(foo=1,bar=2)
+    node_stats = dict(ecc=np.random.rand(coords1.shape[-1]))
+    
+    
+    fg = mtf.FiberGroup([mtf.Fiber(coords1,
+                                   fiber_stats=fiber_stats,
+                                   node_stats=node_stats),
+                         mtf.Fiber(coords2,
+                                   fiber_stats=fiber_stats,
+                                   node_stats=node_stats)])
+
+    
+    mio.pdb_from_fg(fg, '/tmp/fg.pdb')
