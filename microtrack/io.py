@@ -159,7 +159,8 @@ def fg_from_pdb(file_name, verbose=True):
     for stat_idx in range(numstats):
         per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
         f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
-    
+
+    per_point_stat = []
     n_stats_dict = {}
     for stat_idx in range(numstats):
         pts_read = 0
@@ -276,11 +277,11 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
         for fib in fg.fibers:
             _packer(fwrite, fib.fiber_stats[stat],'double')
 
-    # The per-node stats have to be inserted in here as well, with 0s.
-    # XXX Maybe use the mean instead? 
+    # The per-node stats have to be inserted in here as well, with their mean
+    # value: 
     for stat in fg[1].node_stats:
         for fib in fg.fibers:
-            _packer(fwrite, 0, 'double')
+            _packer(fwrite, np.mean(fib.node_stats[stat]), 'double')
      
     for stat in fg[1].node_stats:
         for fib in fg.fibers:

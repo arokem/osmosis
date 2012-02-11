@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import numpy as np
 import numpy.testing as npt
@@ -37,14 +38,13 @@ def test_pdb_from_fg():
     """
     Test writing a fiber-group to file
     """
-
     coords1 = np.arange(900).reshape(3,300)
     coords2 = np.arange(900).reshape(3,300) + 100
 
     fiber_stats = dict(foo=1,bar=2)
     node_stats = dict(ecc=np.arange(300))
-    
-    
+
+
     fg = mtf.FiberGroup([mtf.Fiber(coords1,
                                    fiber_stats=fiber_stats,
                                    node_stats=node_stats),
@@ -52,4 +52,19 @@ def test_pdb_from_fg():
                                    fiber_stats=fiber_stats,
                                    node_stats=node_stats)])
 
-    mio.pdb_from_fg(fg, '/tmp/fg.pdb')
+    temp_dir = tempfile.gettempdir()
+
+    mio.pdb_from_fg(fg, os.path.join(temp_dir,'fg.pdb'))
+
+    # Test that the properties are preserved upon reloading: 
+    fg2 = mio.fg_from_pdb(os.path.join(temp_dir,'fg.pdb'))
+
+    npt.assert_equal(fg2[0].coords, fg[0].coords)
+    npt.assert_equal(fg2[1].coords, fg[1].coords)
+
+    npt.assert_equal(fg2[0].node_stats, fg[0].node_stats)
+    npt.assert_equal(fg2[1].node_stats, fg[1].node_stats)
+    
+    npt.assert_equal(fg2[0].fiber_stats['foo'], fg[0].fiber_stats['foo'])
+    npt.assert_equal(fg2[0].fiber_stats['bar'], fg[0].fiber_stats['bar'])
+
