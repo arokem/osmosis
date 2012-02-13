@@ -64,7 +64,7 @@ import numpy as np
 import microtrack.fibers as mtf
 
 
-# XXX The following function is way too long. Break it up!
+# XXX The following functions are way too long. Break 'em up!
 def fg_from_pdb(file_name, verbose=True):
     """
     Read the definition of a fiber-group from a .pdb file
@@ -158,12 +158,15 @@ def fg_from_pdb(file_name, verbose=True):
     f_stats_dict = {}
     for stat_idx in range(numstats):
         per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
-        f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
+        # This is a fiber-stat only if it's not computed per point:
+        if not stats_header["computed_per_point"][stat_idx]: 
+            f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
 
     per_point_stat = []
     n_stats_dict = {}
     for stat_idx in range(numstats):
         pts_read = 0
+        # If it is computer per point, it's a node-stat:
         if stats_header["computed_per_point"][stat_idx]:
             name = stats_header["local_name"][stat_idx]
             n_stats_dict[name] = []
