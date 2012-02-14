@@ -83,7 +83,7 @@ class BaseModel(desc.ResetMixin):
         XXX Need to consider the commonalities which can be outlined here. 
         """
         pass
-    
+
 class TensorModel(BaseModel):
     """
     A class for representing and solving a simple forward model. Just the
@@ -110,13 +110,20 @@ class TensorModel(BaseModel):
 
         if mask is not None:
             self.mask = mask
-        
+        else:
+            # Include everything:
+            self.mask = np.ones(self.data.shape)
+            
     @desc.auto_attr
     def DT(self):
         """
         The diffusion tensor parameters estimated from the data
         """
         return dti.Tensor(self.data, self.bvals, self.bvecs.T, self.mask)
+
+    @desc.auto_attr
+    def FA(self):
+        return self.DT.md()
 
     @desc.auto_attr
     def FA(self):
@@ -130,11 +137,21 @@ class TensorModel(BaseModel):
     def evals(self):
         return self.DT.evals
 
-    def tensors():
+    @desc.auto_attr
+    def tensors(self):
         """
         Generate a volume with tensor objects
         """
-        
+        T = np.empty(self.data.shape[:2], dtype='object')
+        for i in xrange(self.data.shape[0]):
+            for j in xrange(self.data.shape[1]): 
+                for k in xrange(self.data.shape[2]):
+                    T[i,j,k] = mtt.Tensor(self.DT.D[i,j,k],
+                                          self.bvecs,
+                                          self.bvals)
+
+        return T
+    
     def predicted_signal(self):
         pass
     

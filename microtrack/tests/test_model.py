@@ -17,6 +17,12 @@ if 'dwi.nii.gz' in os.listdir(data_path):
 else:
     no_data = True
 
+
+@npt.decorators.slow
+@npt.decorators.skipif(no_data)
+def test_TensorModel()
+    pass
+
 # This takes some time, because it requires reading large data files and of
 # course, needs to be skipped if the data is no where to be found: 
 @npt.decorators.slow
@@ -40,3 +46,4 @@ def test_FiberModel():
 
     npt.assert_equal(M.matrix.shape[0], M.sig.shape[0])
     npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
+
