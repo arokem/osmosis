@@ -24,7 +24,9 @@ def subsample(bvecs, n_dirs, elec_points=None):
     
     Returns 
     -------
-    x,y,z: The coordinates of the sub-sample
+    [x,y,z]: The coordinates of the sub-sample
+    bvec_idx: The indices into the original bvecs that would give this
+        sub-sample 
  
     Notes
     -----

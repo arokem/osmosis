@@ -13,6 +13,7 @@ import microtrack.fibers as mtf
 import microtrack.tensor as mtt
 import microtrack.dwi as dwi
 import microtrack.utils as mtu
+import microtrack.boot as boot
 
 
 # Global constants:
@@ -26,8 +27,28 @@ class BaseModel(desc.ResetMixin):
     """
     Base-class for models.
     """
-    def __init__(self,DWI,scaling_factor=SCALE_FACTOR):
+    def __init__(self,DWI,scaling_factor=SCALE_FACTOR,
+                                      sub_sample=None):
         """
+        A base-class for models based on DWI data.
+
+        Parameters
+        ----------
+        DWI: A microtrack.dwi.DWI class instance
+
+        scaling_factor: int, defaults to 1000.
+           To get the units in the S/T equation right, how much do we need to
+           scale the bvalues provided.
+
+        sub_sample: int or array of ints.
+           If we want to sub-sample the DWI data on the sphere (in the bvecs),
+           we can do one of two things: 
+        1. If sub_sample is an integer, that number of random bvecs will be
+           chosen from the data.
+
+        2. If an array of indices is provided, these will serve as indices into
+        the last dimension of the data and only that part of the data will be
+        used
         
         """
         # If you provided file-names and not a DWI class object, we will
@@ -45,7 +66,28 @@ class BaseModel(desc.ResetMixin):
         # Get the inverse of the DWI affine, which xforms from fiber
         # coordinates (which are in xyz) to image coordinates (which are in ijk):
         self.affine = DWI.affine.getI()
-        
+
+        if sub_sample is not None:
+            if np.iterable(sub_sample):
+                idx = sub_sample
+            else:
+                idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
+
+            self.b_idx = self.b_idx[idx]
+            # At this point, S_weighted will be taken according to these
+            # sub-sampled indices:
+            self.data = np.concatenate([self.S_weighted,
+                                   self.data[:,:,:,self.b0_idx]],-1)
+
+            self.b0_idx = np.arange(len(self.b0_idx))
+
+            self.bvecs = np.concatenate([np.zeros((3,len(self.b0_idx))),
+                                        self.bvecs[:, self.b_idx]],-1)
+
+            self.bvals = np.concatenate([np.zeros(len(self.b0_idx)),
+                                         self.bvals[self.b_idx]])
+            self.b_idx = np.arange(len(self.b0_idx), len(self.b0_idx) + len(idx))
+            
     @desc.auto_attr
     def b_idx(self):
         """
@@ -93,7 +135,8 @@ class TensorModel(BaseModel):
     def __init__(self,
                  DWI,
                  scaling_factor=SCALE_FACTOR,
-                 mask=None):
+                 mask=None,
+                 sub_sample=None):
         """
         Parameters
         -----------
@@ -106,7 +149,8 @@ class TensorModel(BaseModel):
         # Initialize the super-class:
         BaseModel.__init__(self,
                            DWI,
-                           scaling_factor=scaling_factor)
+                           scaling_factor=scaling_factor,
+                           sub_sample=sub_sample)
 
         if mask is not None:
             self.mask = mask
@@ -142,18 +186,36 @@ class TensorModel(BaseModel):
         """
         Generate a volume with tensor objects
         """
-        T = np.empty(self.data.shape[:2], dtype='object')
+        T = np.empty(self.data.shape[:3], dtype='object')
         for i in xrange(self.data.shape[0]):
             for j in xrange(self.data.shape[1]): 
                 for k in xrange(self.data.shape[2]):
                     T[i,j,k] = mtt.Tensor(self.DT.D[i,j,k],
-                                          self.bvecs,
-                                          self.bvals)
+                                          self.bvecs[:,self.b_idx],
+                                          self.bvals[self.b_idx])
 
         return T
-    
+
+    @desc.auto_attr
     def predicted_signal(self):
-        pass
+        sig = np.empty((self.data.shape[:3] + (len(self.b_idx),)))
+        for i in xrange(self.data.shape[0]):
+            for j in xrange(self.data.shape[1]): 
+                for k in xrange(self.data.shape[2]):                       
+                    sig[i,j,k] = self.tensors[i,j,k].predicted_signal(
+                                                        self.S0[i,j,k])
+        return sig
+
+
+    @desc.auto_attr
+    def residual_signal(self):
+        """
+        The prediction-subtracted residual
+        """
+        return self.predicted_signal - self.S_weighted
+        
+    
+        
     
 class FiberModel(BaseModel):
     """

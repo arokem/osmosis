@@ -3,11 +3,12 @@
 Visualization functions.
 
 This might eventually call to fvtk for visualization of 3-d stuff in 3-d. For
-now, only matplotlib 2-d stuff. 
+now, only matplotlib stuff. 
 
 """
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs):
@@ -64,3 +65,5 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
         ax.set_title(title)
     if size is not None: 
         fig.set_size_inches(size)
+
+
