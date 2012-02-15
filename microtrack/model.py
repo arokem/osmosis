@@ -212,7 +212,7 @@ class TensorModel(BaseModel):
         """
         The prediction-subtracted residual
         """
-        return self.fit - self.S_weighted
+        return self.S_weighted - self.fit
     
 class FiberModel(BaseModel):
     """

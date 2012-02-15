@@ -146,7 +146,10 @@ def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
     if fig is None:
         fig = plt.figure()
         ax = fig.add_subplot(1,1,1, projection='3d')
-        
+
+    # Get the cmap argument out of your kwargs, or use the default:
+    cmap = kwargs.pop('cmap', matplotlib.cm.RdBu)
+
     u = np.linspace(0, 2 * np.pi, sphere_dim)
     v = np.linspace(0, np.pi, sphere_dim)
 
@@ -167,8 +170,7 @@ def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
     c = np.array(color_from_val(inter_val,
                                 min_val=np.min(val),
                                 max_val=np.max(val),
-                                cmap_or_lut=kwargs.get('cmap',
-                                                matplotlib.cm.RdBu)))
+                                cmap_or_lut=cmap))
     
     new_shape = (x_inter.shape + (3,))
 
@@ -209,9 +211,13 @@ def sig_in_points(bvecs, val, fig=None, **kwargs):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
+    # Get the cmap argument out of your kwargs:
+    cmap = kwargs.pop('cmap', matplotlib.cm.RdBu)
+    
     for idx, this_val in enumerate(val):
         c = color_from_val(this_val, min_val=np.min(val), max_val=np.max(val),
-                           cmap_or_lut=kwargs.get('cmap',matplotlib.cm.RdBu))
+                           cmap_or_lut=cmap)
+        
         # plot3D expects something with length, so we convert into 1-item arrays:
         ax.plot3D(np.ones(1) * x[idx], 
                   np.ones(1) * y[idx],
