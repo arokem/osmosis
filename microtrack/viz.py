@@ -7,9 +7,13 @@ now, only matplotlib stuff.
 
 """
 
+import matplotlib
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d
 import numpy as np
+
+import dipy.core.geometry as geo
 
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs):
     """
@@ -66,4 +70,151 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
     if size is not None: 
         fig.set_size_inches(size)
 
+
+def lut_from_cm(cm, n=256):
+    """
+    Returns the n-sized look-up table for RGB values for a matplotlib colormap
+    cm 
+
+    """
+    seg = cm._segmentdata
+    rgb = ['red', 'green', 'blue']
+    lut = []
+    for k in rgb:
+        this_seg = np.array(seg[k])
+        xp = this_seg[:,0]
+        fp = this_seg[:,1]
+        x = np.linspace(xp[0],xp[-1],n)
+
+        lut.append(np.interp(x, xp, fp))
+    
+    return np.array(lut).T
+
+
+def color_from_val(val, min_val=0, max_val=255,
+                   cmap_or_lut=matplotlib.cm.RdBu, n=256):
+    """
+    Provided some value and some maximal value, what is the rgb value in the
+    matplotlib cmap (with n items) or a lut (n by 3 or 4, including rgba)
+    which corresponds to it. 
+
+    """
+
+    val = np.asarray(val)
+    
+    if isinstance(cmap_or_lut, matplotlib.colors.LinearSegmentedColormap):
+        lut = lut_from_cm(cmap_or_lut, n=n)
+    else:
+        lut = cmap_or_lut
+
+    if np.iterable(val):
+        rgb = np.zeros((val.shape + (lut.shape[-1],)))
+        idx = np.where(~np.isnan(val))
+        rgb[idx] = lut[(((val[idx]-min_val)/(max_val-min_val))*(n-1)).astype(int)]
+        return [tuple(this) for this in rgb]
+    else:
+        rgb = lut[(((val-min_val)/(max_val-min_val))*(n-1)).astype(int)]        
+        return tuple(rgb)
+
+
+def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
+                  **kwargs):
+    """
+    Presente values on a sphere.
+
+    Parameters
+    ----------
+    val: array with data
+
+    theta, phi: co-linear to the array with data, the theta, phi on the circle
+        from which the data was taken
+
+    fig: matplotlib figure, optional. Default: make new figure
+
+    sphere_dim: The data will be interpolated into a sphere_dim by sphere_dim
+        grid 
+
+    r_from_val: Whether to double-code the values both by color and by the
+        distance from the center
+
+    cmap: Specify a matplotlib colormap to use for coloring the data. 
+
+    Additional kwargs can be passed to the matplotlib.pyplot.plot3D command.
+
+    """
+
+    if fig is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1, projection='3d')
+        
+    u = np.linspace(0, 2 * np.pi, sphere_dim)
+    v = np.linspace(0, np.pi, sphere_dim)
+
+    x_inter = 10 * np.outer(np.cos(u), np.sin(v))
+    y_inter = 10 * np.outer(np.sin(u), np.sin(v))
+    inter_val = np.zeros(x_inter.shape).ravel()
+    z_inter = np.outer(np.ones(np.size(u)), np.cos(v))
+    grid_r, grid_theta, grid_phi = geo.cart2sphere(x_inter, y_inter, z_inter)
+    for idx, this in enumerate(zip(grid_theta.ravel(), grid_phi.ravel())):
+        this_theta = np.abs(theta - np.array(this[0]))
+        this_phi = np.abs(phi - np.array(this[1]))
+        # The closest theta and phi:
+        min_idx = np.argmin(this_theta + this_phi)
+        inter_val[idx] = val[min_idx]
+
+    # Calculate the values from the colormap that will be used for the
+    # face-colors: 
+    c = np.array(color_from_val(inter_val,
+                                min_val=np.min(val),
+                                max_val=np.max(val),
+                                cmap_or_lut=kwargs.get('cmap',
+                                                matplotlib.cm.RdBu)))
+    
+    new_shape = (x_inter.shape + (3,))
+
+    c = np.reshape(c, new_shape)
+
+    if r_from_val:
+        # Use the interpolated values to set z: 
+        new_x, new_y, new_z = geo.sphere2cart(inter_val.reshape(x_inter.shape),
+                                              grid_theta, grid_phi)
+
+        ax.plot_surface(new_x, new_y, new_z, rstride=4, cstride=4,
+                        facecolors=c, **kwargs)
+    else: 
+        ax.plot_surface(x_inter, y_inter, z_inter, rstride=4, cstride=4,
+                        facecolors=c, **kwargs)
+
+    return fig
+
+def sig_in_points(bvecs, val, fig=None, **kwargs):
+    """
+    Display signal in points in 3d, based on the bvecs provided.
+
+    Parameters
+    ----------
+    bvecs: 3 by n
+       unit (usually) vectors defining the x,y,z coordinates in which to
+       display the data
+
+    val: array of length n, with values of the data to present
+
+    cmap: Specify a matplotlib colormap to use for coloring the data. 
+
+    Additional kwargs can be passed to the matplotlib.pyplot.plot3D command.
+    """
+    x,y,z = bvecs
+
+    if fig is None: 
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+    for idx, this_val in enumerate(val):
+        c = color_from_val(this_val, min_val=np.min(val), max_val=np.max(val),
+                           cmap_or_lut=kwargs.get('cmap',matplotlib.cm.RdBu))
+        # plot3D expects something with length, so we convert into 1-item arrays:
+        ax.plot3D(np.ones(1) * x[idx], 
+                  np.ones(1) * y[idx],
+                  np.ones(1) * z[idx],
+                  'o', c=c, **kwargs)
 

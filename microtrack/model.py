@@ -197,7 +197,7 @@ class TensorModel(BaseModel):
         return T
 
     @desc.auto_attr
-    def predicted_signal(self):
+    def fit(self):
         sig = np.empty((self.data.shape[:3] + (len(self.b_idx),)))
         for i in xrange(self.data.shape[0]):
             for j in xrange(self.data.shape[1]): 
@@ -208,14 +208,11 @@ class TensorModel(BaseModel):
 
 
     @desc.auto_attr
-    def residual_signal(self):
+    def residual(self):
         """
         The prediction-subtracted residual
         """
-        return self.predicted_signal - self.S_weighted
-        
-    
-        
+        return self.fit - self.S_weighted
     
 class FiberModel(BaseModel):
     """
