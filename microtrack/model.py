@@ -17,6 +17,7 @@ except ImportError:
     
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
+import scipy.linalg as la
 import dipy.reconst.dti as dti
 import nibabel as ni
 
@@ -89,7 +90,7 @@ class BaseModel(desc.ResetMixin):
             # At this point, S_weighted will be taken according to these
             # sub-sampled indices:
             self.data = np.concatenate([self.S_weighted,
-                                   self.data[:,:,:,self.b0_idx]],-1)
+                                        self.data[:,:,:,self.b0_idx]],-1)
 
             self.b0_idx = np.arange(len(self.b0_idx))
 
@@ -268,13 +269,8 @@ class TensorModel(BaseModel):
         lambda_1 = self.evals[..., 0]
         lambda_2 = self.evals[..., 1]
         lambda_3 = self.evals[..., 2]
-        if has_ne:
-            # Use numexpr to evaluate this quickly:
-            fa = np.sqrt(0.5) * np.sqrt(numexpr.evaluate("(lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 "))/np.sqrt(numexpr.evaluate("lambda_1**2 + lambda_2**2 + lambda_3**2"))
-        else:
-            fa =  np.sqrt(0.5) * np.sqrt((lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 )/np.sqrt(lambda_1**2 + lambda_2**2 + lambda_3**2)
-
-        return fa
+        
+        return mtu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
 
     @desc.auto_attr
     def radial_diffusivity(self):
@@ -309,6 +305,7 @@ class TensorModel(BaseModel):
                                         tensors_flat[ii])
         return adc_flat.reshape(self.evecs.shape[:3] + (len(self.b_idx),))
 
+
     @desc.auto_attr
     def fit(self):
         adc_flat = self.apparent_diffusion_coef.reshape((-1, len(self.b_idx)))
@@ -322,13 +319,85 @@ class TensorModel(BaseModel):
 
         return sig_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
 
+    
+    @desc.auto_attr
+    def residuals(self):
+        """
+        The prediction-subtracted residual in each voxel
+        """
+        return (self.S_weighted - self.fit)
+
 
     @desc.auto_attr
-    def residual(self):
+    def ResidualTensorModel(self):
         """
-        The prediction-subtracted residual
+        Fit a tensor to the residuals using WLS
         """
-        return self.S_weighted - self.fit
+
+        # Construct the same design matrix you normally would (except keep it
+        # positive (by setting the input bval to -1) and don't keep the last
+        # column (which corresponds to the S0):
+        design_matrix = dti.design_matrix(
+                                    self.bvecs[:,self.b_idx],
+                                    -1 * np.ones(len(self.b_idx)))[:,:6]
+
+        ols_matrix = mtu.ols_matrix(design_matrix)
+
+        flat_residuals = np.abs(self.residuals.reshape((-1,
+                                                self.residuals.shape[-1])))
+
+        tensors = np.empty(((len(flat_residuals),) + (3,3)))
+
+        for ii in xrange(len(flat_residuals)):
+            tensors[ii] = dti.from_lower_triangular(np.array(np.dot(ols_matrix,
+                                                          flat_residuals[ii,:])))
+            
+        return tensors.reshape((self.data.shape[:3] + (3,3)))
+
+    @desc.auto_attr
+    def ResidualTensorModelFA(self):
+        """
+        Compute the FA of the residual tensors
+        """
+
+        tensors = self.ResidualTensorModel
+
+        # Not really *completely* flat, but reshaped to the right shape:
+        flat_tensors = self.ResidualTensorModel.reshape((-1, 3,3))
+        lambda1 = np.empty(flat_tensors.shape[0])
+        lambda2 = np.empty(flat_tensors.shape[0])
+        lambda3 = np.empty(flat_tensors.shape[0])
+        
+        for ii in xrange(len(flat_tensors)):
+            (lambda1[ii],lambda2[ii],lambda3[ii]),_ = \
+                mtu.decompose_tensor(flat_tensors[ii])
+
+        # Do it in one fell swoop (go numexpr!):
+        fa = mtu.fractional_anisotropy(lambda1, lambda2, lambda3)
+        
+        return fa.reshape(self.tensors.shape[:3])
+        
+        
+
+"""
+
+This is a recursive way of doing this, but would require some transformation of
+the data (just taking an exponent?), so for now commented out here: 
+
+
+# Recurse back onto yourself, while setting all the bvals to -1:
+        bve =  np.concatenate([self.bvecs[:, self.b_idx].T, np.zeros((1,3))]).T
+        bva =  -1 * np.ones(len(self.b_idx) + 1)
+        # And the S0 to be equal to the mean residual across bvecs at each
+        # voxel:
+        sig = np.concatenate([self.residual,
+                              np.mean(self.residual,-1)[...,np.newaxis]],-1)
+
+        # Construct a new model with these inputs: 
+        Model = TensorModel(dwi.DWI(sig, bve, bva))
+
+        return Model
+"""        
 
 
 class SphericalHarmonicsModel(BaseModel):

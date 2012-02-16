@@ -117,10 +117,10 @@ def color_from_val(val, min_val=0, max_val=255,
     if np.iterable(val):
         rgb = np.zeros((val.shape + (lut.shape[-1],)))
         idx = np.where(~np.isnan(val))
-        rgb[idx] = lut[(((val[idx]-min_val)/(max_val-min_val))*(n-1)).astype(int)]
+        rgb[idx] = lut[(((float(val[idx])-min_val)/(max_val-min_val))*(n-1)).astype(int)]
         return [tuple(this) for this in rgb]
     else:
-        rgb = lut[(((val-min_val)/(max_val-min_val))*(n-1)).astype(int)]        
+        rgb = lut[(((float(val)-min_val)/(max_val-min_val))*(n-1)).astype(int)]        
         return tuple(rgb)
 
 
@@ -208,6 +208,10 @@ def sig_in_points(bvecs, val, fig=None, **kwargs):
 
     val: array of length n, with values of the data to present
 
+    fig: Whether to draw this in an existing figure (assumes that you want to
+    put this in fig.axes[0], unless you provide an axes3d.Axes3D class instance
+    as an input, in which case, we'll use that instance.
+    
     cmap: Specify a matplotlib colormap to use for coloring the data. 
 
     Additional kwargs can be passed to the matplotlib.pyplot.plot3D command.
@@ -217,7 +221,15 @@ def sig_in_points(bvecs, val, fig=None, **kwargs):
     if fig is None: 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-
+    
+    else:
+        # If you gave us axes, we'll use those:
+        if isinstance(fig, axes3d.Axes3D):
+            ax = fig
+        # Otherwise, we'll assume you want it in fig.axes[0]:
+        else: 
+            ax = fig.axes[0]
+    
     # Get the cmap argument out of your kwargs:
     cmap = kwargs.pop('cmap', matplotlib.cm.RdBu)
     
@@ -230,4 +242,20 @@ def sig_in_points(bvecs, val, fig=None, **kwargs):
                   np.ones(1) * y[idx],
                   np.ones(1) * z[idx],
                   'o', c=c, **kwargs)
+    return fig
 
+def scale_bvecs_by_sig(bvecs, sig):
+    """
+    Helper function to rescale your bvecs according to some signal, so that
+    they don't fall on the unit sphere, but instead are represented in space as
+    distance from the origin.
+    """
+
+    x,y,z = bvecs
+
+    r, theta, phi = geo.cart2sphere(x, y, z)
+
+    # Simply replace r with sig:
+    x,y,z = geo.sphere2cart(sig, theta, phi)
+
+    return x,y,z

@@ -7,6 +7,16 @@ import numpy as np
 import scipy
 import scipy.linalg as la
 
+# We want to try importing numexpr for some array computations, but we can do
+# without:
+try:
+    import numexpr
+    has_numexpr = True
+except ImportError: 
+    has_numexpr = False
+
+
+
 def intersect(arr_list):
     """
     Return the values that are in all arrays.
@@ -184,3 +194,102 @@ def calculate_rotation(a,b):
     return np.matrix(np.array([np.array(rot[i,:]) *
                             sign_reverser[0,i] for i in range(3)]).squeeze())
 
+def fractional_anisotropy(lambda_1, lambda_2, lambda_3):
+    """
+    .. math::
+
+            FA = \sqrt{\frac{1}{2}\frac{(\lambda_1-\lambda_2)^2+(\lambda_1-
+                        \lambda_3)^2+(\lambda_2-lambda_3)^2}{\lambda_1^2+
+                        \lambda_2^2+\lambda_3^2} }
+
+    """ 
+    if has_numexpr:
+        # Use numexpr to evaluate this quickly:
+        fa = np.sqrt(0.5) * np.sqrt(numexpr.evaluate("(lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 "))/np.sqrt(numexpr.evaluate("lambda_1**2 + lambda_2**2 + lambda_3**2"))
+
+    else:
+        fa =  np.sqrt(0.5) * np.sqrt((lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 )/np.sqrt(lambda_1**2 + lambda_2**2 + lambda_3**2)
+
+    return fa
+
+def ols_matrix(A, norm=None):
+    """
+    Generate the matrix used to solve OLS regression.
+
+    Parameters
+    ----------
+
+    A: float array
+        The design matrix
+
+    norm: callable, optional
+        A normalization function to apply to the matrix, before extracting the
+        OLS matrix.
+
+    Notes
+    -----
+
+    The matrix needed for OLS regression for the equation:
+
+    ..math ::
+
+        y = Ax
+
+   is given by:
+
+    ..math ::
+
+        OLS = (A x A')^{-1} x A'
+
+    """
+    if norm is not None:
+        X = norm(np.matrix(A.copy()))
+    else:
+        X = np.matrix(A.copy())
+
+    return la.inv(X.T * X) * X.T
+
+
+def decompose_tensor(tensor, non_negative=False):
+    """
+    Returns eigenvalues and eigenvectors given a diffusion tensor
+
+    Computes tensor eigen decomposition to calculate eigenvalues and
+    eigenvectors of self-diffusion tensor. (Basser et al., 1994a)
+
+    Parameters
+    ----------
+    D : array (3,3)
+        array holding a tensor. Assumes D has units on order of
+        ~ 10^-4 mm^2/s
+
+    Returns
+    -------
+    eigvals : array (3,)
+        Eigenvalues from eigen decomposition of the tensor. Negative
+        eigenvalues are replaced by zero. Sorted from largest to smallest.
+    eigvecs : array (3,3)
+        Associated eigenvectors from eigen decomposition of the tensor.
+        Eigenvectors are columnar (e.g. eigvecs[:,j] is associated with
+        eigvals[j])
+
+    See Also
+    --------
+    numpy.linalg.eig
+    """
+
+    #outputs multiplicity as well so need to unique
+    eigenvals, eigenvecs = la.eigh(tensor)
+
+    #need to sort the eigenvalues and associated eigenvectors
+    order = eigenvals.argsort()[::-1]
+    eigenvecs = eigenvecs[:, order]
+    eigenvals = eigenvals[order]
+
+    if non_negative: 
+        # Forcing negative eigenvalues to 0
+        eigenvals = np.maximum(eigenvals, 0)
+        # b ~ 10^3 s/mm^2 and D ~ 10^-4 mm^2/s
+        # eigenvecs: each vector is columnar
+
+    return eigenvals, eigenvecs

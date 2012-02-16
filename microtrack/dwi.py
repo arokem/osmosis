@@ -99,5 +99,5 @@ class DWI(desc.ResetMixin):
             w_s = "DWI data generated from array. Affine will be set to"
             w_s += " np.eye(4)"
             warnings.warn(w_s)
-            return np.eye(4)
+            return np.matrix(np.eye(4))
 
