@@ -114,8 +114,7 @@ class Tensor(object):
         This is calculated as $ADC = \vec{b} Q \vec{b}^T$
         """
         # Make sure it's a matrix:
-        bvecs = np.matrix(self.bvecs)       
-        return np.diag(bvecs.T*self.Q*bvecs)
+        return apparent_diffusion_coef(self.bvecs, self.Q)
 
     def predicted_signal(self, S0):
         """
@@ -188,3 +187,10 @@ def stejskal_tanner(S0, bvals, ADC):
     e = np.exp(-np.asarray(bvals) * ADC)
     return np.asarray(S0) * e.T 
     
+
+def apparent_diffusion_coef(bvecs, q):
+    """
+    $ADC = \vec{b} Q \vec{b}^T$
+    """
+    bvecs = np.matrix(bvecs)       
+    return np.diag(bvecs.T* q* bvecs)

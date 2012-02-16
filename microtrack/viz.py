@@ -42,6 +42,11 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
     fig: The figure handle
     
     """
+    if vmin is None:
+        vmin = np.nanmin(vol)
+    if vmax is None:
+        vmax = np.nanmax(vol)
+        
     sq = int(np.ceil(np.sqrt(len(vol))))
 
     # Take the first one, so that you can assess what shape the rest should be: 
@@ -62,7 +67,8 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
     imax = ax.matshow(im.T, vmin=vmin, vmax=vmax, **kwargs)
     ax.get_axes().get_xaxis().set_visible(False)
     ax.get_axes().get_yaxis().set_visible(False)
-    cbar = fig.colorbar(imax, ticks=[0, np.nanmin([vmax,np.nanmax(im)])/2.,
+    cbar = fig.colorbar(imax, ticks=[np.nanmin([0, vmin]),
+                                     vmax - (vmax - vmin)/2,
                                      np.nanmin([vmax,np.nanmax(im)])],
                                      format='%1.2f')  
     if title is not None:
@@ -70,6 +76,7 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
     if size is not None: 
         fig.set_size_inches(size)
 
+    return fig
 
 def lut_from_cm(cm, n=256):
     """

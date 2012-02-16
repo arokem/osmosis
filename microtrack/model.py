@@ -3,10 +3,22 @@
 This module is used to construct and solve models of diffusion data 
 
 """
+import os
+
 import numpy as np
+
+# We want to try importing numexpr for some array computations, but we can do
+# without:
+try:
+    import numexpr
+    has_ne = True
+except ImportError: 
+    has_ne = False
+    
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
 import dipy.reconst.dti as dti
+import nibabel as ni
 
 import microtrack.descriptors as desc
 import microtrack.fibers as mtf
@@ -125,7 +137,7 @@ class BaseModel(desc.ResetMixin):
         XXX Need to consider the commonalities which can be outlined here. 
         """
         pass
-
+    
 class TensorModel(BaseModel):
     """
     A class for representing and solving a simple forward model. Just the
@@ -136,7 +148,8 @@ class TensorModel(BaseModel):
                  DWI,
                  scaling_factor=SCALE_FACTOR,
                  mask=None,
-                 sub_sample=None):
+                 sub_sample=None,
+                 file_name=None):
         """
         Parameters
         -----------
@@ -144,7 +157,31 @@ class TensorModel(BaseModel):
         name of nifti file, from which data should be read, bvecs file, bvals
         file]
 
-        scaling_factor: This scales the b value for the Stejskal/Tanner equation
+        scaling_factor: This scales the b value for the Stejskal/Tanner
+        equation
+
+        mask: ndarray or file-name
+              An array of the same shape as the data, containing a binary mask
+              pointing to the locations of voxels that should be analyzed.
+
+        sub_sample: int or array of ints.
+
+           If we want to sub-sample the DWI data on the sphere (in the bvecs),
+           we can do one of two things: 
+
+           1. If sub_sample is an integer, that number of random bvecs will be
+           chosen from the data.
+
+           2. If an array of indices is provided, these will serve as indices
+           into the last dimension of the data and only that part of the data
+           will be used
+
+
+        file_name: A file to cache the initial tensor calculation in. If this
+        file already exists, we pull the tensor fit out of it. Otherwise, we
+        calculate the tensor fit and save this file with the params of the
+        tensor fit. 
+        
         """
         # Initialize the super-class:
         BaseModel.__init__(self,
@@ -152,6 +189,26 @@ class TensorModel(BaseModel):
                            scaling_factor=scaling_factor,
                            sub_sample=sub_sample)
 
+        if file_name is not None: 
+            self.file_name = file_name
+        else:
+            # If DWI has a file-name, construct a file-name out of that: 
+            if hasattr(DWI, 'data_file'):
+                path, f = os.path.split(DWI.data_file)
+                # Need to deal with the double-extension in '.nii.gz':
+                file_parts = f.split('.')
+                name = file_parts[0]
+                extension = ''
+                for x in file_parts[1:]:
+                    extension = extension + '.' + x
+                self.file_name = os.path.join(path, name + 'TensorModel' +
+                                              extension)
+            else:
+                # Otherwise give up and make a file right here with a generic
+                # name: 
+                self.file_name = 'DTI.nii.gz'
+        
+        
         if mask is not None:
             self.mask = mask
         else:
@@ -159,52 +216,111 @@ class TensorModel(BaseModel):
             self.mask = np.ones(self.data.shape)
             
     @desc.auto_attr
-    def DT(self):
+    def model_params(self):
         """
-        The diffusion tensor parameters estimated from the data
+        The diffusion tensor parameters estimated from the data, using dipy.
+        If this calculation has already occurred, just load the data from a
+        nifti file, which has shape x by y by z by 12, where the last dimension
+        is the model params:
+
+        evecs (9) + evals (3)
+        
         """
-        return dti.Tensor(self.data, self.bvals, self.bvecs.T, self.mask)
+        # The file already exists: 
+        if os.path.isfile(self.file_name):
+            return ni.load(self.file_name).get_data()
+        else: 
+            mp = dti.Tensor(self.data,
+                            self.bvals,
+                            self.bvecs.T,
+                            self.mask).model_params 
 
-    @desc.auto_attr
-    def FA(self):
-        return self.DT.md()
-
-    @desc.auto_attr
-    def FA(self):
-        return self.DT.fa()
+            # Save the params for future use: 
+            params_ni = ni.Nifti1Image(mp, self.affine)
+            params_ni.to_filename(self.file_name)
+            # And return the params for current use:
+            return mp
 
     @desc.auto_attr
     def evecs(self):
-        return self.DT.evecs
+        return np.reshape(self.model_params[..., 3:], 
+                          self.model_params.shape[:3] + (3,3))
 
     @desc.auto_attr
     def evals(self):
-        return self.DT.evals
+        return self.model_params[..., :3]
 
     @desc.auto_attr
-    def tensors(self):
-        """
-        Generate a volume with tensor objects
-        """
-        T = np.empty(self.data.shape[:3], dtype='object')
-        for i in xrange(self.data.shape[0]):
-            for j in xrange(self.data.shape[1]): 
-                for k in xrange(self.data.shape[2]):
-                    T[i,j,k] = mtt.Tensor(self.DT.D[i,j,k],
-                                          self.bvecs[:,self.b_idx],
-                                          self.bvals[self.b_idx])
+    def mean_diffusivity(self):
+        #adc/md = (ev1+ev2+ev3)/3
+        return self.evals.mean(-1)
 
-        return T
+    @desc.auto_attr
+    def fractional_anisotropy(self):
+        """
+        .. math::
+
+            FA = \sqrt{\frac{1}{2}\frac{(\lambda_1-\lambda_2)^2+(\lambda_1-
+                        \lambda_3)^2+(\lambda_2-lambda_3)^2}{\lambda_1^2+
+                        \lambda_2^2+\lambda_3^2} }
+
+        """
+        lambda_1 = self.evals[..., 0]
+        lambda_2 = self.evals[..., 1]
+        lambda_3 = self.evals[..., 2]
+        if has_ne:
+            # Use numexpr to evaluate this quickly:
+            fa = np.sqrt(0.5) * np.sqrt(numexpr.evaluate("(lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 "))/np.sqrt(numexpr.evaluate("lambda_1**2 + lambda_2**2 + lambda_3**2"))
+        else:
+            fa =  np.sqrt(0.5) * np.sqrt((lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 )/np.sqrt(lambda_1**2 + lambda_2**2 + lambda_3**2)
+
+        return fa
+
+    @desc.auto_attr
+    def radial_diffusivity(self):
+        return np.mean(self.evals[...,1:],-1)
+
+    @desc.auto_attr
+    def axial_diffusivity(self):
+        return np.mean(self.evals[...,0],-1)
+
+    # Self Diffusion Tensor, taken from dipy.reconst.dti:
+    @desc.auto_attr
+    def tensors(self):
+        evals = self.evals
+        evecs = self.evecs
+        evals_flat = evals.reshape((-1, 3))
+        evecs_flat = evecs.reshape((-1, 3, 3))
+        D_flat = np.empty(evecs_flat.shape)
+        for ii in xrange(len(D_flat)):
+            Q = evecs_flat[ii]
+            L = evals_flat[ii]
+            D_flat[ii] = np.dot(Q*L, Q.T)
+        return D_flat.reshape(evecs.shape)
+
+
+    @desc.auto_attr
+    def apparent_diffusion_coef(self):
+        adc_flat = np.empty((np.prod(self.evecs.shape[:3]), len(self.b_idx)))
+        tensors_flat = self.tensors.reshape((-1,3,3))
+        for ii in xrange(len(adc_flat)):
+            adc_flat[ii] = mtt.apparent_diffusion_coef(
+                                        self.bvecs[:,self.b_idx],
+                                        tensors_flat[ii])
+        return adc_flat.reshape(self.evecs.shape[:3] + (len(self.b_idx),))
 
     @desc.auto_attr
     def fit(self):
-        sig = np.empty((self.data.shape[:3] + (len(self.b_idx),)))
-        for i in xrange(self.data.shape[0]):
-            for j in xrange(self.data.shape[1]): 
-                for k in xrange(self.data.shape[2]):                       
-                    sig[i,j,k] = self.tensors[i,j,k].predicted_signal(
-                                                        self.S0[i,j,k])
-        return sig
+        adc_flat = self.apparent_diffusion_coef.reshape((-1, len(self.b_idx)))
+        s0_flat = self.S0.ravel()
+        sig_flat = np.empty((np.prod(self.data.shape[:3]), len(self.b_idx),))
+
+        for ii in xrange(len(sig_flat)):
+            sig_flat[ii] = mtt.stejskal_tanner(s0_flat[ii],
+                                               self.bvals[:, self.b_idx],
+                                               adc_flat[ii])
+
+        return sig_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
 
 
     @desc.auto_attr
@@ -213,6 +329,19 @@ class TensorModel(BaseModel):
         The prediction-subtracted residual
         """
         return self.S_weighted - self.fit
+
+
+class SphericalHarmonicsModel(BaseModel):
+    """
+    A class for calculating and evaluating spherical harmonic models
+    
+    """ 
+
+    def __init__():
+        """
+        """
+        raise NotImplementedError
+        
     
 class FiberModel(BaseModel):
     """

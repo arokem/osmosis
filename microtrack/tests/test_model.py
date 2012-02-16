@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import numpy as np
 import numpy.testing as npt
@@ -17,14 +18,27 @@ if 'dwi.nii.gz' in os.listdir(data_path):
 else:
     no_data = True
 
-
+# This takes some time, because it requires reading large data files and of
+# course, needs to be skipped if the data is no where to be found:     
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
-def test_TensorModel()
-    pass
+def test_TensorModel():
 
-# This takes some time, because it requires reading large data files and of
-# course, needs to be skipped if the data is no where to be found: 
+    DWI = dwi.DWI(data_path + 'small_dwi.nii.gz',
+                  data_path + 'dwi.bvecs',
+                  data_path + 'dwi.bvals')
+
+    file_name = os.path.join(tempfile.gettempdir() + 'DTI.nii.gz')
+
+    TM = mtm.TensorModel(DWI,file_name=file_name)
+    
+    # Make sure the shapes of things make sense: 
+    npt.assert_equal(TM.model_params.shape, DWI.data.shape[:3] + (12,))
+    npt.assert_equal(TM.evals.shape, DWI.data.shape[:3] + (3,))
+    npt.assert_equal(TM.evecs.shape, DWI.data.shape[:3] + (3,3))
+
+    
+
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
 def test_FiberModel():
