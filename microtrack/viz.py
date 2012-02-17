@@ -261,3 +261,45 @@ def scale_bvecs_by_sig(bvecs, sig):
     return x,y,z
 
 
+def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
+    """
+    Create a scatter plot with density of the data-points at each point on the
+    x,y grid coded by the color in the colormap (hot per default)
+    
+    """
+    
+    x = rescale(x).ravel() * (res - 1) 
+    y = rescale(y).ravel() * (res - 1)
+
+    data_arr = np.zeros((res, res))
+
+    for this_x,this_y in zip(x,y):
+        data_arr[np.floor(this_x), np.floor(this_y)] += 1
+
+    # Where there's nothing, set it to nan:
+    data_arr[data_arr==0] *= np.nan
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    imax = ax.matshow(np.log10(np.flipud(data_arr.T)), cmap=cmap)    
+    fig.colorbar(imax)
+    
+    return fig
+
+
+def rescale(arr):
+    """
+
+   rescale an array into [0,1]
+
+    """
+    # Start by moving the minimum to 0:
+    min_arr = np.min(arr)
+
+    if min_arr<0:
+        arr += np.abs(min_arr)
+    else:
+        arr -= np.abs(min_arr)
+        
+    return arr/np.max(arr)
+
