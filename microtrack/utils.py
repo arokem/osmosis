@@ -293,3 +293,21 @@ def decompose_tensor(tensor, non_negative=False):
         # eigenvecs: each vector is columnar
 
     return eigenvals, eigenvecs
+
+
+def fit_tensor(): 
+    """
+    This is some potentially useful code (as in, no clear use for now) that
+    fits a tensor to any arbitrary data. It undoes some of the DWI-specific
+    stuff that dipy does.
+    """ 
+
+    # Construct the same design matrix you normally would (except keep it
+    # positive (by setting the input bval to -1) and don't keep the last
+    # column (which corresponds to the S0):
+    design_matrix = dti.design_matrix(bvecs,
+                                      -1 * np.ones(bvecs.shape[-1]))[:,:6]
+
+    ols_matrix = ols_matrix(design_matrix)
+
+    return np.array(np.dot(ols_matrix, data))

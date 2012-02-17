@@ -11,13 +11,15 @@ import numpy as np
 # without:
 try:
     import numexpr
-    has_ne = True
+    has_numexpr = True
 except ImportError: 
-    has_ne = False
+    has_numexpr = False
     
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
 import scipy.linalg as la
+import scipy.stats as stats
+
 import dipy.reconst.dti as dti
 import nibabel as ni
 
@@ -87,9 +89,9 @@ class BaseModel(desc.ResetMixin):
                 idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
 
             self.b_idx = self.b_idx[idx]
-            # At this point, S_weighted will be taken according to these
+            # At this point, signal will be taken according to these
             # sub-sampled indices:
-            self.data = np.concatenate([self.S_weighted,
+            self.data = np.concatenate([self.signal,
                                         self.data[:,:,:,self.b0_idx]],-1)
 
             self.b0_idx = np.arange(len(self.b0_idx))
@@ -124,20 +126,69 @@ class BaseModel(desc.ResetMixin):
         return np.mean(self.data[...,self.b0_idx],-1).squeeze()
         
     @desc.auto_attr
-    def S_weighted(self):
+    def signal(self):
         """
         The signal in b-weighted volumes
         """
         return self.data[...,self.b_idx].squeeze()
 
+    @desc.auto_attr
     def fit(self):
         """
-        The pattern is that each one of the models will have a fit method that
-        goes and fits the particulars of that model.
+        Each model will have a model prediction, which is always in this class
+        method. This prediction is used in other methods, such as 'residuals'
+        and 'r_squared'.
 
-        XXX Need to consider the commonalities which can be outlined here. 
+        In this particular case, we set fit to be exactly equal to the
+        signal. This should make testing easy :-) 
         """
-        pass
+        return self.signal
+
+    def _correlator(self, func, r_idx):
+        """
+        Helper function that uses a callable "func" to apply between two 1-d
+        arrays. These 1-d arrays can have different outputs and the one we
+        always want is the one which is r_idx into the output tuple 
+        """
+
+        flat_signal = self.signal.reshape((-1, self.signal.shape[-1]))
+        flat_fit = self.fit.reshape((-1, self.signal.shape[-1]))
+
+        r = np.empty(flat_signal.shape[0])
+        
+        for ii in xrange(len(flat_signal)):
+            outs = func(flat_signal[ii] , flat_fit[ii])
+            r[ii] = outs[r_idx]
+            
+        if has_numexpr:
+            r_squared = numexpr.evaluate('r**2')
+        else:
+            r_squared = r**2
+            
+        return r_squared.reshape(self.signal.shape[:3])
+        
+
+    @desc.auto_attr
+    def r_squared(self):
+        """
+        The r-squared ('explained variance') value in each voxel
+        """
+        return self._correlator(stats.pearsonr, 0)
+    
+    @desc.auto_attr
+    def coeff_of_determination(self):
+        """
+        The coefficient of determination in each voxel
+        """
+        return self._correlator(stats.linregress, 2)
+    
+    @desc.auto_attr
+    def residuals(self):
+        """
+        The prediction-subtracted residual in each voxel
+        """
+        return (self.signal - self.fit)
+
     
 class TensorModel(BaseModel):
     """
@@ -319,86 +370,6 @@ class TensorModel(BaseModel):
 
         return sig_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
 
-    
-    @desc.auto_attr
-    def residuals(self):
-        """
-        The prediction-subtracted residual in each voxel
-        """
-        return (self.S_weighted - self.fit)
-
-
-    @desc.auto_attr
-    def ResidualTensorModel(self):
-        """
-        Fit a tensor to the residuals using WLS
-        """
-
-        # Construct the same design matrix you normally would (except keep it
-        # positive (by setting the input bval to -1) and don't keep the last
-        # column (which corresponds to the S0):
-        design_matrix = dti.design_matrix(
-                                    self.bvecs[:,self.b_idx],
-                                    -1 * np.ones(len(self.b_idx)))[:,:6]
-
-        ols_matrix = mtu.ols_matrix(design_matrix)
-
-        flat_residuals = np.abs(self.residuals.reshape((-1,
-                                                self.residuals.shape[-1])))
-
-        tensors = np.empty(((len(flat_residuals),) + (3,3)))
-
-        for ii in xrange(len(flat_residuals)):
-            tensors[ii] = dti.from_lower_triangular(np.array(np.dot(ols_matrix,
-                                                          flat_residuals[ii,:])))
-            
-        return tensors.reshape((self.data.shape[:3] + (3,3)))
-
-    @desc.auto_attr
-    def ResidualTensorModelFA(self):
-        """
-        Compute the FA of the residual tensors
-        """
-
-        tensors = self.ResidualTensorModel
-
-        # Not really *completely* flat, but reshaped to the right shape:
-        flat_tensors = self.ResidualTensorModel.reshape((-1, 3,3))
-        lambda1 = np.empty(flat_tensors.shape[0])
-        lambda2 = np.empty(flat_tensors.shape[0])
-        lambda3 = np.empty(flat_tensors.shape[0])
-        
-        for ii in xrange(len(flat_tensors)):
-            (lambda1[ii],lambda2[ii],lambda3[ii]),_ = \
-                mtu.decompose_tensor(flat_tensors[ii])
-
-        # Do it in one fell swoop (go numexpr!):
-        fa = mtu.fractional_anisotropy(lambda1, lambda2, lambda3)
-        
-        return fa.reshape(self.tensors.shape[:3])
-        
-        
-
-"""
-
-This is a recursive way of doing this, but would require some transformation of
-the data (just taking an exponent?), so for now commented out here: 
-
-
-# Recurse back onto yourself, while setting all the bvals to -1:
-        bve =  np.concatenate([self.bvecs[:, self.b_idx].T, np.zeros((1,3))]).T
-        bva =  -1 * np.ones(len(self.b_idx) + 1)
-        # And the S0 to be equal to the mean residual across bvecs at each
-        # voxel:
-        sig = np.concatenate([self.residual,
-                              np.mean(self.residual,-1)[...,np.newaxis]],-1)
-
-        # Construct a new model with these inputs: 
-        Model = TensorModel(dwi.DWI(sig, bve, bva))
-
-        return Model
-"""        
-
 
 class SphericalHarmonicsModel(BaseModel):
     """
@@ -524,10 +495,11 @@ class FiberModel(BaseModel):
         return sps.coo_matrix((matrix_sig,[matrix_row, matrix_col]))
     
     @desc.auto_attr
-    def sig(self):
+    def flat_signal(self):
         """
         The signal in the voxels corresponding to where the fibers pass through.
         """ 
-        return self.S_weighted[self.fg_idx_unique[0],
+        return self.signal[self.fg_idx_unique[0],
                                self.fg_idx_unique[1],
                                self.fg_idx_unique[2]].ravel()
+

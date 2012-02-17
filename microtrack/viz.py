@@ -259,3 +259,5 @@ def scale_bvecs_by_sig(bvecs, sig):
     x,y,z = geo.sphere2cart(sig, theta, phi)
 
     return x,y,z
+
+
