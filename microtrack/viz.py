@@ -274,11 +274,13 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     data_arr = np.zeros((res, res))
 
     for this_x,this_y in zip(x,y):
-        data_arr[np.floor(this_x), np.floor(this_y)] += 1
+        # If one of them is a nan, move on:
+        if np.isnan(this_x) or np.isnan(this_y):
+            pass
+        else: 
+            data_arr[np.floor(this_x), np.floor(this_y)] += 1
 
-    # Where there's nothing, set it to nan:
-    data_arr[data_arr==0] *= np.nan
-
+    
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
     imax = ax.matshow(np.log10(np.flipud(data_arr.T)), cmap=cmap)    
@@ -294,12 +296,12 @@ def rescale(arr):
 
     """
     # Start by moving the minimum to 0:
-    min_arr = np.min(arr)
+    min_arr = np.nanmin(arr)
 
     if min_arr<0:
         arr += np.abs(min_arr)
     else:
         arr -= np.abs(min_arr)
         
-    return arr/np.max(arr)
+    return arr/np.nanmax(arr)
 
