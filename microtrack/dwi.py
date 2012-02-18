@@ -5,6 +5,15 @@ A module for representing diffusion weighted imaging data
 """
 import warnings
 
+# We want to try importing numexpr for some array computations, but we can do
+# without:
+try:
+    import numexpr
+    has_numexpr = True
+except ImportError: 
+    has_numexpr = False
+
+import scipy.stats as stats
 import numpy as np
 import nibabel as ni
 
@@ -101,3 +110,60 @@ class DWI(desc.ResetMixin):
             warnings.warn(w_s)
             return np.matrix(np.eye(4))
 
+    @desc.auto_attr
+    def _flat_data(self):
+        """
+        
+        """
+        return np.reshape(self.data, (-1, self.bvecs.shape[-1]))
+
+    def noise_ceiling(self, DWI2):
+        """
+        Calculate the r-squared of the correlation in each voxel (across
+        directions) between this class instance and another class instance,
+        provided as input
+        
+        """
+                
+        val = np.empty(self._flat_data.shape[0])
+
+        for ii in xrange(len(val)):
+            val[ii] = stats.pearsonr(self._flat_data[ii],
+                                     DWI2._flat_data[ii])[0] 
+
+        if has_numexpr:
+            r_squared = numexpr.evaluate('val**2')
+        else:
+            r_squared = val**2
+
+        return r_squared.reshape(self.data.shape[:3])
+    
+
+    @desc.auto_attr
+    def b_idx(self):
+        """
+        The indices into non-zero b values
+        """
+        return np.where(self.bvals > 0)[0]
+        
+    @desc.auto_attr
+    def b0_idx(self):
+        """
+        The indices into zero b values
+        """
+        return np.where(self.bvals==0)[0]
+
+    @desc.auto_attr
+    def S0(self):
+        """
+        Extract and average the signal for volumes in which no b weighting was
+        used (b0 scans)
+        """
+        return np.mean(self.data[...,self.b0_idx],-1).squeeze()
+        
+    @desc.auto_attr
+    def signal(self):
+        """
+        The signal in b-weighted volumes
+        """
+        return self.data[...,self.b_idx].squeeze()
