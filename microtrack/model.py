@@ -329,7 +329,7 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def axial_diffusivity(self):
-        return np.mean(self.evals[...,0],-1)
+        return self.evals[...,0]
 
     # Self Diffusion Tensor, taken from dipy.reconst.dti:
     @desc.auto_attr
