@@ -34,3 +34,27 @@ def test_intersect():
     arr2 = np.array([[1,0.1,0.2],[0.3,0.4, 0.5]])
     arr3 = np.array(1)
     npt.assert_equal(1, mtu.intersect([arr1, arr2, arr3]))
+
+def test_euclidian_distance():
+    """
+    Testing the euclidian distance metrix
+    """
+    x = [np.array([1,2,3])]
+    y = [np.array([1,2,3])]
+
+    npt.assert_equal(mtu.euclidian_distance(x,y),0)
+
+
+    x = [np.array([0,0,1]), np.array([0,1,0])]
+    y = [np.array([0,0,0]), np.array([0,0,0])]
+
+    npt.assert_equal(mtu.euclidian_distance(x,y), np.ones((2,2)))
+
+    y = [np.array([0,1,0]), np.array([0,0,1])]
+    npt.assert_equal(mtu.euclidian_distance(x,y), np.sqrt(2) * np.eye(2))
+    
+    
+
+    
+    
+

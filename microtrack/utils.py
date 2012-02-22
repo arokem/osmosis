@@ -16,7 +16,6 @@ except ImportError:
     has_numexpr = False
 
 
-
 def intersect(arr_list):
     """
     Return the values that are in all arrays.
@@ -311,3 +310,41 @@ def fit_tensor():
     ols_matrix = ols_matrix(design_matrix)
 
     return np.array(np.dot(ols_matrix, data))
+
+def euclidian_distance(x,y):
+    """
+    Compute the euclidian distances between all elements of the list x and al
+    elements of the list y
+
+    Parameters
+    ----------
+    x,y: lists of ndarrays. All arrays have the same dimensionality, so that
+    the euclidian distance is defined for every pair of items
+    
+    Returns
+    -------
+    arr: Array where the distance between element i in x and element j in y is
+        arr[i,j]
+
+    """
+    
+    arr = np.empty((len(x), len(y)))
+    for i in xrange(arr.shape[0]):
+        for j in xrange(arr.shape[1]):
+            arr[i, j] = root_ss(x[i]-y[j])
+
+    return arr
+    
+def root_ss(arr):
+    """
+    The square root of the sum of squares:
+    
+    .. math::
+
+       \sqrt{\sum_{i}^{N} X_{i}^{2}}
+
+    This can be used to solve the Pythagorean equality, or to calculate
+    Euclidian distance.
+    """
+
+    return np.sqrt(np.sum(arr**2))
