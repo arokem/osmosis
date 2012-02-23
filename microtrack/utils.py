@@ -313,7 +313,7 @@ def fit_tensor():
 
 def euclidian_distance(x,y):
     """
-    Compute the euclidian distances between all elements of the list x and al
+    Compute the euclidian distances between all elements of the list x and all
     elements of the list y
 
     Parameters
@@ -347,4 +347,34 @@ def root_ss(arr):
     Euclidian distance.
     """
 
+    # Make sure to treat it as an array:
+    arr = np.asarray(arr)
+    
     return np.sqrt(np.sum(arr**2))
+
+def nearest_coord(vol, in_coords, tol=10):
+    """
+    Find the coordinate in vol that contains data (not nan) that is spatially
+    closest to in_coord  
+    """
+    vol_idx = np.where(~np.isnan(vol))
+
+    # Get the Euclidian distance for the in_coord from all the volume
+    # coordinates: 
+    d_x = in_coords[0] - vol_idx[0]
+    d_y = in_coords[1] - vol_idx[1]
+    d_z = in_coords[2] - vol_idx[2]
+    
+    delta = np.sqrt(d_x**2 + d_y**2 + d_z**2)
+
+    min_delta  = np.nanmin(delta)
+    
+    # If this is within the requested tolerance: 
+    if min_delta <= tol:
+        idx = np.where(delta == np.min(delta))[0]
+        return [vol_idx[i][idx] for i in range(3)]
+
+    # Otherwise, return None: 
+    else:
+        return None 
+    
