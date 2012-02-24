@@ -15,4 +15,16 @@ def test_nii2fg():
     data_path = os.path.split(mt.__file__)[0] + '/data/'
     pdb_file = data_path + 'FG_w_stats.pdb'
     nii_file = data_path + 'fp20110912_ecc.nii.gz'
+    # Smoke testing this: 
     fg = mtv.nii2fg(pdb_file, nii_file)
+
+    # XXX Need to come up with more rigorous tests here
+
+def test_fg2volume():
+
+    data_path = os.path.split(mt.__file__)[0] + '/data/'
+    pdb_file = data_path + 'FG_w_stats.pdb'
+    nii_file = data_path + 'fp20110912_ecc.nii.gz'
+    fg = mtv.nii2fg(pdb_file, nii_file)
+    vol = mtv.fg2volume(fg, 'fp20110912_ecc.nii.gz',
+                        shape=ni.load().get_shape())

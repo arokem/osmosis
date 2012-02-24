@@ -58,7 +58,7 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
         this_im = np.hstack(vol[(len(vol)/sq)*i:(len(vol)/sq)*(i+1)])
         wid_margin = width - this_im.shape[-1]
         if wid_margin: 
-            this_im = np.hstack([this_im, np.zeros((height, wid_margin))])
+            this_im = np.hstack([this_im, np.nan *np.ones((height, wid_margin))])
         im = np.vstack([im, this_im])
     
     
