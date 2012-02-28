@@ -267,6 +267,9 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     x,y grid coded by the color in the colormap (hot per default)
     
     """
+
+    max_x = np.max(x)
+    max_y = np.max(y)
     
     x = rescale(x).ravel() * (res - 1) 
     y = rescale(y).ravel() * (res - 1)
@@ -285,8 +288,13 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     ax = fig.add_subplot(1,1,1)
     imax = ax.matshow(np.log10(np.flipud(data_arr.T)), cmap=cmap)    
     fig.colorbar(imax)
+    ax.set_xticks([0] + [i * res/5.0 for i in range(5)])
+    ax.set_yticks([0] + [i * res/5.0 for i in range(5)])
+    ax.set_xticklabels([0] + ['%0.2f'%(i * max_x/5.0) for i in range(5)])
+    ax.set_yticklabels([0] + ['%0.2f'%(i * max_y/5.0) for i in range(5,0,-1)])
     
     return fig
+
 
 
 def rescale(arr):
