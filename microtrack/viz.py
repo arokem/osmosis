@@ -196,7 +196,7 @@ def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
 
     return fig
 
-def sig_in_points(bvecs, val, fig=None, **kwargs):
+def sig_in_points(bvecs, val, fig=None, r_from_val=False, **kwargs):
     """
     Display signal in points in 3d, based on the bvecs provided.
 
@@ -211,12 +211,21 @@ def sig_in_points(bvecs, val, fig=None, **kwargs):
     fig: Whether to draw this in an existing figure (assumes that you want to
     put this in fig.axes[0], unless you provide an axes3d.Axes3D class instance
     as an input, in which case, we'll use that instance.
+
+    r_from_val: bool, optional.
+        Whether to scale the distance from the center for each point by the
+        value of that point. Defaults to False.
+
+    
     
     cmap: Specify a matplotlib colormap to use for coloring the data. 
-
+    
     Additional kwargs can be passed to the matplotlib.pyplot.plot3D command.
     """
-    x,y,z = bvecs
+    if r_from_val:
+        x,y,z = scale_bvecs_by_sig(bvecs, val)
+    else:
+        x,y,z = bvecs
 
     if fig is None: 
         fig = plt.figure()
