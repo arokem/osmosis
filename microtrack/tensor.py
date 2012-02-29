@@ -192,5 +192,5 @@ def apparent_diffusion_coef(bvecs, q):
     """
     $ADC = \vec{b} Q \vec{b}^T$
     """
-    bvecs = np.matrix(bvecs)       
+    bvecs = np.matrix(bvecs)
     return np.diag(bvecs.T* q* bvecs)

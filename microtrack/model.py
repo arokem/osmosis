@@ -21,6 +21,7 @@ import scipy.linalg as la
 import scipy.stats as stats
 
 import dipy.reconst.dti as dti
+import dipy.core.geometry as geo
 import nibabel as ni
 
 import microtrack.descriptors as desc
@@ -373,15 +374,146 @@ class TensorModel(BaseModel):
 
 class SphericalHarmonicsModel(BaseModel):
     """
-    A class for calculating and evaluating spherical harmonic models
-    
+    A class for evaluating spherical harmonic models. This assumes that a CSD
+    model was already fit somehow. Presumably by using mrtrix    
     """ 
-
-    def __init__():
+    
+    def __init__(self,
+                 DWI,
+                 CSD,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
         """
-        """
-        raise NotImplementedError
+        Initialize a SphericalHarmonicsModel class instance.
         
+        Parameters
+        ----------
+        DWI: microtrack.dwi.DWI class instance.
+
+        CSD: ndarray
+           Coefficients for a CSD model, organized according to the conventions
+           used by mrtrix (see sph_harm_set for details).
+        
+        """
+        # Initialize the super-class:
+        BaseModel.__init__(self,
+                           DWI,
+                           scaling_factor=scaling_factor,
+                           sub_sample=sub_sample)
+
+        self.model_coeffs = CSD
+        self.L = calculate_L(self.n_params)
+        self.n_params = self.CSD.shape[-1]
+
+
+    @desc.auto_attr
+    def sph_harm_set(self):
+        """
+        Calculate the spherical harmonics, provided n parameters (corresponding
+        to nc = (L+1) * (L+2)/2 with L being the maximal harmonic degree for
+        the set of bvecs of the object
+
+        Note
+        ----
+
+        1. This was written according to the documentation of mrtrix's
+        'csdeconv'. The following is taken from there:  
+
+          Note that this program makes use of implied symmetries in the
+          diffusion profile. First, the fact the signal attenuation profile is
+          real implies that it has conjugate symmetry, i.e. Y(l,-m) = Y(l,m)*
+          (where * denotes the complex conjugate). Second, the diffusion
+          profile should be antipodally symmetric (i.e. S(x) = S(-x)), implying
+          that all odd l components should be zero. Therefore, this program
+          only computes the even elements.
+
+          Note that the spherical harmonics equations used here differ slightly
+          from those conventionally used, in that the (-1)^m factor has been
+          omitted. This should be taken into account in all subsequent
+          calculations.
+
+          Each volume in the output image corresponds to a different spherical
+          harmonic component, according to the following convention: [0]    
+          Y(0,0)  [1] Im {Y(2,2)} [2] Im {Y(2,1)} [3]     Y(2,0) [4] Re
+          {Y(2,1)} [5] Re {Y(2,2)}  [6] Im {Y(4,4)} [7] Im {Y(4,3)} etc... 
+
+        
+        2. Take heed that it seems that scipy's sph_harm actually has the
+        order/degree in reverse order than the convention used by mrtrix, so
+        that needs to be taken into account in the calculation below
+
+        """
+                
+        # Convert to spherical coordinates:
+        r,theta,phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
+                                      self.bvecs[1, self.b_idx],
+                                      self.bvecs[2, self.b_idx])
+
+        # Preallocate:
+        b = np.empty((self.model_coeffs.shape[-1], theta.shape[0]))
+    
+        i = 0;
+        # Only even order are taken:
+        for order in np.arange(0,self.L,2):
+            for degree in np.arange(-order,order+1):
+                # In negative degrees, take the imaginary part: 
+                if degree < 0:  
+                    b[i,:] = np.imag(sph_harm(-1*degree, order, theta, phi));
+                else:
+                    b[i,:] = np.real(sph_harm(degree, order, theta, phi));
+                i = i+1;
+        return b
+
+    @desc.auto_attr
+    def fit(self): 
+        """
+        Generate a volume with dimensions (x,y,z, n_bvecs) where each voxel has:
+
+        .. math::
+
+          \sum{w_i, b_i}
+
+        Where $b_i$ are the basis set functions defined from the spherical
+        harmonics
+        """
+        datashape = self.model_coeffs.shape
+        volshape = datashape[:3]  # Disregarding the params dimension 
+        n_vox = np.prod(volshape)
+        n_weights = datashape[3]  # This is the params dimension 
+
+        # Reshape it so that we can multiply for all voxels in one fell swoop:
+        d = np.reshape(self.model_coeffs, (n_vox, n_weights))
+
+        # multiply these two matrices together for the estimated signal:  
+        return np.asarray(np.matrix(d) * np.matrix(self.sph_harm_set))
+        
+    def _calculate_L(n):
+        """
+        Calculate the maximal harmonic order (L), given that you know the
+        number of parameters that were estimated. This proceeds according to
+        the following logic:
+
+        .. math:: 
+
+           n = \frac{1}{2} (L+1) (L+2)
+
+           \rarrow 2n = L^2 + 3L + 2
+           \rarrow L^2 + 3L + 2 - 2n = 0
+           \rarrow L^2 + 3L + 2(1-n) = 0
+
+           \rarrow L_{1,2} = \frac{-3 \pm \sqrt{9 - 8 (1-n)}}{2}
+
+           \rarrow L{1,2} = \frac{-3 \pm \sqrt{1 + 8n}}{2}
+
+
+        Finally, the positive value is chosen between the two options. 
+        """
+
+        L1 = (-3 + np.sqrt(1+ 8 *n))/2
+        L2 = (-3 - np.sqrt(1+ 8 *n))/2
+
+        return max([L1,L2])
+
     
 class FiberModel(BaseModel):
     """

@@ -73,3 +73,6 @@ def test_FiberModel():
     npt.assert_equal(M.matrix.shape[0], M.flat_signal.shape[0])
     npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
 
+def test_SphericalHarmonicsModel():
+
+    pass 

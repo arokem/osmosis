@@ -301,6 +301,8 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     ax.set_yticks([0] + [i * res/5.0 for i in range(5)])
     ax.set_xticklabels([0] + ['%0.2f'%(i * max_x/5.0) for i in range(5)])
     ax.set_yticklabels([0] + ['%0.2f'%(i * max_y/5.0) for i in range(5,0,-1)])
+
+    1/0.
     
     return fig
 

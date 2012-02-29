@@ -1,6 +1,8 @@
 import os
 import numpy.testing as npt
 
+import nibabel as ni
+
 import microtrack as mt
 import microtrack.volume as mtv
 import microtrack.fibers as mtf
@@ -26,5 +28,6 @@ def test_fg2volume():
     pdb_file = data_path + 'FG_w_stats.pdb'
     nii_file = data_path + 'fp20110912_ecc.nii.gz'
     fg = mtv.nii2fg(pdb_file, nii_file)
+    # Smoke testing this: 
     vol = mtv.fg2volume(fg, 'fp20110912_ecc.nii.gz',
-                        shape=ni.load().get_shape())
+                        shape=ni.load(nii_file).get_shape())
