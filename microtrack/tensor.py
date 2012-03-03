@@ -3,7 +3,9 @@ import warnings
 import numpy as np
 import scipy.linalg as la
 
-import descriptors as desc
+import microtrack.descriptors as desc
+import microtrack.utils as mtu
+
 
 class Tensor(object):
     """
@@ -155,6 +157,13 @@ class Tensor(object):
 
         # We calculate ADC and pass that to the S/T equation:
         return stejskal_tanner(S0, self.bvals, self.ADC)
+
+    def decompose(self):
+        return mtu.decompose_tensor(self.Q)
+
+    
+        
+
 
 def stejskal_tanner(S0, bvals, ADC):
     """

@@ -87,6 +87,23 @@ def test_Tensor_predicted_signal():
                      T1.predicted_signal(S0_2))
                      
 
+def test_Tensor_decompose():
+    """
+    Test the eigen-vector/value decomposition of the tensor:
+    """
+    q = np.array([[1.5,0,0], 
+                  [0,0.51,0], 
+                  [0,0,0.5]])
+
+    # And the bvecs are unit vectors: 
+    bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
+    bvals = [1,1,1]
+
+    T = mtt.Tensor(q, bvecs, bvals)
+    vals, vecs = T.decompose()
+
+    npt.assert_equal(vecs , np.eye(3))
+    npt.assert_equal(vals, np.diag(q))
     
 def test_stejskal_tanner():
     """
