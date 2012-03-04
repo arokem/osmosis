@@ -155,43 +155,12 @@ def calculate_rotation(a,b):
     # back and compare to the original:
 
     rot_back = b * rot
-    sign_reverser = np.sign(np.sign(rot_back == np.sign(a)) - 0.5)
+    sign_reverser = np.sign((np.sign(rot_back) == np.sign(a)) - 0.5)
 
     # Multiply each line by it's reverser and reassmble the matrix:
     return np.matrix(np.array([np.array(rot[i,:]) *
                             sign_reverser[0,i] for i in range(3)]).squeeze())
 
-def calculate_rotation(a,b):
-    """
-    Calculate the rotation matrix to rotate from vector a to vector b.
-    """
-    alpha = vector_angle(a,b)
-
-    # The rotation between identical vectors is the identity: 
-    if alpha == 0:
-        return np.eye(3)
-
-    # Otherwise, we need to do some math: 
-    # Find the orthonormal basis for the null-space of these two vectors:
-    u = null_space(np.matrix([a,b,[0,0,0]]))
-
-    # Using quaternion notation (See
-    # http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#From_the_rotations_to_the_quaternions): 
-    
-    w = np.cos(alpha/2); 
-    xyz = u * np.sin(alpha/2); 
-
-    rot = quat2rot(w,xyz[0], xyz[1], xyz[2])
-
-    # This is accurate up to a sign reversal in each coordinate, so we rotate
-    # back and compare to the original:
-
-    rot_back = b * rot
-    sign_reverser = np.sign(np.sign(rot_back == np.sign(a)) - 0.5)
-
-    # Multiply each line by it's reverser and reassmble the matrix:
-    return np.matrix(np.array([np.array(rot[i,:]) *
-                            sign_reverser[0,i] for i in range(3)]).squeeze())
 
 def fractional_anisotropy(lambda_1, lambda_2, lambda_3):
     """
@@ -293,7 +262,27 @@ def decompose_tensor(tensor, non_negative=False):
 
     return eigenvals, eigenvecs
 
+def tensor_from_eigs(evecs, evals):
+    """
+    Calculate the self diffusion tensor from evecs and evals. This is the
+    inverse of decompose_tensor.
 
+    Parameters
+    ----------
+    evecs: 3x3 float array
+
+    evals: 3 float arrays
+    
+    Returns
+    -------
+    The self diffusion tensor
+    
+    """
+    evecs = np.asarray(evecs)
+    return np.dot(evecs*evals, evecs.T)
+    
+    
+# XXX This is thoroughly broken ATM. Inputs? What does it do? Why?  
 def fit_tensor(): 
     """
     This is some potentially useful code (as in, no clear use for now) that
@@ -378,3 +367,55 @@ def nearest_coord(vol, in_coords, tol=10):
     else:
         return None 
     
+def explained_variance(data, model):
+    """
+              _                                            _
+             |    sum of the squared residuals              |
+    R^2 =    |1 - ---------------------------------------   | * 100
+             |_    sum of the squared mean-subtracted data _|
+
+
+    """
+
+    residuals = data - model
+    ssr = np.sum(residuals ** 2)
+
+    demeaned_data = data - np.mean(data)
+
+    ssd = np.sum(demeaned_data **2)
+
+    return (1 - (ssr/ssd))
+
+
+def convolve_odf_response(odf, response_func, bvecs):
+    """
+
+    Convolve an orientation distribution function with the predicted signal
+    from a response function (typically a single tensor).
+
+    Parameters
+    ----------
+    odf: 1-d array
+        An estimate of the orientation distribution function in a given voxel
+    
+    response_func: Tensor
+        The predicted signal from a single fiber passing through the voxel in
+        the direction of [1,0,0].
+
+    bvecs: 3 by N
+        The bvecs over which to calculate the convolved signal.
+        
+    Returns
+    -------
+    signal
+    
+    Both should be passed in as vectors
+    
+    """
+
+    raise NotImplementedError
+    
+
+
+
+

@@ -17,8 +17,10 @@ except ImportError:
     
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
+
 import scipy.linalg as la
 import scipy.stats as stats
+from scipy.special import sph_harm
 
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
@@ -138,7 +140,7 @@ class BaseModel(desc.ResetMixin):
         """
         Each model will have a model prediction, which is always in this class
         method. This prediction is used in other methods, such as 'residuals'
-        and 'r_squared'.
+        and 'r_squared', etc.
 
         In this particular case, we set fit to be exactly equal to the
         signal. This should make testing easy :-) 
@@ -380,7 +382,7 @@ class SphericalHarmonicsModel(BaseModel):
     
     def __init__(self,
                  DWI,
-                 CSD,
+                 model_coeffs,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
         """
@@ -390,8 +392,8 @@ class SphericalHarmonicsModel(BaseModel):
         ----------
         DWI: microtrack.dwi.DWI class instance.
 
-        CSD: ndarray
-           Coefficients for a CSD model, organized according to the conventions
+        model_coefficients: ndarray
+           Coefficients for a SH model, organized according to the conventions
            used by mrtrix (see sph_harm_set for details).
         
         """
@@ -401,9 +403,9 @@ class SphericalHarmonicsModel(BaseModel):
                            scaling_factor=scaling_factor,
                            sub_sample=sub_sample)
 
-        self.model_coeffs = CSD
-        self.L = calculate_L(self.n_params)
-        self.n_params = self.CSD.shape[-1]
+        self.model_coeffs = model_coeffs
+        self.L = self._calculate_L(self.model_coeffs.shape[-1])
+        self.n_params = self.model_coeffs.shape[-1]
 
 
     @desc.auto_attr
@@ -454,11 +456,11 @@ class SphericalHarmonicsModel(BaseModel):
     
         i = 0;
         # Only even order are taken:
-        for order in np.arange(0,self.L,2):
-            for degree in np.arange(-order,order+1):
+        for order in np.arange(0, self.L + 1, 2): # Go to L, inclusive!
+           for degree in np.arange(-order,order+1):
                 # In negative degrees, take the imaginary part: 
                 if degree < 0:  
-                    b[i,:] = np.imag(sph_harm(-1*degree, order, theta, phi));
+                    b[i,:] = np.imag(sph_harm(-1 * degree, order, theta, phi));
                 else:
                     b[i,:] = np.real(sph_harm(degree, order, theta, phi));
                 i = i+1;
@@ -466,7 +468,7 @@ class SphericalHarmonicsModel(BaseModel):
 
     @desc.auto_attr
     def fit(self): 
-        """
+        """        
         Generate a volume with dimensions (x,y,z, n_bvecs) where each voxel has:
 
         .. math::
@@ -474,7 +476,12 @@ class SphericalHarmonicsModel(BaseModel):
           \sum{w_i, b_i}
 
         Where $b_i$ are the basis set functions defined from the spherical
-        harmonics
+        harmonics and $w_i$ are the model coefficients estimated with CSD.
+
+        This a unit-less estimate of the orientation distribution function,
+        based on the estimation of the SH coefficients. This needs to be
+        convolved with a "response function", a canonical tensor, to calculate
+        back the estimated signal. 
         """
         datashape = self.model_coeffs.shape
         volshape = datashape[:3]  # Disregarding the params dimension 
@@ -485,9 +492,20 @@ class SphericalHarmonicsModel(BaseModel):
         d = np.reshape(self.model_coeffs, (n_vox, n_weights))
 
         # multiply these two matrices together for the estimated signal:  
-        return np.asarray(np.matrix(d) * np.matrix(self.sph_harm_set))
+        return np.reshape(np.asarray(np.matrix(d) *
+                                     np.matrix(self.sph_harm_set)),
+                         volshape + self.b_idx.shape)
+
+    ## @desc.auto_attr
+    ## def fit(self):
+    ##     """
+    ##     This is the signal estimated from the odf.
         
-    def _calculate_L(n):
+    ##     """
+    ##     raise NotImplementedError
+
+        
+    def _calculate_L(self,n):
         """
         Calculate the maximal harmonic order (L), given that you know the
         number of parameters that were estimated. This proceeds according to
@@ -517,7 +535,10 @@ class SphericalHarmonicsModel(BaseModel):
     
 class FiberModel(BaseModel):
     """
-    A class for representing and solving microtrack models
+
+    A class for representing and solving predictive models based on
+    tractography solutions.
+    
     """
     def __init__(self,
                  DWI,

@@ -73,6 +73,12 @@ def test_FiberModel():
     npt.assert_equal(M.matrix.shape[0], M.flat_signal.shape[0])
     npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
 
-def test_SphericalHarmonicsModel():
 
-    pass 
+@npt.decorators.slow
+@npt.decorators.skipif(not 'CSD.nii.gz' in os.listdir(data_path))
+def test_SphericalHarmonicsModel():
+    """
+    Test the estimation of SH models.
+    """
+    
+    
