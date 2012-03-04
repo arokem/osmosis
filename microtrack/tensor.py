@@ -144,7 +144,7 @@ class Tensor(object):
         http://en.wikipedia.org/wiki/Diffusion_MRI#Diffusion_imaging):
         
         .. math::
-    
+        
             S = S0 exp^{-bval ADC }
     
         Where ADC is:
@@ -203,3 +203,14 @@ def apparent_diffusion_coef(bvecs, q):
     """
     bvecs = np.matrix(bvecs)
     return np.diag(bvecs.T* q* bvecs)
+
+
+def tensor_from_eigs(evecs, evals, bvecs, bvals):
+    """
+    Create a tensor from an eigen-vector/eigen-value combination, instead of
+    from the q-form
+
+    Parameters 
+    """
+
+    return Tensor(mtu.tensor_from_eigs(evecs, evals), bvecs, bvals)

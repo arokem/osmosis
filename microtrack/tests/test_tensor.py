@@ -92,18 +92,25 @@ def test_Tensor_decompose():
     Test the eigen-vector/value decomposition of the tensor:
     """
     q = np.array([[1.5,0,0], 
-                  [0,0.51,0], 
+                  [0,0.51,0],  # This needs to be slightly higher, so that
+                               # there is no ambiguity about the order of the
+                               # evals 
                   [0,0,0.5]])
 
     # And the bvecs are unit vectors: 
     bvecs = np.array([[1,0,0],[0,1,0],[0,0,1]])
     bvals = [1,1,1]
 
-    T = mtt.Tensor(q, bvecs, bvals)
-    vals, vecs = T.decompose()
+    T1 = mtt.Tensor(q, bvecs, bvals)
+    vals, vecs = T1.decompose()
 
     npt.assert_equal(vecs , np.eye(3))
     npt.assert_equal(vals, np.diag(q))
+
+    T2 = mtt.tensor_from_eigs(vecs, vals, bvecs, bvals)
+
+    npt.assert_equal(T2.Q,q)
+    
     
 def test_stejskal_tanner():
     """
