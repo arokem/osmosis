@@ -158,13 +158,63 @@ class Tensor(object):
         # We calculate ADC and pass that to the S/T equation:
         return stejskal_tanner(S0, self.bvals, self.ADC)
 
+    @desc.auto_attr
     def decompose(self):
         return mtu.decompose_tensor(self.Q)
 
     
+    def convolve_odf(self, odf, S0):
+        """
+
+        Convolve an orientation distribution function with the predicted signal
+        from the Tensor
+
+        Parameters
+        ----------
+        odf: 1-d array
+            An estimate of the orientation distribution function in a given voxel
+            in each bvec
+
+        S0: The signal in non diffusion weighted scans
+
+        Returns
+        -------
+        signal estimate.
+
+        """
+        tensor_signals = []
+
+        for idx, bvec in enumerate(self.bvecs.T):
+            # This can be precomputed for this tensor, without knowledge of a
+            # specific S0:
+            rot_tensor = self._rotations[idx]
+            # Add the signal for this tensor, weighted by the ODF at that point:
+            tensor_signals.append(rot_tensor.predicted_signal(S0))
+
+        signal = np.matrix(odf) * np.matrix(tensor_signals)
         
+        return signal
 
+    
+    @desc.auto_attr
+    def _rotations(self):
+        """
+        Cache for rotated versions of the tensor, which can be reused to
+        predict the signal for different values of S0
+        """
+        rot_tensors = []
+        # Decompose the tensor:
+        evals, evecs = self.decompose
+        e1 = evecs[0]
+        for idx, bvec in enumerate(self.bvecs.T):
+            rot_tensor_e = evecs * mtu.calculate_rotation(bvec, e1)
+            # Now create the same tensor, just with rotated eigen-vectors:
+            rot_tensors.append(tensor_from_eigs(rot_tensor_e,
+                                          evals, self.bvecs, self.bvals))
+            
+        return rot_tensors
 
+    
 def stejskal_tanner(S0, bvals, ADC):
     """
     Parameters

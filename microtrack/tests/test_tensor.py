@@ -102,7 +102,7 @@ def test_Tensor_decompose():
     bvals = [1,1,1]
 
     T1 = mtt.Tensor(q, bvecs, bvals)
-    vals, vecs = T1.decompose()
+    vals, vecs = T1.decompose
 
     npt.assert_equal(vecs , np.eye(3))
     npt.assert_equal(vals, np.diag(q))
@@ -111,7 +111,29 @@ def test_Tensor_decompose():
 
     npt.assert_equal(T2.Q,q)
     
-    
+def test_convlove_odf():
+    """
+    Test convolution of a tensor with a fiber orientation distribution function
+    (odf)
+    """ 
+    Q1_diag = np.random.rand(3)
+    Q1 = np.diag(Q1_diag)
+
+    # And the bvecs are unit vectors (one's taken from actual data, so that we
+    # have a 3 by 4): 
+    bvecs = np.array([[1,0,0],[0,1,0],[0,0,1],[-0.24187,  0.10309, -0.96482]]).T
+    bvals = [1,1,1,1]
+
+    T1 = mtt.Tensor(Q1, bvecs, bvals)
+
+    S0 = 1000
+
+    # Has the same length as the number of bvecs:
+    odf = [0.1,0.2,0.3,0.4]
+
+    # This performs the convolution
+    T1.convolve_odf(odf, S0)
+
 def test_stejskal_tanner():
     """
     Test the implementation of the S/T equation.

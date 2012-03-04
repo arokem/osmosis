@@ -383,6 +383,8 @@ class SphericalHarmonicsModel(BaseModel):
     def __init__(self,
                  DWI,
                  model_coeffs,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
         """
@@ -407,7 +409,9 @@ class SphericalHarmonicsModel(BaseModel):
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
         self.n_params = self.model_coeffs.shape[-1]
 
-
+        self.ad = axial_diffusivity
+        self.rd = radial_diffusivity
+        
     @desc.auto_attr
     def sph_harm_set(self):
         """
@@ -467,7 +471,7 @@ class SphericalHarmonicsModel(BaseModel):
         return b
 
     @desc.auto_attr
-    def fit(self): 
+    def odf(self): 
         """        
         Generate a volume with dimensions (x,y,z, n_bvecs) where each voxel has:
 
@@ -496,14 +500,39 @@ class SphericalHarmonicsModel(BaseModel):
                                      np.matrix(self.sph_harm_set)),
                          volshape + self.b_idx.shape)
 
-    ## @desc.auto_attr
-    ## def fit(self):
-    ##     """
-    ##     This is the signal estimated from the odf.
+    @desc.auto_attr
+    def response_function(self):
+        """
+        A canonical tensor that describes the presumed response of a single
+        fiber 
+        """
+        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+                          self.bvecs[:,self.b_idx], self.bvals[self.b_idx])
         
-    ##     """
-    ##     raise NotImplementedError
 
+    @desc.auto_attr
+    def fit(self):
+        """
+        This is the signal estimated from the odf.
+        """
+
+        # XXX This needs to be done in each voxel. There might be some useful
+        # caching to do, so that we don't have to repeath some of the
+        # operations done inside convolve_odf...
+
+        # Reshape the odf to be one voxel per row: 
+        flat_odf = np.reshape(self.odf,(-1, self.b_idx.shape[-1]))
+        flat_S0 = np.reshape(self.S0, flat_odf.shape[0])
+        pred_sig = np.empty(flat_odf.shape)
+        for vox in range(pred_sig.shape[0]):
+            pred_sig[vox] = self.response_function.convolve_odf(
+                                                    flat_odf[vox],
+                                                    flat_S0[vox])
+
+        # Reshape it back to the original shape:
+        return np.reshape(pred_sig, self.odf.shape)
+        
+        
         
     def _calculate_L(self,n):
         """

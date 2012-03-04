@@ -321,7 +321,7 @@ def euclidian_distance(x,y):
     for i in xrange(arr.shape[0]):
         for j in xrange(arr.shape[1]):
             arr[i, j] = root_ss(x[i]-y[j])
-
+            
     return arr
     
 def root_ss(arr):
@@ -386,35 +386,6 @@ def explained_variance(data, model):
 
     return (1 - (ssr/ssd))
 
-
-def convolve_odf_response(odf, response_func, bvecs):
-    """
-
-    Convolve an orientation distribution function with the predicted signal
-    from a response function (typically a single tensor).
-
-    Parameters
-    ----------
-    odf: 1-d array
-        An estimate of the orientation distribution function in a given voxel
-    
-    response_func: Tensor
-        The predicted signal from a single fiber passing through the voxel in
-        the direction of [1,0,0].
-
-    bvecs: 3 by N
-        The bvecs over which to calculate the convolved signal.
-        
-    Returns
-    -------
-    signal
-    
-    Both should be passed in as vectors
-    
-    """
-
-    raise NotImplementedError
-    
 
 
 
