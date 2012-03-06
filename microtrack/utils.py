@@ -282,8 +282,7 @@ def tensor_from_eigs(evecs, evals):
     return np.dot(evecs*evals, evecs.T)
     
     
-# XXX This is thoroughly broken ATM. Inputs? What does it do? Why?  
-def fit_tensor(): 
+def fit_tensor(bvecs, data): 
     """
     This is some potentially useful code (as in, no clear use for now) that
     fits a tensor to any arbitrary data. It undoes some of the DWI-specific
@@ -385,6 +384,9 @@ def explained_variance(data, model, axis=-1):
     demeaned_data = data - np.mean(data,-1)[...,np.newaxis]
     ss_tot = np.sum(demeaned_data **2, axis=axis)
 
+    # Need to get rid of the entries in which there is no data:
+    ss_tot[np.where(np.abs(ss_tot-0)<10e-10)]=np.nan
+    
     return (1 - (ss_err/ss_tot))
 
 
