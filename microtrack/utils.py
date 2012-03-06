@@ -367,8 +367,11 @@ def nearest_coord(vol, in_coords, tol=10):
     else:
         return None 
     
-def explained_variance(data, model):
+def explained_variance(data, model, axis=-1):
     """
+
+     http://en.wikipedia.org/wiki/Coefficient_of_determination
+
               _                                            _
              |    sum of the squared residuals              |
     R^2 =    |1 - ---------------------------------------   | * 100
@@ -376,15 +379,14 @@ def explained_variance(data, model):
 
 
     """
-
     residuals = data - model
-    ssr = np.sum(residuals ** 2)
+    1/0.
+    ss_err = np.sum(residuals ** 2, axis=axis)
 
     demeaned_data = data - np.mean(data)
+    ss_tot = np.sum(demeaned_data **2, axis=axis)
 
-    ssd = np.sum(demeaned_data **2)
-
-    return (1 - (ssr/ssd))
+    return (1 - (ss_err/ss_tot))
 
 
 

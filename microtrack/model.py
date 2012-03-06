@@ -179,12 +179,30 @@ class BaseModel(desc.ResetMixin):
         return self._correlator(stats.pearsonr, 0)
     
     @desc.auto_attr
-    def coeff_of_determination(self):
+    def R_squared(self):
         """
-        The coefficient of determination in each voxel
+        The R-squared ('coefficient of determination' from a linear model fit)
+        in each voxel
         """
         return self._correlator(stats.linregress, 2)
-    
+
+    @desc.auto_attr
+    def coeff_of_determination(self):
+        """
+        Explained variance as: 100 *(1-\frac{RMS(residuals)}{RMS(signal)})
+
+        http://en.wikipedia.org/wiki/Coefficient_of_determination
+        
+        """
+        return mtu.explained_variance(self.fit, self.signal)
+
+    @desc.auto_attr
+    def RMSE(self):
+        """
+        The square-root of the mean of the squared residuals
+        """
+        return np.sqrt(np.mean(np.power(self.residuals,2),-1))
+
     @desc.auto_attr
     def residuals(self):
         """
@@ -192,8 +210,11 @@ class BaseModel(desc.ResetMixin):
         """
         return (self.signal - self.fit)
 
-    
+
+
+
 class TensorModel(BaseModel):
+
     """
     A class for representing and solving a simple forward model. Just the
     diffusion tensor.
