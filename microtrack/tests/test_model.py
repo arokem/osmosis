@@ -78,7 +78,7 @@ def test_FiberModel():
 
 
 @npt.decorators.slow
-@npt.decorators.skipif(not 'CSD.nii.gz' in os.listdir(data_path))
+@npt.decorators.skipif(not 'CSD10.nii.gz' in os.listdir(data_path))
 def test_SphericalHarmonicsModel():
     """
     Test the estimation of SH models.
