@@ -31,6 +31,9 @@ def test_BaseModel():
 
     BM = mtm.BaseModel(DWI)
     npt.assert_equal(BM.r_squared, np.ones(BM.signal.shape[:3]))
+    npt.assert_equal(BM.R_squared, np.ones(BM.signal.shape[:3]))
+    npt.assert_equal(BM.coeff_of_determination, np.ones(BM.signal.shape[:3]))
+    
     
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
@@ -80,5 +83,6 @@ def test_SphericalHarmonicsModel():
     """
     Test the estimation of SH models.
     """
-    
+
+    pass
     

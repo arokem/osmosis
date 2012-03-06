@@ -380,10 +380,9 @@ def explained_variance(data, model, axis=-1):
 
     """
     residuals = data - model
-    1/0.
     ss_err = np.sum(residuals ** 2, axis=axis)
 
-    demeaned_data = data - np.mean(data)
+    demeaned_data = data - np.mean(data,-1)[...,np.newaxis]
     ss_tot = np.sum(demeaned_data **2, axis=axis)
 
     return (1 - (ss_err/ss_tot))
