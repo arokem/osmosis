@@ -19,12 +19,23 @@ import nibabel as ni
 
 import microtrack.descriptors as desc
 
+# This converts b values from , so that it matches the units of ADC we use in
+# the Stejskal/Tanner equation: 
+SCALE_FACTOR = 1000
+
 class DWI(desc.ResetMixin):
     """
     A class for representing dwi data
     """
             
-    def __init__(self, data, bvecs, bvals, affine=None, mask=None):
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
         """
         Initialize a DWI object
 
@@ -52,7 +63,18 @@ class DWI(desc.ResetMixin):
 
         mask: optional, 3-d array
             When provided, used as a boolean mask into the data for access. 
-            
+
+        sub_sample: int or array of ints.
+           If we want to sub-sample the DWI data on the sphere (in the bvecs),
+           we can do one of two things: 
+
+        1. If sub_sample is an integer, that number of random bvecs will be
+           chosen from the data.
+
+        2. If an array of indices is provided, these will serve as indices into
+        the last dimension of the data and only that part of the data will be
+        used
+
         """
         
         # All inputs are handled essentially the same. Inputs can be either
@@ -79,10 +101,31 @@ class DWI(desc.ResetMixin):
 
         # If a mask is provided, we will use it to access the data
         if mask is not None:
-            self.mask = mask
+            self.mask = np.array(mask, dtype=bool)
         else:
-            self.mask = np.ones(self.data.shape)
-        self.mask.dtype=bool
+            # Spatial mask (take only the spatial dimensions):
+            self.mask = np.ones(self.data.shape[:3], dtype=bool)
+        
+        if sub_sample is not None:
+            if np.iterable(sub_sample):
+                idx = sub_sample
+            else:
+                idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
+
+            self.b_idx = self.b_idx[idx]
+            # At this point, signal will be taken according to these
+            # sub-sampled indices:
+            self.data = np.concatenate([self.signal,
+                                        self.data[:,:,:,self.b0_idx]],-1)
+
+            self.b0_idx = np.arange(len(self.b0_idx))
+
+            self.bvecs = np.concatenate([np.zeros((3,len(self.b0_idx))),
+                                        self.bvecs[:, self.b_idx]],-1)
+
+            self.bvals = np.concatenate([np.zeros(len(self.b0_idx)),
+                                         self.bvals[self.b_idx]])
+            self.b_idx = np.arange(len(self.b0_idx), len(self.b0_idx) + len(idx))
 
 
     @desc.auto_attr
@@ -142,20 +185,24 @@ class DWI(desc.ResetMixin):
     def _flat_data(self):
         """
         Get the flat data only in the mask
-        """
-        return np.reshape(self.data, (-1, self.bvecs.shape[-1]))
+        """        
+        return np.reshape(self.data[self.mask],
+                          (-1, self.bvecs.shape[-1]))
 
+    @desc.auto_attr
     def _flat_S0(self):
         """
-        Get the signal in the b0 scans in flattened form
+        Get the signal in the b0 scans in flattened form (only in the mask)
         """
         return np.mean(self._flat_data[:,self.b0_idx], -1)
 
+    @desc.auto_attr
     def _flat_signal(self):
         """
         Get the signal in the diffusion-weighted volumes in flattened form
+        (only in the mask).
         """
-        return self.DWI._flat_data[:,self.b_idx]
+        return self._flat_data[:,self.b_idx]
 
 
     def noise_ceiling(self, DWI2, correlator=stats.pearsonr, r_idx=0):
@@ -177,8 +224,11 @@ class DWI(desc.ResetMixin):
         else:
             r_squared = val**2
 
-        return r_squared.reshape(self.data.shape[:3])
+        # Re-package it into a volume:
+        out = np.nan*np.ones(self.data.shape[:3])
+        out[self.mask] = r_squared
     
+        return out 
 
     @desc.auto_attr
     def b_idx(self):

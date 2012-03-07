@@ -4,6 +4,8 @@ import tempfile
 import numpy as np
 import numpy.testing as npt
 
+import nibabel as ni
+
 import microtrack as mt
 import microtrack.model as mtm
 import microtrack.fibers as mtf
@@ -25,11 +27,10 @@ else:
 @npt.decorators.skipif(no_data)
 def test_BaseModel():
     
-    DWI = dwi.DWI(data_path + 'small_dwi.nii.gz',
-                  data_path + 'dwi.bvecs',
-                  data_path + 'dwi.bvals')
+    BM = mtm.BaseModel(data_path + 'small_dwi.nii.gz',
+                       data_path + 'dwi.bvecs',
+                       data_path + 'dwi.bvals')
 
-    BM = mtm.BaseModel(DWI)
     npt.assert_equal(BM.r_squared, np.ones(BM.signal.shape[:3]))
     npt.assert_equal(BM.R_squared, np.ones(BM.signal.shape[:3]))
     npt.assert_equal(BM.coeff_of_determination, np.ones(BM.signal.shape[:3]))
@@ -39,18 +40,17 @@ def test_BaseModel():
 @npt.decorators.skipif(no_data)
 def test_TensorModel():
 
-    DWI = dwi.DWI(data_path + 'small_dwi.nii.gz',
-                  data_path + 'dwi.bvecs',
-                  data_path + 'dwi.bvals')
+    tensor_file = os.path.join(tempfile.gettempdir() + 'DTI.nii.gz')
 
-    file_name = os.path.join(tempfile.gettempdir() + 'DTI.nii.gz')
-
-    TM = mtm.TensorModel(DWI,file_name=file_name)
+    TM = mtm.TensorModel(data_path + 'small_dwi.nii.gz',
+                         data_path + 'dwi.bvecs',
+                         data_path + 'dwi.bvals',
+                         tensor_file=tensor_file)
     
     # Make sure the shapes of things make sense: 
-    npt.assert_equal(TM.model_params.shape, DWI.data.shape[:3] + (12,))
-    npt.assert_equal(TM.evals.shape, DWI.data.shape[:3] + (3,))
-    npt.assert_equal(TM.evecs.shape, DWI.data.shape[:3] + (3,3))
+    npt.assert_equal(TM.model_params.shape, TM.data.shape[:3] + (12,))
+    npt.assert_equal(TM.evals.shape, TM.data.shape[:3] + (3,))
+    npt.assert_equal(TM.evecs.shape, TM.data.shape[:3] + (3,3))
     # Call the fit function to make sure it runs through smoothly:
     npt.assert_equal(TM.fit.shape, TM.signal.shape)
     
@@ -68,11 +68,10 @@ def test_FiberModel():
     FG = mio.fg_from_pdb(data_path + 'FG_w_stats.pdb',
                      verbose=False)
 
-    DWI = dwi.DWI(data_path + 'dwi.nii.gz',
-              data_path + 'dwi.bvecs',
-              data_path + 'dwi.bvals')
-
-    M = mtm.FiberModel(DWI, FG, ad, rd)
+    M = mtm.FiberModel(data_path + 'dwi.nii.gz',
+                       data_path + 'dwi.bvecs',
+                       data_path + 'dwi.bvals',
+                       FG, ad, rd)
 
     npt.assert_equal(M.matrix.shape[0], M.flat_signal.shape[0])
     npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
@@ -85,5 +84,9 @@ def test_SphericalHarmonicsModel():
     Test the estimation of SH models.
     """
 
-    pass
-    
+    model_coeffs = ni.load(data_path + 'CSD10.nii.gz').get_data()
+
+    SHM = mtm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
+                                      data_path + 'dwi.bvecs',
+                                      data_path + 'dwi.bvals',
+                                      model_coeffs)

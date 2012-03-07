@@ -34,19 +34,23 @@ import microtrack.utils as mtu
 import microtrack.boot as boot
 
 
-# Global constants:
+# Global constants for this module:
 AD = 1.5
 RD = 0.5
 # This converts b values from , so that it matches the units of ADC we use in
 # the Stejskal/Tanner equation: 
 SCALE_FACTOR = 1000
 
-class BaseModel(desc.ResetMixin):
+
+class BaseModel(dwi.DWI):
     """
     Base-class for models.
     """
     def __init__(self,
-                 DWI,
+                 data,
+                 bvecs,
+                 bvals,
+                 affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
@@ -55,91 +59,22 @@ class BaseModel(desc.ResetMixin):
 
         Parameters
         ----------
-        DWI: A microtrack.dwi.DWI class instance
 
         scaling_factor: int, defaults to 1000.
            To get the units in the S/T equation right, how much do we need to
            scale the bvalues provided.
-
-        sub_sample: int or array of ints.
-           If we want to sub-sample the DWI data on the sphere (in the bvecs),
-           we can do one of two things: 
-        1. If sub_sample is an integer, that number of random bvecs will be
-           chosen from the data.
-
-        2. If an array of indices is provided, these will serve as indices into
-        the last dimension of the data and only that part of the data will be
-        used
         
         """
-        # If you provided file-names and not a DWI class object, we will
-        # generate one for you right here and replace it inplace: 
-        if DWI.__class__ in [list, np.ndarray, tuple]:
-            self.DWI = dwi.DWI(DWI[0], DWI[1], DWI[2])
-        else:
-            self.DWI = DWI
-    
-        self.data = DWI.data
-        self.bvecs = DWI.bvecs
+        # DWI should already have everything we need: 
+        self.DWI = dwi.DWI.__init__(self,
+                                    data,
+                                    bvecs,
+                                    bvals,
+                                    affine=None,
+                                    mask=None,
+                                    scaling_factor=SCALE_FACTOR,
+                                    sub_sample=None) 
         
-        # This factor makes sure that we have the right units for the way we
-        # calculate the ADC: 
-        self.bvals = DWI.bvals/scaling_factor
-
-        # Get the inverse of the DWI affine, which xforms from fiber
-        # coordinates (which are in xyz) to image coordinates (which are in ijk):
-        self.affine = DWI.affine.getI()
-
-        if sub_sample is not None:
-            if np.iterable(sub_sample):
-                idx = sub_sample
-            else:
-                idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
-
-            self.b_idx = self.b_idx[idx]
-            # At this point, signal will be taken according to these
-            # sub-sampled indices:
-            self.data = np.concatenate([self.signal,
-                                        self.data[:,:,:,self.b0_idx]],-1)
-
-            self.b0_idx = np.arange(len(self.b0_idx))
-
-            self.bvecs = np.concatenate([np.zeros((3,len(self.b0_idx))),
-                                        self.bvecs[:, self.b_idx]],-1)
-
-            self.bvals = np.concatenate([np.zeros(len(self.b0_idx)),
-                                         self.bvals[self.b_idx]])
-            self.b_idx = np.arange(len(self.b0_idx), len(self.b0_idx) + len(idx))
-            
-    @desc.auto_attr
-    def b_idx(self):
-        """
-        The indices into non-zero b values
-        """
-        return self.DWI.b_idx
-    
-    @desc.auto_attr
-    def b0_idx(self):
-        """
-        The indices into zero b values
-        """
-        return self.DWI.b0_idx
-
-    @desc.auto_attr
-    def S0(self):
-        """
-        Extract and average the signal for volumes in which no b weighting was
-        used (b0 scans)
-        """
-        return self.DWI.S0
-        
-    @desc.auto_attr
-    def signal(self):
-        """
-        The signal in b-weighted volumes
-        """
-        return self.DWI.signal
-
     @desc.auto_attr
     def fit(self):
         """
@@ -152,24 +87,13 @@ class BaseModel(desc.ResetMixin):
         """
         return self.signal
 
-
-    # The following two need to be reimplemented here, because resampling in
-    # the __init__ may have changed the b_idx variable, by the time we make it
-    # here. So we don't use the self.DWI._flat_S0 and self.DWI._flat_signal
-    # methods here (though we might want to implement resampling over there?)
-    @desc.auto_attr
-    def _flat_signal(self): 
-        return self.DWI._flat_data[:,self.b_idx]
-
-
-    @desc.auto_attr
-    def _flat_S0(self):
-        return np.mean(self.DWI._flat_data[:,self.b0_idx], -1)
-
-
     @desc.auto_attr
     def _flat_fit(self):
-        return self.fit.reshape((-1, self.signal.shape[-1])) 
+        """
+        Extract a flattened version of the fit, defined for masked voxels
+        """
+        
+        return self.fit[self.mask].reshape((-1, self.signal.shape[-1])) 
         
 
     def _correlator(self, func, r_idx):
@@ -188,9 +112,11 @@ class BaseModel(desc.ResetMixin):
             r_squared = numexpr.evaluate('r**2')
         else:
             r_squared = r**2
-            
-        return r_squared.reshape(self.signal.shape[:3])
-        
+
+        # Re-package it into a volume:
+        out = np.nan*np.ones(self.data.shape[:3])
+        out[self.mask] = r_squared
+        return out         
 
     @desc.auto_attr
     def r_squared(self):
@@ -241,11 +167,14 @@ class TensorModel(BaseModel):
     
     """
     def __init__(self,
-                 DWI,
-                 scaling_factor=SCALE_FACTOR,
+                 data,
+                 bvecs,
+                 bvals,
+                 tensor_file=None,
+                 affine=None,
                  mask=None,
-                 sub_sample=None,
-                 file_name=None):
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
         """
         Parameters
         -----------
@@ -273,7 +202,7 @@ class TensorModel(BaseModel):
            will be used
 
 
-        file_name: A file to cache the initial tensor calculation in. If this
+        tensor_file: A file to cache the initial tensor calculation in. If this
         file already exists, we pull the tensor fit out of it. Otherwise, we
         calculate the tensor fit and save this file with the params of the
         tensor fit. 
@@ -281,16 +210,20 @@ class TensorModel(BaseModel):
         """
         # Initialize the super-class:
         BaseModel.__init__(self,
-                           DWI,
-                           scaling_factor=scaling_factor,
-                           sub_sample=sub_sample)
+                           data,
+                           bvecs,
+                           bvals,
+                           affine=None,
+                           mask=None,
+                           scaling_factor=SCALE_FACTOR,
+                           sub_sample=None) 
 
-        if file_name is not None: 
-            self.file_name = file_name
+        if tensor_file is not None: 
+            self.tensor_file = tensor_file
         else:
             # If DWI has a file-name, construct a file-name out of that: 
-            if hasattr(DWI, 'data_file'):
-                path, f = os.path.split(DWI.data_file)
+            if hasattr(self, 'data_file'):
+                path, f = os.path.split(self.data_file)
                 # Need to deal with the double-extension in '.nii.gz':
                 file_parts = f.split('.')
                 name = file_parts[0]
@@ -302,15 +235,8 @@ class TensorModel(BaseModel):
             else:
                 # Otherwise give up and make a file right here with a generic
                 # name: 
-                self.file_name = 'DTI.nii.gz'
+                self.tensor_file = 'DTI.nii.gz'
         
-        
-        if mask is not None:
-            self.mask = mask
-        else:
-            # Include everything:
-            self.mask = np.ones(self.data.shape)
-            
     @desc.auto_attr
     def model_params(self):
         """
@@ -323,8 +249,8 @@ class TensorModel(BaseModel):
         
         """
         # The file already exists: 
-        if os.path.isfile(self.file_name):
-            return ni.load(self.file_name).get_data()
+        if os.path.isfile(self.tensor_file):
+            return ni.load(self.tensor_file).get_data()
         else: 
             mp = dti.Tensor(self.data,
                             self.bvals,
@@ -333,7 +259,7 @@ class TensorModel(BaseModel):
 
             # Save the params for future use: 
             params_ni = ni.Nifti1Image(mp, self.affine)
-            params_ni.to_filename(self.file_name)
+            params_ni.to_filename(self.tensor_name)
             # And return the params for current use:
             return mp
 
@@ -425,10 +351,14 @@ class SphericalHarmonicsModel(BaseModel):
     """ 
     
     def __init__(self,
-                 DWI,
+                 data,
+                 bvecs,
+                 bvals,
                  model_coeffs,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
         """
@@ -445,9 +375,13 @@ class SphericalHarmonicsModel(BaseModel):
         """
         # Initialize the super-class:
         BaseModel.__init__(self,
-                           DWI,
-                           scaling_factor=scaling_factor,
-                           sub_sample=sub_sample)
+                           data,
+                           bvecs,
+                           bvals,
+                           affine=None,
+                           mask=None,
+                           scaling_factor=SCALE_FACTOR,
+                           sub_sample=None) 
 
         self.model_coeffs = model_coeffs
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
@@ -608,17 +542,22 @@ class SphericalHarmonicsModel(BaseModel):
     
 class FiberModel(BaseModel):
     """
-
+    
     A class for representing and solving predictive models based on
     tractography solutions.
     
     """
     def __init__(self,
-                 DWI,
+                 data,
+                 bvecs,
+                 bvals,
                  FG,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
-                 scaling_factor=SCALE_FACTOR):
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
         """
         Parameters
         ----------
@@ -637,15 +576,20 @@ class FiberModel(BaseModel):
         """
         # Initialize the super-class:
         BaseModel.__init__(self,
-                             DWI,
-                             scaling_factor=scaling_factor)
+                            data,
+                            bvecs,
+                            bvals,
+                            affine=None,
+                            mask=None,
+                            scaling_factor=SCALE_FACTOR,
+                            sub_sample=None)
 
         self.axial_diffusivity = axial_diffusivity
         self.radial_diffusivity = radial_diffusivity
 
         # The only additional thing is that this one also has a fiber group,
         # which is xformed to match the coordinates of the DWI:
-        self.FG = FG.xform(self.affine, inplace=False)
+        self.FG = FG.xform(self.affine.getI(), inplace=False)
 
 
     @desc.auto_attr
