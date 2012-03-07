@@ -45,8 +45,11 @@ class BaseModel(desc.ResetMixin):
     """
     Base-class for models.
     """
-    def __init__(self,DWI,scaling_factor=SCALE_FACTOR,
-                                      sub_sample=None):
+    def __init__(self,
+                 DWI,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
         """
         A base-class for models based on DWI data.
 
@@ -72,8 +75,10 @@ class BaseModel(desc.ResetMixin):
         # If you provided file-names and not a DWI class object, we will
         # generate one for you right here and replace it inplace: 
         if DWI.__class__ in [list, np.ndarray, tuple]:
-            DWI = dwi.DWI(DWI[0], DWI[1], DWI[2])
-        
+            self.DWI = dwi.DWI(DWI[0], DWI[1], DWI[2])
+        else:
+            self.DWI = DWI
+    
         self.data = DWI.data
         self.bvecs = DWI.bvecs
         
@@ -111,14 +116,14 @@ class BaseModel(desc.ResetMixin):
         """
         The indices into non-zero b values
         """
-        return np.where(self.bvals > 0)[0]
-        
+        return self.DWI.b_idx
+    
     @desc.auto_attr
     def b0_idx(self):
         """
         The indices into zero b values
         """
-        return np.where(self.bvals==0)[0]
+        return self.DWI.b0_idx
 
     @desc.auto_attr
     def S0(self):
@@ -126,14 +131,14 @@ class BaseModel(desc.ResetMixin):
         Extract and average the signal for volumes in which no b weighting was
         used (b0 scans)
         """
-        return np.mean(self.data[...,self.b0_idx],-1).squeeze()
+        return self.DWI.S0
         
     @desc.auto_attr
     def signal(self):
         """
         The signal in b-weighted volumes
         """
-        return self.data[...,self.b_idx].squeeze()
+        return self.DWI.signal
 
     @desc.auto_attr
     def fit(self):
@@ -147,20 +152,36 @@ class BaseModel(desc.ResetMixin):
         """
         return self.signal
 
+
+    # The following two need to be reimplemented here, because resampling in
+    # the __init__ may have changed the b_idx variable, by the time we make it
+    # here. So we don't use the self.DWI._flat_S0 and self.DWI._flat_signal
+    # methods here (though we might want to implement resampling over there?)
+    @desc.auto_attr
+    def _flat_signal(self): 
+        return self.DWI._flat_data[:,self.b_idx]
+
+
+    @desc.auto_attr
+    def _flat_S0(self):
+        return np.mean(self.DWI._flat_data[:,self.b0_idx], -1)
+
+
+    @desc.auto_attr
+    def _flat_fit(self):
+        return self.fit.reshape((-1, self.signal.shape[-1])) 
+        
+
     def _correlator(self, func, r_idx):
         """
         Helper function that uses a callable "func" to apply between two 1-d
         arrays. These 1-d arrays can have different outputs and the one we
         always want is the one which is r_idx into the output tuple 
         """
-
-        flat_signal = self.signal.reshape((-1, self.signal.shape[-1]))
-        flat_fit = self.fit.reshape((-1, self.signal.shape[-1]))
-
-        r = np.empty(flat_signal.shape[0])
+        r = np.empty(self._flat_signal.shape[0])
         
-        for ii in xrange(len(flat_signal)):
-            outs = func(flat_signal[ii] , flat_fit[ii])
+        for ii in xrange(len(self._flat_signal)):
+            outs = func(self._flat_signal[ii] , self._flat_fit[ii])
             r[ii] = outs[r_idx]
             
         if has_numexpr:
@@ -209,7 +230,6 @@ class BaseModel(desc.ResetMixin):
         The prediction-subtracted residual in each voxel
         """
         return (self.signal - self.fit)
-
 
 
 
@@ -383,16 +403,19 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def fit(self):
-        adc_flat = self.apparent_diffusion_coef.reshape((-1, len(self.b_idx)))
-        s0_flat = self.S0.ravel()
-        sig_flat = np.empty((np.prod(self.data.shape[:3]), len(self.b_idx),))
 
-        for ii in xrange(len(sig_flat)):
-            sig_flat[ii] = mtt.stejskal_tanner(s0_flat[ii],
+        # XXX Needs to be masked, right? 
+        adc_flat = self.apparent_diffusion_coef.reshape((-1, len(self.b_idx)))
+        
+        fit_flat = np.empty(adc_flat.shape)
+
+
+        for ii in xrange(len(fit_flat)):
+            fit_flat[ii] = mtt.stejskal_tanner(self._flat_S0[ii],
                                                self.bvals[:, self.b_idx],
                                                adc_flat[ii])
 
-        return sig_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
+        return fit_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
 
 
 class SphericalHarmonicsModel(BaseModel):

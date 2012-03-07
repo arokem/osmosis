@@ -24,7 +24,7 @@ class DWI(desc.ResetMixin):
     A class for representing dwi data
     """
             
-    def __init__(self, data, bvecs, bvals, affine=None):
+    def __init__(self, data, bvecs, bvals, affine=None, mask=None):
         """
         Initialize a DWI object
 
@@ -50,6 +50,9 @@ class DWI(desc.ResetMixin):
             will be read from that file. Otherwise, a warning will be issued
             and affine will default to np.eye(4).
 
+        mask: optional, 3-d array
+            When provided, used as a boolean mask into the data for access. 
+            
         """
         
         # All inputs are handled essentially the same. Inputs can be either
@@ -68,12 +71,37 @@ class DWI(desc.ResetMixin):
                 e_s += "nor a file-name\n"
                 e_s += "The value provided was: %s" % val
                 raise ValueError(e_s)
-
+            
         # You can provide your own affine, if you want and that bypasses the
         # class method provided below as an auto-attr:
         if affine is not None:
             self.affine = np.matrix(affine)
+
+        # If a mask is provided, we will use it to access the data
+        if mask is not None:
+            self.mask = mask
+        else:
+            self.mask = np.ones(self.data.shape)
+        self.mask.dtype=bool
+
+
+    @desc.auto_attr
+    def shape(self):
+        """
+        Get the shape of the data. If possible, don't even load it from file to
+        get that. 
+        """
+
+        # It must have been in an array
+        if not hasattr(self, 'data_file'):
+            # No reason not to refer to it directly:
+            return self.data.shape
         
+        # The data is in a file, and you might not have loaded it yet:
+        else:
+            # No need to actually load it yet:
+            return ni.load(self.data_file).get_shape()
+            
     @desc.auto_attr
     def bvals(self):
         """
@@ -113,23 +141,36 @@ class DWI(desc.ResetMixin):
     @desc.auto_attr
     def _flat_data(self):
         """
-        
+        Get the flat data only in the mask
         """
         return np.reshape(self.data, (-1, self.bvecs.shape[-1]))
 
-    def noise_ceiling(self, DWI2):
+    def _flat_S0(self):
         """
-        Calculate the r-squared of the correlation in each voxel (across
-        directions) between this class instance and another class instance,
-        provided as input
-        
+        Get the signal in the b0 scans in flattened form
+        """
+        return np.mean(self._flat_data[:,self.b0_idx], -1)
+
+    def _flat_signal(self):
+        """
+        Get the signal in the diffusion-weighted volumes in flattened form
+        """
+        return self.DWI._flat_data[:,self.b_idx]
+
+
+    def noise_ceiling(self, DWI2, correlator=stats.pearsonr, r_idx=0):
+        """
+        Calculate the r-squared of the correlator function provided, in each
+        voxel (across directions, including b0's (?) ) between this class
+        instance and another class  instance, provided as input. r_idx points
+        to the location of r within the tuple returned by the correlator callable
         """
                 
         val = np.empty(self._flat_data.shape[0])
 
         for ii in xrange(len(val)):
-            val[ii] = stats.pearsonr(self._flat_data[ii],
-                                     DWI2._flat_data[ii])[0] 
+            val[ii] = correlator(self._flat_data[ii],
+                                 DWI2._flat_data[ii])[0] 
 
         if has_numexpr:
             r_squared = numexpr.evaluate('val**2')

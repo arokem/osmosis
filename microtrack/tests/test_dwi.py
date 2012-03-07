@@ -26,9 +26,8 @@ def test_DWI():
     Test the initialization of DWI class objects 
     """
     
-    
     # Make one from strings: 
-    D1 = dwi.DWI(data_path + 'dwi.nii.gz',
+    D1 = dwi.DWI(data_path + 'small_dwi.nii.gz',
             data_path + 'dwi.bvecs',
             data_path + 'dwi.bvals')
 
@@ -40,7 +39,7 @@ def test_DWI():
                      D1.bvecs.shape[-1]) 
 
     # Make one from arrays: 
-    data = ni.load(data_path + 'dwi.nii.gz').get_data()
+    data = ni.load(data_path + 'small_dwi.nii.gz').get_data()
     bvecs = np.loadtxt(data_path + 'dwi.bvecs')
     bvals = np.loadtxt(data_path + 'dwi.bvals')
 
@@ -59,3 +58,6 @@ def test_DWI():
     # npt.assert_warns(exceptions.UserWarning, D2.affine)
     
     npt.assert_equal(D2.affine, np.eye(4))
+
+    npt.assert_equal(D2.shape, data.shape)
+    

@@ -51,7 +51,8 @@ def test_TensorModel():
     npt.assert_equal(TM.model_params.shape, DWI.data.shape[:3] + (12,))
     npt.assert_equal(TM.evals.shape, DWI.data.shape[:3] + (3,))
     npt.assert_equal(TM.evecs.shape, DWI.data.shape[:3] + (3,3))
-
+    # Call the fit function to make sure it runs through smoothly:
+    npt.assert_equal(TM.fit.shape, TM.signal.shape)
     
 
 @npt.decorators.slow
