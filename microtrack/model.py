@@ -4,6 +4,7 @@ This module is used to construct and solve models of diffusion data
 
 """
 import os
+import warnings
 
 import numpy as np
 
@@ -29,7 +30,6 @@ import nibabel as ni
 import microtrack.descriptors as desc
 import microtrack.fibers as mtf
 import microtrack.tensor as mtt
-import microtrack.dwi as dwi
 import microtrack.utils as mtu
 import microtrack.boot as boot
 
@@ -41,8 +41,250 @@ RD = 0.5
 # the Stejskal/Tanner equation: 
 SCALE_FACTOR = 1000
 
+class DWI(desc.ResetMixin):
+    """
+    A class for representing dwi data
+    """
+            
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
+        """
+        Initialize a DWI object
 
-class BaseModel(dwi.DWI):
+        Parameters
+        ----------
+        data: str or array
+            The diffusion weighted mr data provided either as a full path to a
+            nifti file containing the data, or as a 4-d array.
+
+        bvecs: str or array
+            The unit vectors describing the directions of data
+            acquisition. Either an 3 by n array, or a full path to a text file
+            containing the 3 by n data.
+
+        bvals: str or array
+            The values of b weighting in the data acquisition. Either a 1 by n
+            array, or a full path to a text file containing the values.
+
+        affine: optional, 4 by 4 array
+            The affine provided in the file can be overridden by explicitely
+            setting this input variable. If this is left as None, one of two
+            things will happen. If the 'data' input was a file-name, the affine
+            will be read from that file. Otherwise, a warning will be issued
+            and affine will default to np.eye(4).
+
+        mask: optional, 3-d array
+            When provided, used as a boolean mask into the data for access. 
+
+        sub_sample: int or array of ints.
+           If we want to sub-sample the DWI data on the sphere (in the bvecs),
+           we can do one of two things: 
+
+        1. If sub_sample is an integer, that number of random bvecs will be
+           chosen from the data.
+
+        2. If an array of indices is provided, these will serve as indices into
+        the last dimension of the data and only that part of the data will be
+        used
+
+        """
+        
+        # All inputs are handled essentially the same. Inputs can be either
+        # strings, in which case file reads are required, or arrays, in which
+        # case no file reads are needed and we assign these arrays into the
+        # attributes:
+        for name, val in zip(['data', 'bvecs', 'bvals'],
+                             [data, bvecs, bvals]): 
+            if isinstance(val, str):
+                exec("self.%s_file = '%s'"% (name, val))
+            elif isinstance(val, np.ndarray):
+                # This time we need to give it the name-space:
+                exec("self.%s = val"% name, dict(self=self, val=val))
+            else:
+                e_s = "%s seems to be neither an array, "% name
+                e_s += "nor a file-name\n"
+                e_s += "The value provided was: %s" % val
+                raise ValueError(e_s)
+            
+        # You can provide your own affine, if you want and that bypasses the
+        # class method provided below as an auto-attr:
+        if affine is not None:
+            self.affine = np.matrix(affine)
+
+        # If a mask is provided, we will use it to access the data
+        if mask is not None:
+            # If it's a string, assume it's the full-path to a nifti file with
+            # a binary mask: 
+            if isinstance(mask, str):
+                mask = ni.load(mask).get_data()
+            self.mask = np.array(mask, dtype=bool)
+
+        else:
+            # Spatial mask (take only the spatial dimensions):
+            self.mask = np.ones(self.data.shape[:3], dtype=bool)
+
+        
+        if sub_sample is not None:
+            if np.iterable(sub_sample):
+                idx = sub_sample
+            else:
+                idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
+
+            self.b_idx = self.b_idx[idx]
+            # At this point, signal will be taken according to these
+            # sub-sampled indices:
+            self.data = np.concatenate([self.signal,
+                                        self.data[:,:,:,self.b0_idx]],-1)
+
+            self.b0_idx = np.arange(len(self.b0_idx))
+
+            self.bvecs = np.concatenate([np.zeros((3,len(self.b0_idx))),
+                                        self.bvecs[:, self.b_idx]],-1)
+
+            self.bvals = np.concatenate([np.zeros(len(self.b0_idx)),
+                                         self.bvals[self.b_idx]])
+            self.b_idx = np.arange(len(self.b0_idx), len(self.b0_idx) + len(idx))
+
+
+    @desc.auto_attr
+    def shape(self):
+        """
+        Get the shape of the data. If possible, don't even load it from file to
+        get that. 
+        """
+
+        # It must have been in an array
+        if not hasattr(self, 'data_file'):
+            # No reason not to refer to it directly:
+            return self.data.shape
+        
+        # The data is in a file, and you might not have loaded it yet:
+        else:
+            # No need to actually load it yet:
+            return ni.load(self.data_file).get_shape()
+            
+    @desc.auto_attr
+    def bvals(self):
+        """
+        If bvals were not provided as an array, read them from file
+        """ 
+        return np.loadtxt(self.bvals_file)
+        
+    @desc.auto_attr
+    def bvecs(self):
+        """
+        If bvecs were not provided as an array, read them from file
+        """ 
+        return np.loadtxt(self.bvecs_file)
+
+    @desc.auto_attr
+    def data(self):
+        """
+        Load the data from file
+        """
+        return ni.load(self.data_file).get_data()
+
+    @desc.auto_attr
+    def affine(self):
+        """
+        Get the affine transformation of the data to world coordinates
+        (relative to acpc)
+        """
+        if hasattr(self, 'data_file'):
+            # This means that there might be an affine to read in from file.
+            return np.matrix(ni.load(self.data_file).get_affine())
+        else:
+            w_s = "DWI data generated from array. Affine will be set to"
+            w_s += " np.eye(4)"
+            warnings.warn(w_s)
+            return np.matrix(np.eye(4))
+
+    @desc.auto_attr
+    def _flat_data(self):
+        """
+        Get the flat data only in the mask
+        """        
+        return np.reshape(self.data[self.mask],
+                          (-1, self.bvecs.shape[-1]))
+
+    @desc.auto_attr
+    def _flat_S0(self):
+        """
+        Get the signal in the b0 scans in flattened form (only in the mask)
+        """
+        return np.mean(self._flat_data[:,self.b0_idx], -1)
+
+    @desc.auto_attr
+    def _flat_signal(self):
+        """
+        Get the signal in the diffusion-weighted volumes in flattened form
+        (only in the mask).
+        """
+        return self._flat_data[:,self.b_idx]
+
+
+    def noise_ceiling(self, DWI2, correlator=stats.pearsonr, r_idx=0):
+        """
+        Calculate the r-squared of the correlator function provided, in each
+        voxel (across directions, including b0's (?) ) between this class
+        instance and another class  instance, provided as input. r_idx points
+        to the location of r within the tuple returned by the correlator callable
+        """
+                
+        val = np.empty(self._flat_data.shape[0])
+
+        for ii in xrange(len(val)):
+            val[ii] = correlator(self._flat_data[ii],
+                                 DWI2._flat_data[ii])[0] 
+
+        if has_numexpr:
+            r_squared = numexpr.evaluate('val**2')
+        else:
+            r_squared = val**2
+
+        # Re-package it into a volume:
+        out = np.nan*np.ones(self.data.shape[:3])
+        out[self.mask] = r_squared
+    
+        return out 
+
+    @desc.auto_attr
+    def b_idx(self):
+        """
+        The indices into non-zero b values
+        """
+        return np.where(self.bvals > 0)[0]
+        
+    @desc.auto_attr
+    def b0_idx(self):
+        """
+        The indices into zero b values
+        """
+        return np.where(self.bvals==0)[0]
+
+    @desc.auto_attr
+    def S0(self):
+        """
+        Extract and average the signal for volumes in which no b weighting was
+        used (b0 scans)
+        """
+        return np.mean(self.data[...,self.b0_idx],-1).squeeze()
+        
+    @desc.auto_attr
+    def signal(self):
+        """
+        The signal in b-weighted volumes
+        """
+        return self.data[...,self.b_idx].squeeze()
+
+
+class BaseModel(DWI):
     """
     Base-class for models.
     """
@@ -66,14 +308,14 @@ class BaseModel(dwi.DWI):
         
         """
         # DWI should already have everything we need: 
-        self.DWI = dwi.DWI.__init__(self,
-                                    data,
-                                    bvecs,
-                                    bvals,
-                                    affine=None,
-                                    mask=None,
-                                    scaling_factor=SCALE_FACTOR,
-                                    sub_sample=None) 
+        DWI.__init__(self,
+                         data,
+                         bvecs,
+                         bvals,
+                         affine=affine,
+                         mask=mask,
+                         scaling_factor=scaling_factor,
+                         sub_sample=sub_sample) 
         
     @desc.auto_attr
     def fit(self):
@@ -148,14 +390,37 @@ class BaseModel(dwi.DWI):
         """
         The square-root of the mean of the squared residuals
         """
-        return np.sqrt(np.mean(np.power(self.residuals,2),-1))
 
+        # Preallocate the output: 
+        out = np.nan*np.ones(self.data.shape[:3])
+
+        res = self.residuals[self.mask]
+        
+        if has_numexpr:
+            out[self.mask] = np.sqrt(np.mean(
+                             numexpr.evaluate('res ** 2'), -1))
+        else:
+            out[self.mask] = np.sqrt(np.mean(np.power(res, 2),-1))
+        
+        return out
+
+    
     @desc.auto_attr
     def residuals(self):
         """
         The prediction-subtracted residual in each voxel
         """
-        return (self.signal - self.fit)
+        out = np.nan*np.ones(self.signal.shape)
+        sig = self.signal[self.mask]
+        fit = self.fit[self.mask]
+        
+        if has_numexpr:
+            out[self.mask] = numexpr.evaluate('sig - fit')
+
+        else:
+            out[self.mask] = sig - fit
+
+        return out
 
 
 
@@ -171,16 +436,14 @@ class TensorModel(BaseModel):
                  bvecs,
                  bvals,
                  tensor_file=None,
-                 affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
         """
         Parameters
         -----------
-        DWI: A microtrack.dwi.DWI class instance, or a list containing: [the
-        name of nifti file, from which data should be read, bvecs file, bvals
-        file]
+
+        data, bvecs, bvals: see DWI inputs
 
         scaling_factor: This scales the b value for the Stejskal/Tanner
         equation
@@ -214,9 +477,9 @@ class TensorModel(BaseModel):
                            bvecs,
                            bvals,
                            affine=None,
-                           mask=None,
-                           scaling_factor=SCALE_FACTOR,
-                           sub_sample=None) 
+                           mask=mask,
+                           scaling_factor=scaling_factor,
+                           sub_sample=sub_sample) 
 
         if tensor_file is not None: 
             self.tensor_file = tensor_file
@@ -230,7 +493,7 @@ class TensorModel(BaseModel):
                 extension = ''
                 for x in file_parts[1:]:
                     extension = extension + '.' + x
-                self.file_name = os.path.join(path, name + 'TensorModel' +
+                self.tensor_file = os.path.join(path, name + 'TensorModel' +
                                               extension)
             else:
                 # Otherwise give up and make a file right here with a generic
@@ -287,11 +550,14 @@ class TensorModel(BaseModel):
                         \lambda_2^2+\lambda_3^2} }
 
         """
-        lambda_1 = self.evals[..., 0]
-        lambda_2 = self.evals[..., 1]
-        lambda_3 = self.evals[..., 2]
+        out = np.nan * np.ones(self.data.shape[:3])
         
-        return mtu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
+        lambda_1 = self.evals[..., 0][self.mask]
+        lambda_2 = self.evals[..., 1][self.mask]
+        lambda_3 = self.evals[..., 2][self.mask]
+
+        out[self.mask] = mtu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
+        return out
 
     @desc.auto_attr
     def radial_diffusivity(self):
@@ -304,44 +570,45 @@ class TensorModel(BaseModel):
     # Self Diffusion Tensor, taken from dipy.reconst.dti:
     @desc.auto_attr
     def tensors(self):
-        evals = self.evals
-        evecs = self.evecs
-        evals_flat = evals.reshape((-1, 3))
-        evecs_flat = evecs.reshape((-1, 3, 3))
-        D_flat = np.empty(evecs_flat.shape)
+        out = np.nan * np.ones(self.evecs.shape)
+        evals = self.evals[self.mask]
+        evecs = self.evecs[self.mask]
+        D_flat = np.empty(evecs.shape)
         for ii in xrange(len(D_flat)):
-            Q = evecs_flat[ii]
-            L = evals_flat[ii]
+            Q = evecs[ii]
+            L = evals[ii]
             D_flat[ii] = np.dot(Q*L, Q.T)
-        return D_flat.reshape(evecs.shape)
 
+        out[self.mask] = D_flat
+        return out
 
     @desc.auto_attr
     def apparent_diffusion_coef(self):
-        adc_flat = np.empty((np.prod(self.evecs.shape[:3]), len(self.b_idx)))
-        tensors_flat = self.tensors.reshape((-1,3,3))
+        out = np.empty(self.signal.shape)
+        tensors_flat = self.tensors[self.mask].reshape((-1,3,3))
+        adc_flat = np.empty(self.signal[self.mask].shape)
+
         for ii in xrange(len(adc_flat)):
             adc_flat[ii] = mtt.apparent_diffusion_coef(
                                         self.bvecs[:,self.b_idx],
                                         tensors_flat[ii])
-        return adc_flat.reshape(self.evecs.shape[:3] + (len(self.b_idx),))
 
+        out[self.mask] = adc_flat
+        return out
 
     @desc.auto_attr
     def fit(self):
-
-        # XXX Needs to be masked, right? 
-        adc_flat = self.apparent_diffusion_coef.reshape((-1, len(self.b_idx)))
-        
+        adc_flat = self.apparent_diffusion_coef[self.mask]
         fit_flat = np.empty(adc_flat.shape)
-
+        out = np.empty(self.signal.shape)
 
         for ii in xrange(len(fit_flat)):
             fit_flat[ii] = mtt.stejskal_tanner(self._flat_S0[ii],
                                                self.bvals[:, self.b_idx],
                                                adc_flat[ii])
 
-        return fit_flat.reshape(self.data.shape[:3] + (len(self.b_idx),))
+        out[self.mask] = fit_flat
+        return out
 
 
 class SphericalHarmonicsModel(BaseModel):
@@ -378,10 +645,10 @@ class SphericalHarmonicsModel(BaseModel):
                            data,
                            bvecs,
                            bvals,
-                           affine=None,
-                           mask=None,
-                           scaling_factor=SCALE_FACTOR,
-                           sub_sample=None) 
+                           affine=affine,
+                           mask=mask,
+                           scaling_factor=scaling_factor,
+                           sub_sample=sub_sample) 
 
         self.model_coeffs = model_coeffs
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
@@ -581,7 +848,7 @@ class FiberModel(BaseModel):
                             bvals,
                             affine=None,
                             mask=None,
-                            scaling_factor=SCALE_FACTOR,
+                            scaling_factor=scaling_factor,
                             sub_sample=None)
 
         self.axial_diffusivity = axial_diffusivity
@@ -592,6 +859,9 @@ class FiberModel(BaseModel):
         self.FG = FG.xform(self.affine.getI(), inplace=False)
 
 
+        # XXX There's got to be a way to get a mask here, which will refer only
+        # to where the fibers are. 
+        
     @desc.auto_attr
     def fg_idx(self):
         """
@@ -667,6 +937,9 @@ class FiberModel(BaseModel):
     @desc.auto_attr
     def flat_signal(self):
         """
+        XXX - need to change the name of this. This refers to something else
+        usually
+        
         The signal in the voxels corresponding to where the fibers pass through.
         """ 
         return self.signal[self.fg_idx_unique[0],
