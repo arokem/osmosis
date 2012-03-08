@@ -53,7 +53,21 @@ def test_euclidian_distance():
     y = [np.array([0,1,0]), np.array([0,0,1])]
     npt.assert_equal(mtu.euclidian_distance(x,y), np.sqrt(2) * np.eye(2))
     
-    
+def test_decompose_tensor():
+    """
+    Testing the decomposition and recomposition of tensors from eigen-vectors
+    and eigen-values
+
+    """
+    q1 = np.array([[1.5,0,0], 
+               [0,0.5,0], 
+               [0,0,0.5]])
+
+    evals1, evecs1 = mtu.decompose_tensor(q1)
+
+    q2 = mtu.tensor_from_eigs(evecs1, evals1)
+
+    npt.assert_equal(q1, q2)
 
     
     
