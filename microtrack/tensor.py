@@ -189,17 +189,17 @@ class Tensor(object):
             # specific S0:
             rot_tensor = self._rotations[idx]
             # Add the signal for this tensor, weighted by the ODF at that point:
-            tensor_signals.append(rot_tensor.predicted_signal(S0))
+            tensor_signals.append(odf[idx] * rot_tensor.predicted_signal(S0))
+            
+        signal = np.sum(tensor_signals,0)
 
-        signal = np.matrix(odf) * np.matrix(tensor_signals)
-        
         return signal
 
     
     @desc.auto_attr
     def _rotations(self):
         """
-        Cache for rotated versions of the tensor, which can be reused to
+        Cache the rotated versions of the tensor, which can be reused to
         predict the signal for different values of S0
         """
         rot_tensors = []
@@ -210,7 +210,7 @@ class Tensor(object):
             rot_tensor_e = evecs * mtu.calculate_rotation(bvec, e1)
             # Now create the same tensor, just with rotated eigen-vectors:
             rot_tensors.append(tensor_from_eigs(rot_tensor_e,
-                                          evals, self.bvecs, self.bvals))
+                                                evals, self.bvecs, self.bvals))
             
         return rot_tensors
 
