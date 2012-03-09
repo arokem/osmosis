@@ -218,7 +218,7 @@ def ols_matrix(A, norm=None):
     return la.inv(X.T * X) * X.T
 
 
-def decompose_tensor(tensor, non_negative=False):
+def decompose_tensor(tensor, non_negative=True):
     """
     Returns eigenvalues and eigenvectors given a diffusion tensor
 
@@ -238,8 +238,8 @@ def decompose_tensor(tensor, non_negative=False):
         eigenvalues are replaced by zero. Sorted from largest to smallest.
     eigvecs : array (3,3)
         Associated eigenvectors from eigen decomposition of the tensor.
-        Eigenvectors are columnar (e.g. eigvecs[:,j] is associated with
-        eigvals[j])
+        Note that in the output of la.eigh, eigenvectors are columnar
+        (e.g. eigvecs[:,j] is associated with eigvals[j])
 
     See Also
     --------
@@ -249,10 +249,10 @@ def decompose_tensor(tensor, non_negative=False):
     #outputs multiplicity as well so need to unique
     eigenvals, eigenvecs = la.eigh(tensor)
 
-    #need to sort the eigenvalues and associated eigenvectors
-    order = eigenvals.argsort()[::-1]
-    eigenvecs = eigenvecs[:, order]
-    eigenvals = eigenvals[order]
+    #need to reorder the eigenvalues and associated eigenvectors, so that they
+    #are in descending order:
+    eigenvecs = eigenvecs[:,::-1].T
+    eigenvals = eigenvals[::-1]
 
     if non_negative: 
         # Forcing negative eigenvalues to 0
@@ -262,14 +262,15 @@ def decompose_tensor(tensor, non_negative=False):
 
     return eigenvals, eigenvecs
 
-def tensor_from_eigs(evecs, evals):
+
+def tensor_from_eigs(evals, evecs):
     """
     Calculate the self diffusion tensor from evecs and evals. This is the
     inverse of decompose_tensor.
 
     Parameters
     ----------
-    evecs: 3x3 float array
+    evecs: 3x3 float array, each row is an eigen-vector
 
     evals: 3 float arrays
     
@@ -279,7 +280,7 @@ def tensor_from_eigs(evecs, evals):
     
     """
     evecs = np.asarray(evecs)
-    return np.dot(evecs*evals, evecs.T)
+    return np.dot((evals*evecs.T), evecs)
     
     
 def fit_tensor(bvecs, data): 

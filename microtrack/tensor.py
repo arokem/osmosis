@@ -263,4 +263,4 @@ def tensor_from_eigs(evecs, evals, bvecs, bvals):
     Parameters 
     """
 
-    return Tensor(mtu.tensor_from_eigs(evecs, evals), bvecs, bvals)
+    return Tensor(mtu.tensor_from_eigs(evals, evecs), bvecs, bvals)

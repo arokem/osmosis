@@ -133,7 +133,6 @@ class DWI(desc.ResetMixin):
             # Spatial mask (take only the spatial dimensions):
             self.mask = np.ones(self.data.shape[:3], dtype=bool)
 
-        
         if sub_sample is not None:
             if np.iterable(sub_sample):
                 idx = sub_sample
