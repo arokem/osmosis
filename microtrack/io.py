@@ -152,7 +152,7 @@ def fg_from_pdb(file_name, verbose=True):
                    fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
                    (n_nodes, 3)).T)
         pts_read += n_nodes
-        if verbose and np.mod(p_idx, 1000)==0:
+        if verbose and np.mod(p_idx, 10000)==0:
             print("Loaded %s of %s paths"%(p_idx, numpaths[0]))            
 
     f_stats_dict = {}
