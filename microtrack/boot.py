@@ -5,6 +5,7 @@ Utilities for sub-sampling b vectors from dwi experiments
 """ 
 
 import numpy as np
+import scipy.linalg as la
 
 import microtrack as mt
 import microtrack.utils as mtu
@@ -74,6 +75,55 @@ def subsample(bvecs, n_dirs, elec_points=None):
         sample_bvecs[:, vec] = bvecs[this_idx]
 
     return sample_bvecs, np.array(bvec_idx).squeeze()
+        
+def dyadic_tensor(eigs):
+    """
+    Calculate the dyadic tensor of the principal diffusion direction from
+    multiple (3,3) eigenvector sets
+
+    Parameters
+    ----------
+    eigs: (n,3,3) array
+        Sets of eigenvectors that correspond to the same voxel
+
+    Notes
+    -----
+    The dyadic tensor is defined as:
+
+    .. math:: 
+
+       $ \langle \epsilon_1 \epsilon_1 \rangle_j = $
+
+       \\( \langle ( \begin{matrix} \epsilon_{1x}^2 & \epsilon_{1x}\epsilon_{1y} & \epsilon_{1z}; && \epsilon_{1x}\epsilon_{1y} & \epsilon_{1y}^2 & \epsilon_{1y}\epsilon_{1z}; && \epsilon_{1x}\epsilon_{1z} & \epsilon_{1y}\epsilon_{1} & \epsilon_{1z}^2 \end{matrix} )\rangle \\)
+
+      = $\frac{1}{N} \sum_{j=1}^{N} \epsilon_1^j \epsilon_1^{jT}$
+
+
+    Jones (2003). Determining and visualizing uncertainty in estimates of fiber
+    orientation from diffusion tensor MRI MRM, 49: 7-12
+    """
+
+    dyad = np.empty(eigs.shape)
+
+    for idx in xrange(eigs.shape[0]):
+        dyad[idx] = np.matrix(eigs[idx]) * np.matrix(eigs[idx]).T
+
+    return np.mean(dyad, 0)
+
+
+def dyad_dispersion(dyad): 
+    """
+    A measure of the dispersion of an average dyadic tensor
+    
+    $\kappa = 1-\sqrt{\frac{\beta_2 + \beta_3}{\beta_1}}$
+
+    Jones (2003). Determining and visualizing uncertainty in estimates of fiber
+    orientation from diffusion tensor MRI MRM, 49: 7-12
+    """
+    vals, vecs = la.eig(dyad)
+
+    # The eigenvalues are returned in *ascending* order:
+    return (1 - np.sqrt((vals[0] + vals[1])/(2*vals[2])))
         
 
     
