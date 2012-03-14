@@ -375,34 +375,45 @@ class BaseModel(DWI):
         return self.fit[self.mask].reshape((-1, self.signal.shape[-1])) 
         
 
-    def _correlator(self, func, r_idx):
+    def _correlator(self, correlator, r_idx=0, square=True):
         """
         Helper function that uses a callable "func" to apply between two 1-d
         arrays. These 1-d arrays can have different outputs and the one we
         always want is the one which is r_idx into the output tuple 
         """
-        r = np.empty(self._flat_signal.shape[0])
-        
-        for ii in xrange(len(self._flat_signal)):
-            outs = func(self._flat_signal[ii] , self._flat_fit[ii])
-            r[ii] = outs[r_idx]
-            
-        if has_numexpr:
-            r_squared = numexpr.evaluate('r**2')
-        else:
-            r_squared = r**2
 
+        val = np.empty(self._flat_signal.shape[0])
+
+        for ii in xrange(len(val)):
+            if r_idx>=0:
+                val[ii] = correlator(self._flat_signal[ii],
+                                     self._flat_fit[ii])[r_idx] 
+            else:
+                val[ii] = correlator(self._flat_signal[ii],
+                                     self._flat_fit[ii]) 
+        if square:
+            if has_numexpr:
+                r_squared = numexpr.evaluate('val**2')
+            else:
+                r_squared = val**2
+        else:
+            r_squared = val
+        
         # Re-package it into a volume:
-        out = np.nan*np.ones(self.data.shape[:3])
+        out = np.nan*np.ones(self.shape[:3])
         out[self.mask] = r_squared
-        return out         
+
+        out[out<-1]=-1.0
+        out[out>1]=1.0
+
+        return out 
 
     @desc.auto_attr
     def r_squared(self):
         """
         The r-squared ('explained variance') value in each voxel
         """
-        return self._correlator(stats.pearsonr, 0)
+        return self._correlator(stats.pearsonr, r_idx=0)
     
     @desc.auto_attr
     def R_squared(self):
@@ -410,7 +421,7 @@ class BaseModel(DWI):
         The R-squared ('coefficient of determination' from a linear model fit)
         in each voxel
         """
-        return self._correlator(stats.linregress, 2)
+        return self._correlator(stats.linregress, r_idx=2)
 
     @desc.auto_attr
     def coeff_of_determination(self):
@@ -420,7 +431,9 @@ class BaseModel(DWI):
         http://en.wikipedia.org/wiki/Coefficient_of_determination
         
         """
-        return mtu.coeff_of_determination(self.fit, self.signal)
+        return self._correlator(mtu.coeff_of_determination,
+                                r_idx=-1,
+                                square=False)
 
     @desc.auto_attr
     def RMSE(self):
