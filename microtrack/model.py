@@ -420,7 +420,7 @@ class BaseModel(DWI):
         http://en.wikipedia.org/wiki/Coefficient_of_determination
         
         """
-        return mtu.explained_variance(self.fit, self.signal)
+        return mtu.coeff_of_determination(self.fit, self.signal)
 
     @desc.auto_attr
     def RMSE(self):
