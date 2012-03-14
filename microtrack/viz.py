@@ -15,6 +15,8 @@ import numpy as np
 
 import dipy.core.geometry as geo
 
+import microtrack.utils as mtu
+
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs):
     """
     Display a 3-d volume of data as a 2-d mosaic
@@ -61,12 +63,18 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
             this_im = np.hstack([this_im, np.nan *np.ones((height, wid_margin))])
         im = np.vstack([im, this_im])
     
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(111, aspect='equal')
+    if fig is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, aspect='equal')
+    else:
+        # This assumes that the figure was originally created with this
+        # function:
+        ax = fig.axes[0]
+
     imax = ax.matshow(im.T, vmin=vmin, vmax=vmax, **kwargs)
     ax.get_axes().get_xaxis().set_visible(False)
     ax.get_axes().get_yaxis().set_visible(False)
+    # The colorbar will refer to the last thing plotted in this figure
     cbar = fig.colorbar(imax, ticks=[np.nanmin([0, vmin]),
                                      vmax - (vmax - vmin)/2,
                                      np.nanmin([vmax,np.nanmax(im)])],
@@ -277,11 +285,13 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     
     """
 
-    max_x = np.max(x)
-    max_y = np.max(y)
+    max_x = np.nanmax(x)
+    max_y = np.nanmax(y)
+    min_x = np.nanmin(x)
+    min_y = np.nanmin(y)
     
-    x = rescale(x).ravel() * (res - 1) 
-    y = rescale(y).ravel() * (res - 1)
+    x = mtu.rescale(x).ravel() * (res - 1) 
+    y = mtu.rescale(y).ravel() * (res - 1)
 
     data_arr = np.zeros((res, res))
 
@@ -299,26 +309,10 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     fig.colorbar(imax)
     ax.set_xticks([0] + [i * res/5.0 for i in range(5)])
     ax.set_yticks([0] + [i * res/5.0 for i in range(5)])
-    ax.set_xticklabels([0] + ['%0.2f'%(i * max_x/5.0) for i in range(5)])
-    ax.set_yticklabels([0] + ['%0.2f'%(i * max_y/5.0) for i in range(5,0,-1)])
+    ax.set_xticklabels([0] + ['%0.2f'%(i * ((max_x - min_x)/5.0) + min_x) for i in range(5)])
+    ax.set_yticklabels([0] + ['%0.2f'%(i * ((max_y - min_y)/5.0) + min_y) for i in range(5,0,-1)])
     
     return fig
 
 
-
-def rescale(arr):
-    """
-
-   rescale an array into [0,1]
-
-    """
-    # Start by moving the minimum to 0:
-    min_arr = np.nanmin(arr)
-
-    if min_arr<0:
-        arr += np.abs(min_arr)
-    else:
-        arr -= np.abs(min_arr)
-        
-    return arr/np.nanmax(arr)
 

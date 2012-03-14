@@ -131,7 +131,7 @@ class DWI(desc.ResetMixin):
 
         else:
             # Spatial mask (take only the spatial dimensions):
-            self.mask = np.ones(self.data.shape[:3], dtype=bool)
+            self.mask = np.ones(self.shape[:3], dtype=bool)
 
         if sub_sample is not None:
             if np.iterable(sub_sample):
@@ -178,7 +178,7 @@ class DWI(desc.ResetMixin):
         If bvals were not provided as an array, read them from file
         """ 
         return np.loadtxt(self.bvals_file)
-        
+    
     @desc.auto_attr
     def bvecs(self):
         """
@@ -232,29 +232,63 @@ class DWI(desc.ResetMixin):
         return self._flat_data[:,self.b_idx]
 
 
-    def noise_ceiling(self, DWI2, correlator=stats.pearsonr, r_idx=0):
+    
+    def signal_reliability(self,
+                           DWI2,
+                           correlator=stats.pearsonr,
+                           r_idx=0,
+                           square=True):
         """
         Calculate the r-squared of the correlator function provided, in each
-        voxel (across directions, including b0's (?) ) between this class
-        instance and another class  instance, provided as input. r_idx points
-        to the location of r within the tuple returned by the correlator callable
+        voxel (across directions, not including b0) between this class instance
+        and another class instance, provided as input.
+
+        Parameters
+        ----------
+        DWI2: Another DWI class instance, with data that should look the same,
+            if there wasn't any noise in the measurement
+
+        correlator: callable. This is a function that calculates a measure of
+             correlation (e.g. stats.pearsonr, or stats.linregress)
+
+        r_idx: int,
+            points to the location of r within the tuple returned by
+            the correlator callable if r_idx is negative, that means that the
+            return value is not a tuple and should be treated as the value
+            itself.
+
+        square: bool,
+            If square is True, that means that the value returned from
+            the correlator should be squared before returning it, otherwise,
+            the value itself is returned.
+            
         """
                 
-        val = np.empty(self._flat_data.shape[0])
+        val = np.empty(self._flat_signal.shape[0])
 
         for ii in xrange(len(val)):
-            val[ii] = correlator(self._flat_data[ii],
-                                 DWI2._flat_data[ii])[0] 
+            if r_idx>=0:
+                val[ii] = correlator(self._flat_signal[ii],
+                                     DWI2._flat_signal[ii])[r_idx] 
+            else:
+                val[ii] = correlator(self._flat_signal[ii],
+                                     DWI2._flat_signal[ii]) 
 
-        if has_numexpr:
-            r_squared = numexpr.evaluate('val**2')
+        if square:
+            if has_numexpr:
+                r_squared = numexpr.evaluate('val**2')
+            else:
+                r_squared = val**2
         else:
-            r_squared = val**2
-
+            r_squared = val
+        
         # Re-package it into a volume:
-        out = np.nan*np.ones(self.data.shape[:3])
+        out = np.nan*np.ones(self.shape[:3])
         out[self.mask] = r_squared
-    
+
+        out[out<-1]=-1.0
+        out[out>1]=1.0
+
         return out 
 
     @desc.auto_attr
@@ -517,17 +551,22 @@ class TensorModel(BaseModel):
         # The file already exists: 
         if os.path.isfile(self.tensor_file):
             return ni.load(self.tensor_file).get_data()
-        else: 
+        else:
+            block = np.nan * np.ones(self.shape[:3] + (12,))
             mp = dti.Tensor(self.data,
                             self.bvals,
                             self.bvecs.T,
                             self.mask).model_params 
 
+            # Make sure it has the right shape (this is necessary because dipy
+            # reshapes things under the hood with its masked interface):
+            block[self.mask] = mp
+            
             # Save the params for future use: 
-            params_ni = ni.Nifti1Image(mp, self.affine)
-            params_ni.to_filename(self.tensor_name)
+            params_ni = ni.Nifti1Image(block, self.affine)
+            params_ni.to_filename(self.tensor_file)
             # And return the params for current use:
-            return mp
+            return block
 
     @desc.auto_attr
     def evecs(self):
@@ -543,6 +582,32 @@ class TensorModel(BaseModel):
         #adc/md = (ev1+ev2+ev3)/3
         return self.evals.mean(-1)
 
+    @desc.auto_attr
+    def signal_adc(self):
+        """
+        This is the empirically defined ADC:
+
+        .. math::
+        
+            ADC = -log \frac{S}{S0}
+
+        """
+        out = np.nan * np.ones(self.signal.shape)
+        flat_S0 = (self._flat_S0[:, np.newaxis] +
+                   np.zeros(self._flat_signal.shape))
+        
+        out[self.mask] = ((-1/self.bvals[self.b_idx][0]) *
+                          np.log(self._flat_signal/flat_S0))
+
+        return out
+
+    @desc.auto_attr
+    def adc_residuals(self):
+        """
+        The model-predicted ADC, conpared with the empirical ADC.
+        """
+        return self.model_adc - self.signal_adc
+    
     @desc.auto_attr
     def fractional_anisotropy(self):
         """
@@ -586,7 +651,7 @@ class TensorModel(BaseModel):
         return out
 
     @desc.auto_attr
-    def apparent_diffusion_coef(self):
+    def model_adc(self):
         out = np.empty(self.signal.shape)
         tensors_flat = self.tensors[self.mask].reshape((-1,3,3))
         adc_flat = np.empty(self.signal[self.mask].shape)
@@ -601,7 +666,7 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def fit(self):
-        adc_flat = self.apparent_diffusion_coef[self.mask]
+        adc_flat = self.model_adc[self.mask]
         fit_flat = np.empty(adc_flat.shape)
         out = np.empty(self.signal.shape)
 
@@ -613,6 +678,28 @@ class TensorModel(BaseModel):
         out[self.mask] = fit_flat
         return out
 
+def tensor_dispersion(tensor_model_list, mask=None):
+    """
+    Calculate the dispersion of the principle diffusion direction over a bunch
+    of TensorModel class instances.
+
+    """
+    if mask is None:
+        mask = np.ones(tensor_model_list[0].shape[:3])
+        
+    # flatten the eigenvectors:
+    tensor_model_flat=np.array([this.evecs[mask] for this in tensor_model_list])
+    out_flat = np.empty(tensor_model_flat[0].shape[0])
+
+    # Loop over voxels
+    for idx in xrange(tensor_model_flat.shape[1]):
+        dyad = boot.dyadic_tensor(tensor_model_flat[:,idx,:,:])
+        out_flat[idx] = boot.dyad_dispersion(dyad)
+
+    out = np.nan * np.ones(tensor_model_list[0].shape[:3])
+    out[mask] = out_flat
+    return out        
+    
 
 class SphericalHarmonicsModel(BaseModel):
     """
@@ -955,4 +1042,6 @@ class FiberModel(BaseModel):
         return self.signal[self.fg_idx_unique[0],
                                self.fg_idx_unique[1],
                                self.fg_idx_unique[2]].ravel()
+
+
 

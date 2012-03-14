@@ -367,7 +367,7 @@ def nearest_coord(vol, in_coords, tol=10):
     else:
         return None 
     
-def explained_variance(data, model, axis=-1):
+def coeff_of_determination(data, model, axis=-1):
     """
 
      http://en.wikipedia.org/wiki/Coefficient_of_determination
@@ -379,18 +379,36 @@ def explained_variance(data, model, axis=-1):
 
 
     """
+    # There's no point in doing any of this: 
+    if np.all(data==0.0) and np.all(model==0.0):
+        return np.nan
+    
     residuals = data - model
     ss_err = np.sum(residuals ** 2, axis=axis)
 
     demeaned_data = data - np.mean(data,-1)[...,np.newaxis]
     ss_tot = np.sum(demeaned_data **2, axis=axis)
 
-    # Need to get rid of the entries in which there is no data:
-    ss_tot[np.where(np.abs(ss_tot-0)<10e-10)]=np.nan
+    # Don't divide by 0:
+    if np.all(ss_tot==0.0):
+        return np.nan
     
-    return (1 - (ss_err/ss_tot))
+    return 1 - (ss_err/ss_tot)
 
+def rescale(arr):
+    """
 
+   rescale an array into [0,1]
 
+    """
+    # Start by moving the minimum to 0:
+    min_arr = np.nanmin(arr)
+
+    if min_arr<0:
+        arr += np.abs(min_arr)
+    else:
+        arr -= np.abs(min_arr)
+        
+    return arr/np.nanmax(arr)
 
 
