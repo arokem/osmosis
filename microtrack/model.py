@@ -560,7 +560,7 @@ class TensorModel(BaseModel):
 
             # Make sure it has the right shape (this is necessary because dipy
             # reshapes things under the hood with its masked interface):
-            block[self.mask] = mp
+            block[self.mask] = np.reshape(mp,(-1,12))
             
             # Save the params for future use: 
             params_ni = ni.Nifti1Image(block, self.affine)
