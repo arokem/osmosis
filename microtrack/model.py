@@ -691,28 +691,56 @@ class TensorModel(BaseModel):
         out[self.mask] = fit_flat
         return out
 
-def tensor_dispersion(tensor_model_list, mask=None):
+def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
+                average=True):
     """
-    Calculate the dispersion of the principle diffusion direction over a bunch
-    of TensorModel class instances.
-
+    Helper function that does most of the work on calcualting dyad statistics
     """
     if mask is None:
         mask = np.ones(tensor_model_list[0].shape[:3])
         
     # flatten the eigenvectors:
-    tensor_model_flat=np.array([this.evecs[mask] for this in tensor_model_list])
+    tensor_model_flat=np.array([this.evecs[mask] for this in
+    tensor_model_list])
     out_flat = np.empty(tensor_model_flat[0].shape[0])
 
     # Loop over voxels
     for idx in xrange(tensor_model_flat.shape[1]):
-        dyad = boot.dyadic_tensor(tensor_model_flat[:,idx,:,:])
-        out_flat[idx] = boot.dyad_dispersion(dyad)
+        dyad = boot.dyadic_tensor(tensor_model_flat[:,idx,:,:],
+                                  average=average)
+        out_flat[idx] = dyad_stat(dyad)
 
     out = np.nan * np.ones(tensor_model_list[0].shape[:3])
     out[mask] = out_flat
     return out        
     
+
+def tensor_coherence(tensor_model_list, mask=None):
+    """
+    Calculate the coherence of the principle diffusion direction over a bunch
+    of TensorModel class instances.
+
+
+    This is $\kappa = 1-\sqrt{\frac{\beta_2 + \beta_3}{\beta_1}}$, where the
+    $\beta_i$ are the eigen-values of the dyadic tensor over the list of
+    TensorModel class instances provided as input. 
+    """
+    # This is the default behavior:
+    return _dyad_stats(tensor_model_list, mask=mask,
+                       dyad_stat=boot.dyad_coherence,
+                       average=True)
+
+def tensor_dispersion(tensor_model_list, mask=None):
+    """
+    Calculate the dispersion (in degrees) of the principle diffusion direction
+    over a sample of TensorModel class instances.
+    """
+    # Calculate the dyad_dispersion instead:
+    return _dyad_stats(tensor_model_list, mask=mask,
+                       dyad_stat=boot.dyad_dispersion,
+                       average=False) # This one needs to know the individual
+                                      # dyads, in addition to the average one.
+
 
 class SphericalHarmonicsModel(BaseModel):
     """

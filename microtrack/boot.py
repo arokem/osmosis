@@ -76,7 +76,7 @@ def subsample(bvecs, n_dirs, elec_points=None):
 
     return sample_bvecs, np.array(bvec_idx).squeeze()
         
-def dyadic_tensor(eigs):
+def dyadic_tensor(eigs,average=True):
     """
     Calculate the dyadic tensor of the principal diffusion direction from
     multiple (3,3) eigenvector sets
@@ -106,12 +106,15 @@ def dyadic_tensor(eigs):
     dyad = np.empty(eigs.shape)
 
     for idx in xrange(eigs.shape[0]):
-        dyad[idx] = np.matrix(eigs[idx]) * np.matrix(eigs[idx]).T
+        # We only look at the first eigen-vector:
+        dyad[idx] = np.matrix(eigs[idx][0]).T * np.matrix(eigs[idx][0])
 
-    return np.mean(dyad, 0)
+    if average:
+        return np.mean(dyad, 0)
+    else:
+        return dyad
 
-
-def dyad_dispersion(dyad): 
+def dyad_coherence(dyad): 
     """
     A measure of the dispersion of an average dyadic tensor
     
@@ -120,10 +123,22 @@ def dyad_dispersion(dyad):
     Jones (2003). Determining and visualizing uncertainty in estimates of fiber
     orientation from diffusion tensor MRI MRM, 49: 7-12
     """
-    vals, vecs = la.eig(dyad)
+    vals, vecs = la.eigh(dyad)
 
     # The eigenvalues are returned in *ascending* order:
     return (1 - np.sqrt((vals[0] + vals[1])/(2*vals[2])))
-        
 
-    
+def dyad_dispersion(dyad):
+    """
+    A measure of dispersion of the dyadic tensors of several tensors. Requires
+    the full distribution of dyadic tensors (dyadic_tensor calculated with
+    average=False) 
+    """
+    mean_principal_eigvec  = la.eigh(np.mean(dyad,0))[1]
+    theta = []
+    for this_d in dyad:
+        # Using equation 3 in Jones(2003):
+        theta.append(np.arccos(this_d[0], mean_principal_eigvec))
+
+    # Average over all the tensors:
+    return np.mean(theta)
