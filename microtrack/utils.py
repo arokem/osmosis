@@ -201,22 +201,39 @@ def ols_matrix(A, norm=None):
 
     ..math ::
 
-        y = Ax
+        y = A \beta
 
    is given by:
 
     ..math ::
 
-        OLS = (A x A')^{-1} x A'
+        \hat{\beta} = (A' x A)^{-1} A' y
 
+    See also
+    --------
+    http://en.wikipedia.org/wiki/Ordinary_least_squares#Estimation
     """
+
+    A = np.asarray(A)
+    
     if norm is not None:
         X = norm(np.matrix(A.copy()))
     else:
         X = np.matrix(A.copy())
 
-    return la.inv(X.T * X) * X.T
+    return la.pinv(X.T * X) * X.T
 
+
+def cls_matrix():
+    """
+    Constrained least squares estimation. Compute the parameters $\hat{\beta}$
+    that fulfill the constraint: $Q\beta=c$
+    
+    http://en.wikipedia.org/wiki/Ordinary_least_squares#Constrained_estimation
+    
+    """
+    # XXX Make it! 
+    raise NotImplementedError
 
 def decompose_tensor(tensor, non_negative=True):
     """
@@ -412,3 +429,24 @@ def rescale(arr):
     return arr/np.nanmax(arr)
 
 
+def rmse(arr1, arr2, axis=-1):
+    """
+    Calculate the root of the mean square error (difference) between two arrays
+
+    Parameters
+    ----------
+
+    arr1, arr2: array-like
+       Need to have the same shape
+
+    axis: int, optional
+       The axis over which the averaging step is done.
+
+    
+    """
+    arr1 = np.asarray(arr1)
+    arr2 = np.asarray(arr2)
+    if has_numexpr:
+      return np.sqrt(np.mean(numexpr.evaluate('(arr1 - arr2) ** 2'), axis=axis))
+    else:
+      return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))

@@ -96,3 +96,17 @@ def test_decompose_tensor():
         npt.assert_almost_equal(np.abs(evecs_est/evecs), np.ones((3,3)))
     
     
+def test_ols_matrix():
+    """
+    Test that this really does OLS regression.
+    """
+    # Parameters
+    beta = np.random.rand(10)
+    # Inputs
+    x = np.random.rand(100,10)
+    # Outputs (noise-less!)
+    y = np.dot(x, beta)
+    # Estimate back:
+    beta_hat = np.array(np.dot(mtu.ols_matrix(x),y)).squeeze()
+    # This should have recovered the original:
+    npt.assert_almost_equal(beta, beta_hat)

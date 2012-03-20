@@ -3,10 +3,13 @@
 =====================
 File input and output
 =====================
+Reading and writing files from a variety of formats.
 
-The *nominal* PDB file format specification is as follows, but note that some
-of these things are not implemented in PDB version 3. For example, there are no
-algorithms to speak of, so that whole bit is completely ignored. 
+The PDB file format is sometimes used for reading and writing information about
+tractography results. The *nominal* PDB file format specification is as
+follows, but note that some of these things are not implemented in PDB version
+3. For example, there are no algorithms to speak of, so that whole bit is
+completely ignored. 
 
  The file-format is organized as a semi-hierarchical data-base, according to
     the following specification:
@@ -381,4 +384,11 @@ def _stat_hdr_set(fwrite, stat, uid):
                          # resaving on different platforms, because
                          # dict keys come in no particular order...
 
-    
+
+def fg_from_trk():
+    """
+    Read data from a trackvis .trk file and create a FiberGroup object
+    according to it.    
+
+    """
+    raise NotImplementedError

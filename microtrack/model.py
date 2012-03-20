@@ -32,6 +32,7 @@ import microtrack.fibers as mtf
 import microtrack.tensor as mtt
 import microtrack.utils as mtu
 import microtrack.boot as boot
+import microtrack.mls as mls
 
 
 # Global constants for this module:
@@ -450,7 +451,7 @@ class BaseModel(DWI):
             out[self.mask] = np.sqrt(np.mean(
                              numexpr.evaluate('res ** 2'), -1))
         else:
-            out[self.mask] = np.sqrt(np.mean(np.power(res, 2),-1))
+            out[self.mask] = np.sqrt(np.mean(np.power(res, 2), -1))
         
         return out
 
@@ -941,10 +942,144 @@ class SphericalHarmonicsModel(BaseModel):
 
         L1 = (-3 + np.sqrt(1+ 8 *n))/2
         L2 = (-3 - np.sqrt(1+ 8 *n))/2
-
+        
         return max([L1,L2])
 
+class CanonicalTensorModel(BaseModel):
+    """
+    This is a simplified bi-tensor model, where one tensor is constrained to be a
+    sphere and the other is constrained to be a canonical tensor with some
+    globally set axial and radial diffusivities.
+
+    The signal in each voxel can then be described as a linear combination of
+    these two factors:
+
+    .. math::
     
+       S = \beta_1 S0 e^{-bval \vec{b} q \vec{b}^t} + \beta_2 S0 
+
+    Where $\vec{b}$ is chosen to be one of the diffusion-weighting
+    directions used in the scan.
+
+    Consequently, for a particular choice of $\vec{b}$ we can write this as:
+
+    .. math::
+
+       S = X \beta
+
+    Where: S is the nvoxels x ndirections signal from the entire volume, X is a
+    2 by ndirections matrix, with one column devoted to the anistropic
+    contribution from the canonical tensor and the other column containing a
+    constant term in all directions, representing the isotropic
+    component. We can solve this equation using OLS fitting and derive the RMSE
+    for that choice of $\vec{b}$. We then find the minmal value of RMSE and
+    choose that $\vec{b}$ to represent that voxel most reliably. 
+    
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 over_sample=None):
+
+        """
+        Initialize a TensorAndBall model class instance.
+
+        Parameters
+        ----------
+        
+        """
+        # Initialize the super-class:
+        BaseModel.__init__(self,
+                            data,
+                            bvecs,
+                            bvals,
+                            affine=affine,
+                            mask=mask,
+                            scaling_factor=scaling_factor,
+                            sub_sample=sub_sample)
+
+        self.ad = axial_diffusivity
+        self.rd = radial_diffusivity
+    
+    @desc.auto_attr
+    def response_function(self):
+        """
+        A canonical tensor that describes the presumed response of a single
+        fiber 
+        """
+        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+                              self.bvecs[:,self.b_idx],
+                              self.bvals[self.b_idx])
+     
+    @desc.auto_attr
+    def rotations(self):
+        # assume S0==1, the weight should soak that up:
+        return np.array([this.predicted_signal(1) 
+                         for this in self.response_function._rotations])
+
+    @desc.auto_attr
+    def ols_matrices(self):
+        """
+        Compute the matrices for the OLS fitting and cache them for reuse.
+        """
+        x = []
+        for idx, bv in enumerate(self.bvecs[:, self.b_idx].T):
+            # The 'design matrix':
+            d = np.vstack([self.rotations[idx],np.ones(self.b_idx.shape[0])]).T
+            # This is $(X' X)^{-1} X':
+            x.append(mtu.ols_matrix(d))
+            
+        return np.array(x)
+        
+    @desc.auto_attr
+    def bvec_weights(self):
+        """
+        
+        Returns
+        -------
+        Array with dimensions n_voxels by 2 by n_bvecs
+        """
+        w = []
+        for idx, bv in enumerate(self.bvecs[:,self.b_idx].T):
+            w.append(np.array(np.dot(self.ols_matrices[idx],
+                                     self._flat_signal.T)).squeeze())
+            
+        return np.array(w).T
+            
+    @desc.auto_attr
+    def fit(self):
+        """
+        Fit the model and return the predicted signal according to the model
+        """
+
+        # For now, this returns all the fits, not just the ones with the best
+        # RMSE. XXX Need to implement that as well. 
+        fit_flat = np.empty(self._flat_signal.shape + (self.b_idx.shape[0],))
+        for ii in xrange(fit_flat.shape[0]):
+            # Broadcast into the right shape:
+            this_bvec_weights = (self.bvec_weights[ii][0] +
+                                 np.zeros((self.b_idx.shape[0],
+                                           self.b_idx.shape[0])))
+            
+            this_iso_weights = self.bvec_weights[ii][1] +
+                                 np.zeros((self.b_idx.shape[0],
+                                           self.b_idx.shape[0])))
+            # Now you can multiply out for all the rotations at once:
+            fit_flat[ii] = (this_bvec_weights * self.rotations +
+                            this_iso_weights )
+                
+        out = np.nan * np.ones(self.signal.shape)
+        out[self.mask] = fit_flat
+
+        return np.array(out)
+        
 class FiberModel(BaseModel):
     """
     
@@ -966,8 +1101,6 @@ class FiberModel(BaseModel):
         """
         Parameters
         ----------
-        DWI: A microtrack.dwi.DWI object, or a list containing: [the name of
-             nifti file, from which data should be read, bvecs file, bvals file]
         
         FG: a microtrack.fibers.FiberGroup object, or the name of a pdb file
             containing the fibers to be read in using mtf.fg_from_pdb
@@ -975,8 +1108,6 @@ class FiberModel(BaseModel):
         axial_diffusivity: The axial diffusivity of a single fiber population.
 
         radial_diffusivity: The radial diffusivity of a single fiber population.
-
-        scaling_factor: This scales the b value for the Stejskal/Tanner equation
         
         """
         # Initialize the super-class:
