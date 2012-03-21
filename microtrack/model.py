@@ -1087,19 +1087,29 @@ class CanonicalTensorModel(BaseModel):
             # signal. That will choose the tensor we use:
             corrs = mtu.seed_corrcoef(self._flat_signal[vox], fit_flat[:,vox,:])
             idx = np.where(corrs==np.nanmax(corrs))
-            # Take only that one:
-            out_flat[vox] = fit_flat[idx, vox, :]
-
-            params.append([idx,
+            # Sometimes there is no good solution (maybe we need to fit just an
+            # isotropic to these?):
+            if len(idx):
+                # Take only that one:
+                out_flat[vox] = fit_flat[idx, vox, :]
+                params.append([idx,
                            b_w[idx, vox],
                            i_w[idx, vox]])
+            else:
+                out_flat[vox] = np.nan
+                params.append([np.nan, np.nan, np.nan])
 
-        self.params = params
+        # Make the params an attribute of the class instance (is this not a
+        # good way to do it?): 
+        out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
+        out_params[self.mask] = np.array(params)
+        self.params = out_params
+
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
-        
+    
 class FiberModel(BaseModel):
     """
     
