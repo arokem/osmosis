@@ -461,8 +461,8 @@ class BaseModel(DWI):
         The prediction-subtracted residual in each voxel
         """
         out = np.nan*np.ones(self.signal.shape)
-        sig = self.signal[self.mask]
-        fit = self.fit[self.mask]
+        sig = self._flat_signal
+        fit = self._flat_fit
         
         if has_numexpr:
             out[self.mask] = numexpr.evaluate('sig - fit')
