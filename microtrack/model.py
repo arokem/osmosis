@@ -32,7 +32,6 @@ import microtrack.fibers as mtf
 import microtrack.tensor as mtt
 import microtrack.utils as mtu
 import microtrack.boot as boot
-import microtrack.mls as mls
 
 
 # Global constants for this module:
@@ -1025,60 +1024,60 @@ class CanonicalTensorModel(BaseModel):
                          for this in self.response_function._rotations])
 
     @desc.auto_attr
-    def ols_matrices(self):
+    def ols(self):
         """
-        Compute the matrices for the OLS fitting and cache them for reuse.
+        Compute the design matrices the matrices for OLS fitting and the OLS
+        solution. Cache them for reuse in each direction over all voxels.
         """
         x = []
+        d = []
+        w = []
+
         for idx, bv in enumerate(self.bvecs[:, self.b_idx].T):
             # The 'design matrix':
-            d = np.vstack([self.rotations[idx],np.ones(self.b_idx.shape[0])]).T
+            d.append(np.vstack([self.rotations[idx],
+                                np.ones(self.b_idx.shape[0])]).T)
             # This is $(X' X)^{-1} X':
-            x.append(mtu.ols_matrix(d))
+            x.append(mtu.ols_matrix(d[-1]))
+            # Multiply to find the OLS solution:
+            w.append(np.array(np.dot(x[-1], self._flat_signal.T)).squeeze())
             
-        return np.array(x)
+        return  np.array(d), np.array(x), np.array(w)
         
-    @desc.auto_attr
-    def bvec_weights(self):
-        """
-        
-        Returns
-        -------
-        Array with dimensions n_voxels by 2 by n_bvecs
-        """
-        w = []
-        for idx, bv in enumerate(self.bvecs[:,self.b_idx].T):
-            w.append(np.array(np.dot(self.ols_matrices[idx],
-                                     self._flat_signal.T)).squeeze())
-            
-        return np.array(w).T
-            
     @desc.auto_attr
     def fit(self):
         """
-        Fit the model and return the predicted signal according to the model
+
+        Perform OLS fitting, for the first pass. Then, find the PDD that most
+        readily explains the data (in the lsq sense) and use that one to derive
+        the fit.
         """
+        # Get the OLS solution:
+        ols_weights = self.ols[2]
 
-        # For now, this returns all the fits, not just the ones with the best
-        # RMSE. XXX Need to implement that as well. 
-        fit_flat = np.empty(self._flat_signal.shape + (self.b_idx.shape[0],))
-        for ii in xrange(fit_flat.shape[0]):
-            # Broadcast into the right shape:
-            this_bvec_weights = (self.bvec_weights[ii][0] +
-                                 np.zeros((self.b_idx.shape[0],
-                                           self.b_idx.shape[0])))
+        fit_flat = np.empty((self.rotations.shape[0],) + self._flat_signal.shape)
+        for rot_i, rot in enumerate(self.rotations):
+            # broadcast:
+            bvec_weights = ols_weights[rot_i,0,:]+np.zeros(fit_flat.shape[:-1])
+            iso_weights = ols_weights[rot_i,1,:]+np.zeros(fit_flat.shape[:-1])
+
+            fit_flat[rot_i] = (bvec_weights.T * rot + iso_weights.T)
+
+        out_flat = np.empty(self._flat_signal.shape)
+
+        # Find the best OLS solution in each voxel:
+        for vox in xrange(out_flat.shape[0]):
+            # Find the predicted signal that best matches the original
+            # signal. That will choose the tensor we use:
+            corrs = mtu.seed_corrcoef(self._flat_signal[vox], fit_flat[:,vox,:])
+            idx = np.where(corrs==np.max(corrs))
+            # Take only that one:
+            out_flat[vox] = fit_flat[idx, vox, :]
             
-            this_iso_weights = self.bvec_weights[ii][1] +
-                                 np.zeros((self.b_idx.shape[0],
-                                           self.b_idx.shape[0])))
-            # Now you can multiply out for all the rotations at once:
-            fit_flat[ii] = (this_bvec_weights * self.rotations +
-                            this_iso_weights )
-                
         out = np.nan * np.ones(self.signal.shape)
-        out[self.mask] = fit_flat
+        out[self.mask] = out_flat
 
-        return np.array(out)
+        return out
         
 class FiberModel(BaseModel):
     """

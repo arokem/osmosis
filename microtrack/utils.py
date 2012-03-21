@@ -450,3 +450,28 @@ def rmse(arr1, arr2, axis=-1):
       return np.sqrt(np.mean(numexpr.evaluate('(arr1 - arr2) ** 2'), axis=axis))
     else:
       return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))
+
+def seed_corrcoef(seed, target):
+    """
+    Compute seed-based correlation coefficient
+
+    Parameters
+    ----------
+    seed: a single 1-d arrays, shape (n,)
+
+    target: many 1-d arrays stacked. shape (m,n)
+       These will each be compared to the seed
+
+    Returns
+    -------
+    The correlation coefficient between the seed and each of the targets
+    
+    """
+    x = target - np.mean(target, -1)[..., np.newaxis]
+    y = seed - np.mean(seed)
+    xx = np.sum(x ** 2, -1)
+    yy = np.sum(y ** 2, -1)
+    xy = np.dot(x, y)
+    r = xy / np.sqrt(xx * yy)
+
+    return r
