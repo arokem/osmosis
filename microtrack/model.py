@@ -638,6 +638,7 @@ class TensorModel(BaseModel):
         lambda_3 = self.evals[..., 2][self.mask]
 
         out[self.mask] = mtu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
+
         return out
 
     @desc.auto_attr
@@ -948,7 +949,8 @@ class CanonicalTensorModel(BaseModel):
     """
     This is a simplified bi-tensor model, where one tensor is constrained to be a
     sphere and the other is constrained to be a canonical tensor with some
-    globally set axial and radial diffusivities.
+    globally set axial and radial diffusivities (e.g. based on the median ad
+    and rd in the 300 highest FA voxels).
 
     The signal in each voxel can then be described as a linear combination of
     these two factors:
@@ -971,9 +973,9 @@ class CanonicalTensorModel(BaseModel):
     contribution from the canonical tensor and the other column containing a
     constant term in all directions, representing the isotropic
     component. We can solve this equation using OLS fitting and derive the RMSE
-    for that choice of $\vec{b}$. We then find the minmal value of RMSE and
-    choose that $\vec{b}$ to represent that voxel most reliably. 
-    
+    for that choice of $\vec{b}$. For each voxel, we can then find the choice
+    of $\vec{b}$ that best predicts the signal (in the least-squares
+    sense). This determines the estimated PDD in that voxel.
     """
     def __init__(self,
                  data,
@@ -1019,7 +1021,7 @@ class CanonicalTensorModel(BaseModel):
      
     @desc.auto_attr
     def rotations(self):
-        # assume S0==1, the weight should soak that up:
+        # assume S0==1, the fit weight should soak that up:
         return np.array([this.predicted_signal(1) 
                          for this in self.response_function._rotations])
 
@@ -1047,33 +1049,52 @@ class CanonicalTensorModel(BaseModel):
     @desc.auto_attr
     def fit(self):
         """
+        Fit the CanonicalTensorModel
 
-        Perform OLS fitting, for the first pass. Then, find the PDD that most
-        readily explains the data (in the lsq sense) and use that one to derive
-        the fit.
+        The steps are as follows:
+
+        1. Perform OLS fitting on all voxels in the mask, with each of the
+           $\vec{b}$. Choose only the non-negative weights. 
+
+        2. Find the PDD that most readily explains the data (highest
+           correlation coefficient between the data and the predicted signal)
+           and use that one to derive the fit for that voxel
         """
         # Get the OLS solution:
         ols_weights = self.ols[2]
 
+        # Get out the bvec weights and the isotropic weights
+        b_w = ols_weights[:,0,:]
+        i_w = ols_weights[:,1,:]
+
+        # nan out the places where bvec weights are negative: 
+        b_w[np.where(b_w<0)] = np.nan
+        i_w[np.where(b_w<0)] = np.nan
+        
         fit_flat = np.empty((self.rotations.shape[0],) + self._flat_signal.shape)
         for rot_i, rot in enumerate(self.rotations):
             # broadcast:
-            bvec_weights = ols_weights[rot_i,0,:]+np.zeros(fit_flat.shape[:-1])
-            iso_weights = ols_weights[rot_i,1,:]+np.zeros(fit_flat.shape[:-1])
-
+            bvec_weights = b_w[rot_i]+np.zeros(fit_flat.shape[:-1])
+            iso_weights = i_w[rot_i]+np.zeros(fit_flat.shape[:-1])
+            
             fit_flat[rot_i] = (bvec_weights.T * rot + iso_weights.T)
 
         out_flat = np.empty(self._flat_signal.shape)
-
-        # Find the best OLS solution in each voxel:
+        params = [] 
+        # Find the best OLS solution *with a positive weight* in each voxel:
         for vox in xrange(out_flat.shape[0]):
             # Find the predicted signal that best matches the original
             # signal. That will choose the tensor we use:
             corrs = mtu.seed_corrcoef(self._flat_signal[vox], fit_flat[:,vox,:])
-            idx = np.where(corrs==np.max(corrs))
+            idx = np.where(corrs==np.nanmax(corrs))
             # Take only that one:
             out_flat[vox] = fit_flat[idx, vox, :]
-            
+
+            params.append([idx,
+                           b_w[idx, vox],
+                           i_w[idx, vox]])
+
+        self.params = params
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
