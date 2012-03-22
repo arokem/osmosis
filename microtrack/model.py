@@ -1102,14 +1102,19 @@ class CanonicalTensorModel(BaseModel):
         # Make the params an attribute of the class instance (is this not a
         # good way to do it?): 
         out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
-        out_params[self.mask] = np.array(params)
+        out_params[self.mask] = np.array(params).squeeze()
         self.params = out_params
 
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
-    
+
+    @desc.auto_attr
+    def params(self):
+        e_s = "You will need to fit first"
+        raise ValueError(e_s)
+
 class FiberModel(BaseModel):
     """
     
