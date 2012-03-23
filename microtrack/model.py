@@ -53,7 +53,9 @@ class DWI(desc.ResetMixin):
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
-                 sub_sample=None):
+                 sub_sample=None,
+                 verbose=True
+                 ):
         """
         Initialize a DWI object
 
@@ -71,7 +73,7 @@ class DWI(desc.ResetMixin):
         bvals: str or array
             The values of b weighting in the data acquisition. Either a 1 by n
             array, or a full path to a text file containing the values.
-
+        
         affine: optional, 4 by 4 array
             The affine provided in the file can be overridden by explicitely
             setting this input variable. If this is left as None, one of two
@@ -93,7 +95,12 @@ class DWI(desc.ResetMixin):
         the last dimension of the data and only that part of the data will be
         used
 
+        verbose: boolean, optional.
+           Whether or not to print out various messages as you go
+           along. Default: True
+
         """
+        self.verbose=verbose
         
         # All inputs are handled essentially the same. Inputs can be either
         # strings, in which case file reads are required, or arrays, in which
@@ -144,7 +151,7 @@ class DWI(desc.ResetMixin):
             # sub-sampled indices:
             self.data = np.concatenate([self.signal,
                                         self.data[:,:,:,self.b0_idx]],-1)
-
+            
             self.b0_idx = np.arange(len(self.b0_idx))
 
             self.bvecs = np.concatenate([np.zeros((3,len(self.b0_idx))),
@@ -176,7 +183,10 @@ class DWI(desc.ResetMixin):
     def bvals(self):
         """
         If bvals were not provided as an array, read them from file
-        """ 
+        """
+        if self.verbose:
+            print("Loading from file: %s"%self.bvals_file)
+
         return np.loadtxt(self.bvals_file)
     
     @desc.auto_attr
@@ -184,6 +194,9 @@ class DWI(desc.ResetMixin):
         """
         If bvecs were not provided as an array, read them from file
         """ 
+        if self.verbose:
+            print("Loading from file: %s"%self.bvecs_file)
+
         return np.loadtxt(self.bvecs_file)
 
     @desc.auto_attr
@@ -191,6 +204,9 @@ class DWI(desc.ResetMixin):
         """
         Load the data from file
         """
+        if self.verbose:
+            print("Loading from file: %s"%self.data_file)
+
         return ni.load(self.data_file).get_data()
 
     @desc.auto_attr
@@ -332,7 +348,8 @@ class BaseModel(DWI):
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
-                 sub_sample=None):
+                 sub_sample=None,
+                 verbose=True):
         """
         A base-class for models based on DWI data.
 
@@ -352,8 +369,9 @@ class BaseModel(DWI):
                          affine=affine,
                          mask=mask,
                          scaling_factor=scaling_factor,
-                         sub_sample=sub_sample) 
-        
+                         sub_sample=sub_sample,
+                         verbose=verbose) 
+
     @desc.auto_attr
     def fit(self):
         """
@@ -485,10 +503,11 @@ class TensorModel(BaseModel):
                  data,
                  bvecs,
                  bvals,
-                 tensor_file=None,
+                 params_file=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
-                 sub_sample=None):
+                 sub_sample=None,
+                 verbose=True):
         """
         Parameters
         -----------
@@ -515,7 +534,7 @@ class TensorModel(BaseModel):
            will be used
 
 
-        tensor_file: A file to cache the initial tensor calculation in. If this
+        params_file: A file to cache the initial tensor calculation in. If this
         file already exists, we pull the tensor fit out of it. Otherwise, we
         calculate the tensor fit and save this file with the params of the
         tensor fit. 
@@ -529,10 +548,11 @@ class TensorModel(BaseModel):
                            affine=None,
                            mask=mask,
                            scaling_factor=scaling_factor,
-                           sub_sample=sub_sample) 
+                           sub_sample=sub_sample,
+                           verbose=verbose) 
 
-        if tensor_file is not None: 
-            self.tensor_file = tensor_file
+        if params_file is not None: 
+            self.params_file = params_file
         else:
             # If DWI has a file-name, construct a file-name out of that: 
             if hasattr(self, 'data_file'):
@@ -543,12 +563,12 @@ class TensorModel(BaseModel):
                 extension = ''
                 for x in file_parts[1:]:
                     extension = extension + '.' + x
-                self.tensor_file = os.path.join(path, name + 'TensorModel' +
+                self.params_file = os.path.join(path, name + 'TensorModel' +
                                               extension)
             else:
                 # Otherwise give up and make a file right here with a generic
                 # name: 
-                self.tensor_file = 'DTI.nii.gz'
+                self.params_file = 'DTI.nii.gz'
         
     @desc.auto_attr
     def model_params(self):
@@ -562,9 +582,13 @@ class TensorModel(BaseModel):
         
         """
         # The file already exists: 
-        if os.path.isfile(self.tensor_file):
-            return ni.load(self.tensor_file).get_data()
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading TensorModel params from:" %self.params_file)
+            return ni.load(self.params_file).get_data()
         else:
+            if self.verbose:
+                print("Fitting TensorModel params using dipy")
             block = np.nan * np.ones(self.shape[:3] + (12,))
             mp = dti.Tensor(self.data,
                             self.bvals,
@@ -577,7 +601,7 @@ class TensorModel(BaseModel):
             
             # Save the params for future use: 
             params_ni = ni.Nifti1Image(block, self.affine)
-            params_ni.to_filename(self.tensor_file)
+            params_ni.to_filename(self.params_file)
             # And return the params for current use:
             return block
 
@@ -680,6 +704,8 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def fit(self):
+        if self.verbose:
+            print("Predicting signal from TensorModel")
         adc_flat = self.model_adc[self.mask]
         fit_flat = np.empty(adc_flat.shape)
         out = np.empty(self.signal.shape)
@@ -759,7 +785,8 @@ class SphericalHarmonicsModel(BaseModel):
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
-                 sub_sample=None):
+                 sub_sample=None,
+                 verbose=True):
         """
         Initialize a SphericalHarmonicsModel class instance.
         
@@ -780,7 +807,8 @@ class SphericalHarmonicsModel(BaseModel):
                            affine=affine,
                            mask=mask,
                            scaling_factor=scaling_factor,
-                           sub_sample=sub_sample) 
+                           sub_sample=sub_sample,
+                           verbose=verbose) 
 
         # If it's a string, assume it's a full path to a nifti file: 
         if isinstance(model_coeffs,str):
@@ -902,7 +930,10 @@ class SphericalHarmonicsModel(BaseModel):
     def fit(self):
         """
         This is the signal estimated from the odf.
-        """        
+        """
+        if self.verbose:
+            print("Predicting signal from SphericalHarmonicsModel")
+
         # Reshape the odf to be one voxel per row:
         flat_odf = self.odf[self.mask]
         pred_sig = np.empty(flat_odf.shape)
@@ -945,6 +976,7 @@ class SphericalHarmonicsModel(BaseModel):
         
         return max([L1,L2])
 
+
 class CanonicalTensorModel(BaseModel):
     """
     This is a simplified bi-tensor model, where one tensor is constrained to be a
@@ -981,21 +1013,33 @@ class CanonicalTensorModel(BaseModel):
                  data,
                  bvecs,
                  bvals,
+                 params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
-                 over_sample=None):
+                 over_sample=None,
+                 verbose=True):
 
         """
-        Initialize a TensorAndBall model class instance.
+        Initialize a CanonicalTensorModel class instance.
 
         Parameters
         ----------
-        
+
+        params_file: str, optional
+             full path to the name of the file in which to save the model
+             parameters, once a model is fit. 
+
+        over_sample: Provide a finer resolution of directions (in the same
+        format that the bvecs come in?), to provide more resolution to the fit
+        of the direction of the canonical tensor XXX Still needs to be
+        implemented. 
+
         """
+        
         # Initialize the super-class:
         BaseModel.__init__(self,
                             data,
@@ -1004,11 +1048,33 @@ class CanonicalTensorModel(BaseModel):
                             affine=affine,
                             mask=mask,
                             scaling_factor=scaling_factor,
-                            sub_sample=sub_sample)
-
+                            sub_sample=sub_sample,
+                            verbose=verbose)
+        
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
-    
+
+        if params_file is not None: 
+            self.params_file = params_file
+        else:
+            # If DWI has a file-name, construct a file-name out of that: 
+            if hasattr(self, 'data_file'):
+                path, f = os.path.split(self.data_file)
+                # Need to deal with the double-extension in '.nii.gz':
+                file_parts = f.split('.')
+                name = file_parts[0]
+                extension = ''
+                for x in file_parts[1:]:
+                    extension = extension + '.' + x
+                self.params_file = os.path.join(path, name +
+                                                'CanonicalTensorModel' +
+                                                extension)
+            else:
+                # Otherwise give up and make a file right here with a generic
+                # name: 
+                self.params_file = 'CanonicalTensorModel.nii.gz'
+
+
     @desc.auto_attr
     def response_function(self):
         """
@@ -1018,6 +1084,7 @@ class CanonicalTensorModel(BaseModel):
         return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
                               self.bvecs[:,self.b_idx],
                               self.bvals[self.b_idx])
+
      
     @desc.auto_attr
     def rotations(self):
@@ -1043,9 +1110,9 @@ class CanonicalTensorModel(BaseModel):
             x.append(mtu.ols_matrix(d[-1]))
             # Multiply to find the OLS solution:
             w.append(np.array(np.dot(x[-1], self._flat_signal.T)).squeeze())
-            
         return  np.array(d), np.array(x), np.array(w)
-        
+
+
     @desc.auto_attr
     def fit(self):
         """
@@ -1060,61 +1127,91 @@ class CanonicalTensorModel(BaseModel):
            correlation coefficient between the data and the predicted signal)
            and use that one to derive the fit for that voxel
         """
-        # Get the OLS solution:
-        ols_weights = self.ols[2]
-
-        # Get out the bvec weights and the isotropic weights
-        b_w = ols_weights[:,0,:]
-        i_w = ols_weights[:,1,:]
-
-        # nan out the places where bvec weights are negative: 
-        b_w[np.where(b_w<0)] = np.nan
-        i_w[np.where(b_w<0)] = np.nan
+        if self.verbose:
+             print("Predicting signal from CanonicalTensorModel")
 
         out_flat = np.empty(self._flat_signal.shape)
-        params = []
-        # Find the best OLS solution *with a positive weight* in each voxel:
+        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            # We do this in each voxel (instead of all at once, which is
-            # possible...) to not blow up the memory:
-            vox_fits = np.empty(self.rotations.shape)
-            for rot_i, rot in enumerate(self.rotations):
-                vox_fits[rot_i] = b_w[rot_i,vox] * rot + i_w[rot_i,vox]
-            
-            # Find the predicted signal that best matches the original
-            # signal. That will choose the tensor we use:
-            corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
-            idx = np.where(corrs==np.nanmax(corrs))[0]
-            # Sometimes there is no good solution (maybe we need to fit just an
-            # isotropic to these?):
-            if len(idx):
-                # Take only that one:
-                out_flat[vox] = vox_fits[idx]
-                params.append([idx,
-                           b_w[idx, vox],
-                           i_w[idx, vox]])
-            else:
-                out_flat[vox] = np.nan
-                params.append([np.nan, np.nan, np.nan])
-            if np.mod(vox, 1000)==0:
-                print ("Fit %s voxels, %s percent"%(vox,
-                                            100*vox/float(out_flat.shape[0])))
-
-        # Make the params an attribute of the class instance (is this not a
-        # good way to do it?): 
-        out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
-        out_params[self.mask] = np.array(params).squeeze()
-        self.params = out_params
-
+            out_flat[vox]=(
+                flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
+                flat_params[vox,2])
+             
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
 
+
     @desc.auto_attr
-    def params(self):
-        e_s = "You will need to fit first"
-        raise ValueError(e_s)
+    def model_params(self):
+        """
+        The model parameters. Similar to the TensorModel, if a fit has ocurred,
+        the data is cached on disk as a nifti file
+
+        If a fit hasn't occured yet, calling this will trigger a model fit and
+        derive the parameters. 
+        
+        
+        """
+        # The file already exists: 
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading params from file: %s"%self.params_file)
+
+            # Get the cached values and be done with it:
+            return ni.load(self.params_file).get_data()
+        else:
+            # Looks like we might need to do some fitting... 
+            # Get the OLS solution:
+            ols_weights = self.ols[2]
+
+            # Get the bvec weights and the isotropic weights
+            b_w = ols_weights[:,0,:].copy()
+            i_w = ols_weights[:,1,:].copy()
+
+            # nan out the places where weights are negative: 
+            b_w[np.logical_or(b_w<0, i_w<0)] = np.nan
+            i_w[np.logical_or(b_w<0, i_w<0)] = np.nan
+
+            params = []
+            # Find the best OLS solution in each voxel:
+            for vox in xrange(self._flat_signal.shape[0]):
+                # We do this in each voxel (instead of all at once, which is
+                # possible...) to not blow up the memory:
+                vox_fits = np.empty(self.rotations.shape)
+                for rot_i, rot in enumerate(self.rotations):
+                    vox_fits[rot_i] = b_w[rot_i,vox] * rot + i_w[rot_i,vox]
+
+                # Find the predicted signal that best matches the original
+                # signal. That will choose the direction for the tensor we use: 
+                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+                idx = np.where(corrs==np.nanmax(corrs))[0]
+
+                # Sometimes there is no good solution (maybe we need to fit
+                # just an isotropic to all of these?):
+                if len(idx):
+                    params.append([idx,
+                               b_w[idx, vox],
+                               i_w[idx, vox]])
+                else:
+                    params.append([np.nan, np.nan, np.nan])
+
+                if self.verbose: 
+                    if np.mod(vox, 1000)==0:
+                        print ("Fit %s voxels, %s percent"%(vox,
+                                100*vox/float(self._flat_signal.shape[0])))
+
+            # Save the params for future use: 
+            out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
+            out_params[self.mask] = np.array(params).squeeze()
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.verbose:
+                print("Saving params to file: %s"%self.params_file)
+            params_ni.to_filename(self.params_file)
+
+            # And return the params for current use:
+            return out_params
 
 class FiberModel(BaseModel):
     """
