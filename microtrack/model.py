@@ -1070,39 +1070,40 @@ class CanonicalTensorModel(BaseModel):
         # nan out the places where bvec weights are negative: 
         b_w[np.where(b_w<0)] = np.nan
         i_w[np.where(b_w<0)] = np.nan
-        
-        fit_flat = np.empty((self.rotations.shape[0],) + self._flat_signal.shape)
-        for rot_i, rot in enumerate(self.rotations):
-            # broadcast:
-            bvec_weights = b_w[rot_i]+np.zeros(fit_flat.shape[:-1])
-            iso_weights = i_w[rot_i]+np.zeros(fit_flat.shape[:-1])
-            
-            fit_flat[rot_i] = (bvec_weights.T * rot + iso_weights.T)
 
         out_flat = np.empty(self._flat_signal.shape)
-        params = [] 
+        params = []
         # Find the best OLS solution *with a positive weight* in each voxel:
         for vox in xrange(out_flat.shape[0]):
+            # We do this in each voxel (instead of all at once, which is
+            # possible...) to not blow up the memory:
+            vox_fits = np.empty(self.rotations.shape)
+            for rot_i, rot in enumerate(self.rotations):
+                vox_fits[rot_i] = b_w[rot_i,vox] * rot + i_w[rot_i,vox]
+            
             # Find the predicted signal that best matches the original
             # signal. That will choose the tensor we use:
-            corrs = mtu.seed_corrcoef(self._flat_signal[vox], fit_flat[:,vox,:])
-            idx = np.where(corrs==np.nanmax(corrs))
+            corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+            idx = np.where(corrs==np.nanmax(corrs))[0]
             # Sometimes there is no good solution (maybe we need to fit just an
             # isotropic to these?):
             if len(idx):
                 # Take only that one:
-                out_flat[vox] = fit_flat[idx, vox, :]
+                out_flat[vox] = vox_fits[idx]
                 params.append([idx,
                            b_w[idx, vox],
                            i_w[idx, vox]])
             else:
                 out_flat[vox] = np.nan
                 params.append([np.nan, np.nan, np.nan])
+            if np.mod(vox, 1000)==0:
+                print ("Fit %s voxels, %s percent"%(vox,
+                                            100*vox/float(out_flat.shape[0])))
 
         # Make the params an attribute of the class instance (is this not a
         # good way to do it?): 
         out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
-        out_params[self.mask] = np.array(params)
+        out_params[self.mask] = np.array(params).squeeze()
         self.params = out_params
 
         out = np.nan * np.ones(self.signal.shape)
