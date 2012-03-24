@@ -17,7 +17,8 @@ import dipy.core.geometry as geo
 
 import microtrack.utils as mtu
 
-def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs):
+def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
+           return_mosaic=False, **kwargs):
     """
     Display a 3-d volume of data as a 2-d mosaic
 
@@ -84,7 +85,10 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None, **kwargs)
     if size is not None: 
         fig.set_size_inches(size)
 
-    return fig
+    if return_mosaic: 
+        return fig, im
+    else: 
+        return fig
 
 def lut_from_cm(cm, n=256):
     """

@@ -584,7 +584,7 @@ class TensorModel(BaseModel):
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
-                print("Loading TensorModel params from:" %self.params_file)
+                print("Loading TensorModel params from: %s" %self.params_file)
             return ni.load(self.params_file).get_data()
         else:
             if self.verbose:
@@ -1114,11 +1114,17 @@ class CanonicalTensorModel(BaseModel):
 
 
     @desc.auto_attr
-    def fit(self):
+    def model_params(self):
         """
-        Fit the CanonicalTensorModel
+        The model parameters.
 
-        The steps are as follows:
+        Similar to the TensorModel, if a fit has ocurred, the data is cached on
+        disk as a nifti file 
+
+        If a fit hasn't occured yet, calling this will trigger a model fit and
+        derive the parameters.
+
+        In that case, the steps are as follows:
 
         1. Perform OLS fitting on all voxels in the mask, with each of the
            $\vec{b}$. Choose only the non-negative weights. 
@@ -1126,33 +1132,7 @@ class CanonicalTensorModel(BaseModel):
         2. Find the PDD that most readily explains the data (highest
            correlation coefficient between the data and the predicted signal)
            and use that one to derive the fit for that voxel
-        """
-        if self.verbose:
-             print("Predicting signal from CanonicalTensorModel")
 
-        out_flat = np.empty(self._flat_signal.shape)
-        flat_params = self.model_params[self.mask]
-        for vox in xrange(out_flat.shape[0]):
-            out_flat[vox]=(
-                flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                flat_params[vox,2])
-             
-        out = np.nan * np.ones(self.signal.shape)
-        out[self.mask] = out_flat
-
-        return out
-
-
-    @desc.auto_attr
-    def model_params(self):
-        """
-        The model parameters. Similar to the TensorModel, if a fit has ocurred,
-        the data is cached on disk as a nifti file
-
-        If a fit hasn't occured yet, calling this will trigger a model fit and
-        derive the parameters. 
-        
-        
         """
         # The file already exists: 
         if os.path.isfile(self.params_file):
@@ -1212,6 +1192,30 @@ class CanonicalTensorModel(BaseModel):
 
             # And return the params for current use:
             return out_params
+
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict the data from the fit of the CanonicalTensorModel
+        """
+        if self.verbose:
+             print("Predicting signal from CanonicalTensorModel")
+
+        out_flat = np.empty(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox, 1]):
+                out_flat[vox]=(
+                    flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
+                    flat_params[vox,2])
+            else:
+                out_flat[vox] = np.nan
+                
+        out = np.nan * np.ones(self.signal.shape)
+        out[self.mask] = out_flat
+
+        return out
+
 
 class FiberModel(BaseModel):
     """
