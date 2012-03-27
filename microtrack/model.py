@@ -88,7 +88,7 @@ class DWI(desc.ResetMixin):
         sub_sample: int or array of ints.
            If we want to sub-sample the DWI data on the sphere (in the bvecs),
            we can do one of two things: 
-
+           
         1. If sub_sample is an integer, that number of random bvecs will be
            chosen from the data.
 
@@ -638,7 +638,7 @@ class TensorModel(BaseModel):
                           np.log(self._flat_signal/flat_S0))
 
         return out
-
+        
     @desc.auto_attr
     def adc_residuals(self):
         """
@@ -1228,7 +1228,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
     This model extends CanonicalTensorModel with the addition of another
     canonical tensor. The logic is similar, but the fitting is done for every
     commbination of sphere + n canonical tensors (where n can be set to any
-    number > 1). 
+    number > 1, but can't really realistically be estimated for n>2...).
+    
     """
     def __init__(self,
                  data,
@@ -1427,25 +1428,32 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             # And return the params for current use:
             return out_params
 
-    # XXX This is still the fit function from CanonicalTensorModel!!!
     @desc.auto_attr
     def fit(self):
         """
-        Predict the data from the fit of the CanonicalTensorModel
+        Predict the data from the fit of the MultiCanonicalTensorModel
         """
         if self.verbose:
-            print("Predicting signal from CanonicalTensorModel")
+            print("Predicting signal from MultiCanonicalTensorModel")
 
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(flat_params[vox, 1]):
-                out_flat[vox]=(
-                    flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                    flat_params[vox,2])
+            # If there's a nan in there, just ignore this voxel and set it to
+            # all nans:
+            if ~np.any(np.isnan(flat_params[vox, 1])):
+                b_w = flat_params[vox,1:1+self.n_canonicals]
+                i_w = flat_params[vox,-1]
+                # This gets saved as a float, but we can safely assume it's
+                # going to be an integer:
+                rot_idx = self.rot_idx[int(flat_params[vox,0])]
+
+                out_flat[vox]=(np.dot(b_w,
+                               np.array([self.rotations[i] for i in rot_idx])) +
+                               i_w)
             else:
                 out_flat[vox] = np.nan
-                
+        
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
