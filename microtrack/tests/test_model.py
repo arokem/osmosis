@@ -10,6 +10,7 @@ import nibabel as ni
 import microtrack as mt
 import microtrack.model as mtm
 import microtrack.fibers as mtf
+import microtrack.tensor as mtt
 import microtrack.io as mio
 
 # Initially, we want to check whether the data is available (would have to be
@@ -88,7 +89,7 @@ def test_TensorModel():
     TM = mtm.TensorModel(data_path + 'small_dwi.nii.gz',
                          data_path + 'dwi.bvecs',
                          data_path + 'dwi.bvals',
-                         tensor_file=tensor_file)
+                         params_file=tensor_file)
     
     # Make sure the shapes of things make sense: 
     npt.assert_equal(TM.model_params.shape, TM.data.shape[:3] + (12,))
@@ -133,3 +134,20 @@ def test_SphericalHarmonicsModel():
                                       data_path + 'dwi.bvecs',
                                       data_path + 'dwi.bvals',
                                       model_coeffs)
+
+def test_CanonicalTensorModel():
+    """
+
+    Test the simple canonical + sphere model.
+
+    """
+    # 1000 'voxels' with constant data in each one in all directions (+b0): 
+    data = (np.random.rand(10 * 10 * 10).reshape(10 * 10 * 10, 1) +
+            np.zeros((10 * 10 * 10, 160))).reshape(10,10,10,160)
+
+    CTM = mtm.CanonicalTensorModel(data,
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals')
+    
+    # Smoke testing
+    CTM.model_params

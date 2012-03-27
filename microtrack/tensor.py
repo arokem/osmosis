@@ -6,7 +6,6 @@ import scipy.linalg as la
 import microtrack.descriptors as desc
 import microtrack.utils as mtu
 
-
 class Tensor(object):
     """
     Represent a diffusion tensor.

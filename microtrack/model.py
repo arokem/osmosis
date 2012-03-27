@@ -5,6 +5,7 @@ This module is used to construct and solve models of diffusion data
 """
 import os
 import warnings
+import itertools
 
 import numpy as np
 
@@ -1147,14 +1148,14 @@ class CanonicalTensorModel(BaseModel):
             ols_weights = self.ols[2]
 
             # Get the bvec weights and the isotropic weights
-            b_w = ols_weights[:,0,:].copy()
-            i_w = ols_weights[:,1,:].copy()
+            b_w = ols_weights[:,0,:].copy().squeeze()
+            i_w = ols_weights[:,1,:].copy().squeeze()
 
             # nan out the places where weights are negative: 
             b_w[np.logical_or(b_w<0, i_w<0)] = np.nan
             i_w[np.logical_or(b_w<0, i_w<0)] = np.nan
 
-            params = []
+            params = np.empty((self._flat_signal.shape[0],3))
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1171,11 +1172,16 @@ class CanonicalTensorModel(BaseModel):
                 # Sometimes there is no good solution (maybe we need to fit
                 # just an isotropic to all of these?):
                 if len(idx):
-                    params.append([idx,
-                               b_w[idx, vox],
-                               i_w[idx, vox]])
+                    # In case more than one fits the bill, just choose the
+                    # first one:
+                    if len(idx)>1:
+                        idx = idx[0]
+                    
+                    params[vox,:] = np.array([idx,
+                                              b_w[idx, vox],
+                                              i_w[idx, vox]]).squeeze()
                 else:
-                    params.append([np.nan, np.nan, np.nan])
+                    params[vox,:] = np.array([np.nan, np.nan, np.nan])
 
                 if self.verbose: 
                     if np.mod(vox, 1000)==0:
@@ -1199,7 +1205,7 @@ class CanonicalTensorModel(BaseModel):
         Predict the data from the fit of the CanonicalTensorModel
         """
         if self.verbose:
-             print("Predicting signal from CanonicalTensorModel")
+            print("Predicting signal from CanonicalTensorModel")
 
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
@@ -1216,6 +1222,234 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
+
+class MultiCanonicalTensorModel(CanonicalTensorModel):
+    """
+    This model extends CanonicalTensorModel with the addition of another
+    canonical tensor. The logic is similar, but the fitting is done for every
+    commbination of sphere + n canonical tensors (where n can be set to any
+    number > 1). 
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 params_file=None,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 over_sample=None,
+                 verbose=True,
+                 n_canonicals=2):
+        """
+        Initialize a MultiCanonicalTensorModel class instance.
+        """
+        # Initialize the super-class:
+        CanonicalTensorModel.__init__(self,
+                                      data,
+                                      bvecs,
+                                      bvals,
+                                      params_file=params_file,
+                                      axial_diffusivity=axial_diffusivity,
+                                      radial_diffusivity=radial_diffusivity,
+                                      affine=affine,
+                                      mask=mask,
+                                      scaling_factor=scaling_factor,
+                                      sub_sample=sub_sample,
+                                      over_sample=over_sample,
+                                      verbose=verbose)
+        
+        self.n_canonicals = n_canonicals        
+
+        # Take care of file naming for the params file:
+        if params_file is not None: 
+            self.params_file = params_file
+        else:
+            # If DWI has a file-name, construct a file-name out of that: 
+            if hasattr(self, 'data_file'):
+                path, f = os.path.split(self.data_file)
+                # Need to deal with the double-extension in '.nii.gz':
+                file_parts = f.split('.')
+                name = file_parts[0]
+                extension = ''
+                for x in file_parts[1:]:
+                    extension = extension + '.' + x
+                self.params_file = os.path.join(path, name +
+                                                'MultiCanonicalTensorModel' +
+                                                extension)
+            else:
+                # Otherwise give up and make a file right here with a generic
+                # name: 
+                self.params_file = 'MultiCanonicalTensorModel.nii.gz'
+
+    @desc.auto_attr
+    def rot_idx(self):
+        """
+        The indices into combinations of rotations of the canonical tensor,
+        according to the order we will use them in fitting
+        """
+        # Use stdlib magic to make the indices into the basis set: 
+        pre_idx = itertools.combinations(range(len(self.b_idx)),
+                                         self.n_canonicals)
+
+        # Generate all of them and store, so you know where you stand
+        rot_idx = []
+        for i in pre_idx:
+            rot_idx.append(i)
+
+        return rot_idx
+
+    @desc.auto_attr
+    def ols(self):
+        """
+        Compute the design matrices the matrices for OLS fitting and the OLS
+        solution. Cache them for reuse in each direction over all voxels.
+        """
+        x = []
+        d = []
+        w = []
+
+        where_are_we = 0
+        for idx in self.rot_idx:                
+            if self.verbose:
+                if idx[0]==where_are_we:
+                    s = "Starting MultiCanonicalTensorModel fit"
+                    s += " for %sth set of basis functions"%(where_are_we) 
+                    print (s)
+                    where_are_we += 1
+            # The 'design matrix':
+            d.append(np.vstack([[self.rotations[i] for i in idx],
+                                np.ones(self.b_idx.shape[0])]).T)
+            # This is $(X' X)^{-1} X':
+            x.append(mtu.ols_matrix(d[-1]))
+            # Multiply to find the OLS solution:
+            w.append(np.array(np.dot(x[-1], self._flat_signal.T)).squeeze())
+
+        return np.array(d), np.array(x), np.array(w)
+
+    @desc.auto_attr
+    def model_params(self):
+        """
+        The model parameters.
+
+        Similar to the CanonicalTensorModel, if a fit has ocurred, the data is
+        cached on disk as a nifti file 
+
+        If a fit hasn't occured yet, calling this will trigger a model fit and
+        derive the parameters.
+
+        In that case, the steps are as follows:
+
+        1. Perform OLS fitting on all voxels in the mask, with each of the
+           $\vec{b}$ combinations, choosing only sets for which all weights are
+           non-negative. 
+
+        2. Find the PDD combination that most readily explains the data (highest
+           correlation coefficient between the data and the predicted signal)
+           That will be the combination used to derive the fit for that voxel.
+
+        """
+        # The file already exists: 
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading params from file: %s"%self.params_file)
+
+            # Get the cached values and be done with it:
+            return ni.load(self.params_file).get_data()
+        else:
+            # Looks like we might need to do some fitting... 
+            # Get the OLS solution:
+            ols_weights = self.ols[2]
+
+            # Get the bvec weights (we don't know how many...) and the
+            # isotropic weights (which are always last): 
+            b_w = ols_weights[:,:-1,:].copy().squeeze()
+            i_w = ols_weights[:,-1,:].copy().squeeze()
+
+            # nan out the places where weights are negative: 
+            b_w[b_w<0] = np.nan
+            i_w[i_w<0] = np.nan
+
+            # Weight for each canonical tensor, plus a place for the index into
+            # rot_idx and more slot for the isotropic weight (at the end)
+            params = np.empty((self._flat_signal.shape[0],
+                               self. n_canonicals + 2))
+
+            # Find the best OLS solution in each voxel:
+            for vox in xrange(self._flat_signal.shape[0]):
+                # We do this in each voxel (instead of all at once, which is
+                # possible...) to not blow up the memory:
+                vox_fits = np.empty((len(self.rot_idx), len(self.b_idx)))
+                
+                for idx, rot_idx in enumerate(self.rot_idx):
+                    vox_fits[idx] = i_w[idx,vox]
+                    vox_fits[idx] += (np.dot(b_w[idx,:,vox],
+                                np.array([self.rotations[x] for x in rot_idx])))
+                    
+                # Find the predicted signal that best matches the original
+                # signal. That will choose the direction for the tensor we use: 
+                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+                idx = np.where(corrs==np.nanmax(corrs))[0]
+
+                # Sometimes there is no good solution:
+                if len(idx):
+                    # In case more than one fits the bill, just choose the
+                    # first one:
+                    if len(idx)>1:
+                        idx = idx[0]
+                    
+                    params[vox,:] = np.hstack([idx,
+                        np.array([x for x in b_w[idx,:,vox]]).squeeze(),
+                        i_w[idx, vox]])
+                else:
+                    # In which case we set it to all nans:
+                    params[vox,:] = np.hstack([np.nan,
+                                               self.n_canonicals * (np.nan,),
+                                               np.nan])
+
+                if self.verbose: 
+                    if np.mod(vox, 100)==0:
+                        print ("Fit %s voxels, %s percent"%(vox,
+                                100*vox/float(self._flat_signal.shape[0])))
+
+            # Save the params for future use: 
+            out_params = np.nan * np.ones(self.signal.shape[:3]+
+                                        (params.shape[-1],))
+            out_params[self.mask] = np.array(params).squeeze()
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.verbose:
+                print("Saving params to file: %s"%self.params_file)
+            params_ni.to_filename(self.params_file)
+
+            # And return the params for current use:
+            return out_params
+
+    # XXX This is still the fit function from CanonicalTensorModel!!!
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict the data from the fit of the CanonicalTensorModel
+        """
+        if self.verbose:
+            print("Predicting signal from CanonicalTensorModel")
+
+        out_flat = np.empty(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox, 1]):
+                out_flat[vox]=(
+                    flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
+                    flat_params[vox,2])
+            else:
+                out_flat[vox] = np.nan
+                
+        out = np.nan * np.ones(self.signal.shape)
+        out[self.mask] = out_flat
+
+        return out
 
 class FiberModel(BaseModel):
     """
