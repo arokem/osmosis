@@ -488,9 +488,58 @@ class BaseModel(DWI):
 
         else:
             out[self.mask] = sig - fit
-
+            
         return out
 
+
+# The following is a pattern used by many different classes, so we encapsulate
+# it in one general function that everyone can use (DRY!):
+def params_file_resolver(object, file_name_root, params_file=None):
+    """
+    Helper fiunction for resolving what the params file name should be for
+    several of the model functions for which the params are cached to file
+
+    Parameters
+    ----------
+    object: the class instance affected by this
+
+    file_name_root: str, the string which will typically be added to the
+        file-name of the object's data file in generating the model params file. 
+
+    params_file: str or None
+       If a string is provided, this will be treated as the full path to where
+       the params file will get saved. This will be defined if the user
+       provides this as an input to the class constructor.
+
+    Returns
+    -------
+    params_file: str, full path to where the params file will eventually be
+            saved, once parameter fitting is done.
+    
+    """
+    # If the user provided
+    if params_file is not None: 
+        return params_file
+    else:
+        # If our DWI super-object has a file-name, construct a file-name out of
+        # that:
+        if hasattr(object, 'data_file'):
+            path, f = os.path.split(object.data_file)
+            # Need to deal with the double-extension in '.nii.gz':
+            file_parts = f.split('.')
+            name = file_parts[0]
+            extension = ''
+            for x in file_parts[1:]:
+                extension = extension + '.' + x
+                params_file = os.path.join(path, name +
+                                           file_name_root +
+                    extension)
+        else:
+            # Otherwise give up and make a file right here with a generic
+            # name: 
+            params_file = '%s.nii.gz'%file_name_root
+
+    return params_file
 
 
 class TensorModel(BaseModel):
@@ -552,24 +601,9 @@ class TensorModel(BaseModel):
                            sub_sample=sub_sample,
                            verbose=verbose) 
 
-        if params_file is not None: 
-            self.params_file = params_file
-        else:
-            # If DWI has a file-name, construct a file-name out of that: 
-            if hasattr(self, 'data_file'):
-                path, f = os.path.split(self.data_file)
-                # Need to deal with the double-extension in '.nii.gz':
-                file_parts = f.split('.')
-                name = file_parts[0]
-                extension = ''
-                for x in file_parts[1:]:
-                    extension = extension + '.' + x
-                self.params_file = os.path.join(path, name + 'TensorModel' +
-                                              extension)
-            else:
-                # Otherwise give up and make a file right here with a generic
-                # name: 
-                self.params_file = 'DTI.nii.gz'
+        self.params_file = params_file_resolver(self,
+                                                'TensorModel',
+                                                 params_file=params_file)
         
     @desc.auto_attr
     def model_params(self):
@@ -1054,26 +1088,9 @@ class CanonicalTensorModel(BaseModel):
         
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
-
-        if params_file is not None: 
-            self.params_file = params_file
-        else:
-            # If DWI has a file-name, construct a file-name out of that: 
-            if hasattr(self, 'data_file'):
-                path, f = os.path.split(self.data_file)
-                # Need to deal with the double-extension in '.nii.gz':
-                file_parts = f.split('.')
-                name = file_parts[0]
-                extension = ''
-                for x in file_parts[1:]:
-                    extension = extension + '.' + x
-                self.params_file = os.path.join(path, name +
-                                                'CanonicalTensorModel' +
-                                                extension)
-            else:
-                # Otherwise give up and make a file right here with a generic
-                # name: 
-                self.params_file = 'CanonicalTensorModel.nii.gz'
+        self.params_file = params_file_resolver(self,
+                                                'CanonicalTensorModel',
+                                                 params_file)
 
 
     @desc.auto_attr
@@ -1263,28 +1280,10 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                       over_sample=over_sample,
                                       verbose=verbose)
         
-        self.n_canonicals = n_canonicals        
-
-        # Take care of file naming for the params file:
-        if params_file is not None: 
-            self.params_file = params_file
-        else:
-            # If DWI has a file-name, construct a file-name out of that: 
-            if hasattr(self, 'data_file'):
-                path, f = os.path.split(self.data_file)
-                # Need to deal with the double-extension in '.nii.gz':
-                file_parts = f.split('.')
-                name = file_parts[0]
-                extension = ''
-                for x in file_parts[1:]:
-                    extension = extension + '.' + x
-                self.params_file = os.path.join(path, name +
-                                                'MultiCanonicalTensorModel' +
-                                                extension)
-            else:
-                # Otherwise give up and make a file right here with a generic
-                # name: 
-                self.params_file = 'MultiCanonicalTensorModel.nii.gz'
+        self.n_canonicals = n_canonicals
+        self.params_file = params_file_resolver(self,
+                                                'MultiCanonicalTensorModel',
+                                                params_file)
 
     @desc.auto_attr
     def rot_idx(self):
@@ -1459,6 +1458,105 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
         return out
 
+class TissueFractionModel(CanonicalTensorModel):
+    """
+
+    This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
+    measurement of the tissue fraction in different parts of the brain. The
+    model posits that tissue fraction accounts for non-free water, restriced or
+    hindered by tissue components, which can be represented by a canonical
+    tensor and a sphere. The rest (1-tf) is free water, which is represented by
+    a second sphere (free water).
+
+    Thus, the combined signals in each voxel can be represented as a set
+    of linear equations: 
+
+    I TF = w1 TV1 + w2 TV2 
+    II D = w1 * D1 + w2 * D2 + w3 * D3
+
+    Where w1 is the coefficient on the canonical tensor, w2 is the coefficient on
+    the tissue sphere and w3 is the coefficient on the free water sphere.
+
+    Parameters
+    ----------
+
+    tissue_fraction: Full path to a file containing the TF, registered to the
+    DWI data and resampled to the DWI data resolution.
+    """
+
+    def __init__(self,
+                 tissue_fraction,
+                 data,
+                 bvecs,
+                 bvals,
+                 params_file=None,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 over_sample=None,
+                 verbose=True):
+        
+        # Initialize the super-class:
+        CanonicalTensorModel.__init__(self,
+                                      data,
+                                      bvecs,
+                                      bvals,
+                                      params_file=params_file,
+                                      axial_diffusivity=axial_diffusivity,
+                                      radial_diffusivity=radial_diffusivity,
+                                      affine=affine,
+                                      mask=mask,
+                                      scaling_factor=scaling_factor,
+                                      sub_sample=sub_sample,
+                                      over_sample=over_sample,
+                                      verbose=verbose)
+
+        self.tissue_fraction = ni.load(tissue_fraction).get_data()
+        self.params_file = params_file_resolver(self,
+                                                'TissueFractionModel',
+                                                params_file)
+
+
+    @desc.auto_attr
+    def _flat_tf(self):
+        """
+        Flatten the TF
+        """
+        return self.tissue_fraction[self.mask]
+    
+    @desc.auto_attr
+    def ols(self):
+        """
+        Compute the design matrices the matrices for OLS fitting and the OLS
+        solution. Cache them for reuse in each direction over all voxels.
+        """
+        x = []
+        d = []
+        w = []
+
+        # Fit the attenuation of the signal, not the signal itself:
+        flat_att_tf = np.vstack([self._flat_signal.T/
+                        self._flat_S0.T.reshape(1,self._flat_signal.shape[0]),
+                        self._flat_tf]).T
+        tissue_ball = np.hstack([np.ones(len(self.b_idx)),0])
+        water_ball = np.hstack([np.ones(len(self.b_idx)+1)])
+        
+        for idx, bv in enumerate(self.bvecs[:, self.b_idx].T):
+            # The tensor does not contribute to the TF:
+            rot = np.hstack([self.rotations[idx],0])
+            # The 'design matrix':
+            d.append(np.vstack([rot,tissue_ball.T,water_ball.T]))
+            #This is $(X' X)^{-1} X':
+            x.append(mtu.ols_matrix(d[-1]))
+            # Multiply to find the OLS solution:
+            w.append(np.array(np.dot(x[-1].T, flat_att_tf.T)).squeeze())
+
+        return  np.array(d), np.array(x), np.array(w)
+
+    
 class FiberModel(BaseModel):
     """
     

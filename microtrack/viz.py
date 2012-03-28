@@ -18,7 +18,7 @@ import dipy.core.geometry as geo
 import microtrack.utils as mtu
 
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
-           return_mosaic=False, **kwargs):
+           return_mosaic=False, return_cbar=False, **kwargs):
     """
     Display a 3-d volume of data as a 2-d mosaic
 
@@ -77,19 +77,27 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
     ax.get_axes().get_yaxis().set_visible(False)
     # The colorbar will refer to the last thing plotted in this figure
     cbar = fig.colorbar(imax, ticks=[np.nanmin([0, vmin]),
-                                     vmax - (vmax - vmin)/2,
-                                     np.nanmin([vmax,np.nanmax(im)])],
-                                     format='%1.2f')  
+                        vmax - (vmax - vmin)/2,
+                        np.nanmin([vmax,np.nanmax(im)])],
+                        format='%1.2f')
+    
     if title is not None:
         ax.set_title(title)
     if size is not None: 
         fig.set_size_inches(size)
 
+    returns = [fig]
     if return_mosaic: 
-        return fig, im
-    else: 
-        return fig
+        returns.append(im)
+    if return_cbar:
+        returns.append(cbar)
 
+    # If you are just returning the fig handle, unpack it: 
+    if len(returns)==1:
+        returns=returns[0]
+
+    return returns
+    
 def lut_from_cm(cm, n=256):
     """
     Returns the n-sized look-up table for RGB values for a matplotlib colormap
