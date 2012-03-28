@@ -1113,22 +1113,21 @@ class CanonicalTensorModel(BaseModel):
     @desc.auto_attr
     def ols(self):
         """
-        Compute the design matrices the matrices for OLS fitting and the OLS
-        solution. Cache them for reuse in each direction over all voxels.
+        Compute the OLS solution. 
         """
-        x = []
-        d = []
-        w = []
-
-        for idx, bv in enumerate(self.bvecs[:, self.b_idx].T):
+        # Preallocate:
+        ols_weights = np.empty((len(self.b_idx), 2, self._flat_signal.shape[0]))
+        
+        for idx in range(len(self.b_idx)):
             # The 'design matrix':
-            d.append(np.vstack([self.rotations[idx],
-                                np.ones(self.b_idx.shape[0])]).T)
+            d = np.vstack([self.rotations[idx],
+                           np.ones(self.b_idx.shape[0])]).T
             # This is $(X' X)^{-1} X':
-            x.append(mtu.ols_matrix(d[-1]))
+            ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution:
-            w.append(np.array(np.dot(x[-1], self._flat_signal.T)).squeeze())
-        return  np.array(d), np.array(x), np.array(w)
+            ols_weights[idx] = np.array(np.dot(ols_mat,
+                                     self._flat_signal.T)).squeeze()
+        return ols_weights
 
 
     @desc.auto_attr
@@ -1160,13 +1159,11 @@ class CanonicalTensorModel(BaseModel):
             # Get the cached values and be done with it:
             return ni.load(self.params_file).get_data()
         else:
-            # Looks like we might need to do some fitting... 
-            # Get the OLS solution:
-            ols_weights = self.ols[2]
-
+            # Looks like we might need to do some fitting...
+            
             # Get the bvec weights and the isotropic weights
-            b_w = ols_weights[:,0,:].copy().squeeze()
-            i_w = ols_weights[:,1,:].copy().squeeze()
+            b_w = self.ols[:,0,:].copy().squeeze()
+            i_w = self.ols[:,1,:].copy().squeeze()
 
             # nan out the places where weights are negative: 
             b_w[np.logical_or(b_w<0, i_w<0)] = np.nan
@@ -1308,12 +1305,12 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         Compute the design matrices the matrices for OLS fitting and the OLS
         solution. Cache them for reuse in each direction over all voxels.
         """
-        x = []
-        d = []
-        w = []
-
+        ols_weights = np.empty((len(self.rot_idx),
+                                self.n_canonicals + 1,
+                                self._flat_signal.shape[0]))
         where_are_we = 0
-        for idx in self.rot_idx:                
+        for row, idx in enumerate(self.rot_idx):                
+        # 'row' refers to where we are in ols_weights
             if self.verbose:
                 if idx[0]==where_are_we:
                     s = "Starting MultiCanonicalTensorModel fit"
@@ -1321,14 +1318,15 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     print (s)
                     where_are_we += 1
             # The 'design matrix':
-            d.append(np.vstack([[self.rotations[i] for i in idx],
-                                np.ones(self.b_idx.shape[0])]).T)
+            d = np.vstack([[self.rotations[i] for i in idx],
+                                np.ones(self.b_idx.shape[0])]).T
             # This is $(X' X)^{-1} X':
-            x.append(mtu.ols_matrix(d[-1]))
+            ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution:
-            w.append(np.array(np.dot(x[-1], self._flat_signal.T)).squeeze())
+            ols_weights[row] = np.array(
+                np.dot(ols_mat, self._flat_signal.T)).squeeze()
 
-        return np.array(d), np.array(x), np.array(w)
+        return ols_weights
 
     @desc.auto_attr
     def model_params(self):
@@ -1361,20 +1359,18 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             return ni.load(self.params_file).get_data()
         else:
             # Looks like we might need to do some fitting... 
-            # Get the OLS solution:
-            ols_weights = self.ols[2]
 
             # Get the bvec weights (we don't know how many...) and the
             # isotropic weights (which are always last): 
-            b_w = ols_weights[:,:-1,:].copy().squeeze()
-            i_w = ols_weights[:,-1,:].copy().squeeze()
+            b_w = self.ols[:,:-1,:].copy().squeeze()
+            i_w = self.ols[:,-1,:].copy().squeeze()
 
             # nan out the places where weights are negative: 
             b_w[b_w<0] = np.nan
             i_w[i_w<0] = np.nan
 
             # Weight for each canonical tensor, plus a place for the index into
-            # rot_idx and more slot for the isotropic weight (at the end)
+            # rot_idx and one more slot for the isotropic weight (at the end)
             params = np.empty((self._flat_signal.shape[0],
                                self. n_canonicals + 2))
 
@@ -1533,9 +1529,9 @@ class TissueFractionModel(CanonicalTensorModel):
         Compute the design matrices the matrices for OLS fitting and the OLS
         solution. Cache them for reuse in each direction over all voxels.
         """
-        x = []
-        d = []
-        w = []
+
+        # Preallocate:
+        ols_weights = np.empty((len(self.b_idx), 3, self._flat_signal.shape[0]))
 
         # Fit the attenuation of the signal, not the signal itself:
         flat_att_tf = np.vstack([self._flat_signal.T/
@@ -1544,17 +1540,131 @@ class TissueFractionModel(CanonicalTensorModel):
         tissue_ball = np.hstack([np.ones(len(self.b_idx)),0])
         water_ball = np.hstack([np.ones(len(self.b_idx)+1)])
         
-        for idx, bv in enumerate(self.bvecs[:, self.b_idx].T):
+        for idx in range(len(self.b_idx)):
             # The tensor does not contribute to the TF:
             rot = np.hstack([self.rotations[idx],0])
             # The 'design matrix':
-            d.append(np.vstack([rot,tissue_ball.T,water_ball.T]))
+            d = np.vstack([rot,tissue_ball.T,water_ball.T])
             #This is $(X' X)^{-1} X':
-            x.append(mtu.ols_matrix(d[-1]))
+            ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution:
-            w.append(np.array(np.dot(x[-1].T, flat_att_tf.T)).squeeze())
+            ols_weights[idx] = np.array(np.dot(ols_mat.T,
+                                               flat_att_tf.T)).squeeze()
 
-        return  np.array(d), np.array(x), np.array(w)
+        return ols_weights
+
+    @desc.auto_attr
+    def model_params(self):
+        """
+        The model parameters.
+
+        Similar to the TensorModel, if a fit has ocurred, the data is cached on
+        disk as a nifti file 
+
+        If a fit hasn't occured yet, calling this will trigger a model fit and
+        derive the parameters.
+
+        In that case, the steps are as follows:
+
+        1. Perform OLS fitting on all voxels in the mask, with each of the
+           $\vec{b}$. Choose only the non-negative weights. 
+
+        2. Find the PDD that most readily explains the data (highest
+           correlation coefficient between the data and the predicted signal)
+           and use that one to derive the fit for that voxel
+
+        """
+        # The file already exists: 
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading params from file: %s"%self.params_file)
+
+            # Get the cached values and be done with it:
+            return ni.load(self.params_file).get_data()
+        else:
+            # Looks like we might need to do some fitting... 
+
+            # Get the bvec weights and the isotropic weights (for both the
+            # tissue ball and the free water ball):
+            b_w = self.ols[:,0,:].copy().squeeze()
+            i1_w = self.ols[:,1,:].copy().squeeze()
+            i2_w = self.ols[:,2,:].copy().squeeze()
+            
+            # nan out the places where weights are negative: 
+            b_w[b_w<0] = np.nan
+            i1_w[i1_w<0] = np.nan
+            i2_w[i2_w<0] = np.nan
+
+            params = np.empty((self._flat_signal.shape[0],4))
+            # Find the best OLS solution in each voxel:
+            for vox in xrange(self._flat_signal.shape[0]):
+                # We do this in each voxel (instead of all at once, which is
+                # possible...) to not blow up the memory:
+                vox_fits = np.empty(self.rotations.shape)
+                for rot_i, rot in enumerate(self.rotations):
+                    vox_fits[rot_i] =(
+                        b_w[rot_i,vox] * rot + i1_w[rot_i,vox] + i2_w[rot_i,vox])
+
+                # Find the predicted signal that best matches the original
+                # signal. That will choose the direction for the tensor we use: 
+                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+                idx = np.where(corrs==np.nanmax(corrs))[0]
+
+                # Sometimes there is no good solution (maybe we need to fit
+                # just an isotropic to all of these?):
+                if len(idx):
+                    # In case more than one fits the bill, just choose the
+                    # first one:
+                    if len(idx)>1:
+                        idx = idx[0]
+                    
+                    params[vox,:] = np.array([idx,
+                                              b_w[idx, vox],
+                                              i1_w[idx, vox],
+                                              i2_w[idx, vox],
+                                              ]).squeeze()
+                else:
+                    params[vox,:] = np.array([np.nan, np.nan, np.nan, np.nan])
+
+                if self.verbose: 
+                    if np.mod(vox, 1000)==0:
+                        print ("Fit %s voxels, %s percent"%(vox,
+                                100*vox/float(self._flat_signal.shape[0])))
+
+            # Save the params for future use: 
+            out_params = np.nan * np.ones(self.signal.shape[:3] + (4,))
+            out_params[self.mask] = np.array(params).squeeze()
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.verbose:
+                print("Saving params to file: %s"%self.params_file)
+            params_ni.to_filename(self.params_file)
+
+            # And return the params for current use:
+            return out_params
+
+    @desc.auto_attr
+    def fit(self):
+        """
+        """
+        # XXX The implementation needs to recover the signal relative to the
+        # attenuation, which was used in fitting the weights. So, it will be
+        # slightly different from the fit method in CanonicalTensorModel  
+        if self.verbose:
+            print("Predicting signal from TissueFractionModel")
+        out_flat = np.empty(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.any(np.isnan(flat_params[vox])):
+                out_flat[vox]=(
+                    flat_params[vox,1] * self.rotations[flat_params[vox,0]] +
+                    flat_params[vox,2] + flat_params[vox,3]) * self._flat_S0[vox]
+            else:
+                out_flat[vox] = np.nan
+                
+        out = np.nan * np.ones(self.signal.shape)
+        out[self.mask] = out_flat
+
+        return out
 
     
 class FiberModel(BaseModel):
