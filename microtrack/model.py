@@ -1532,8 +1532,8 @@ class TissueFractionModel(CanonicalTensorModel):
                  data,
                  bvecs,
                  bvals,
-                 water_D=3,
-                 gray_D=1.5,
+                 water_D=3.0,
+                 gray_D=1.0,
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
@@ -1631,13 +1631,14 @@ class TissueFractionModel(CanonicalTensorModel):
         flat_att_tf = np.vstack([self._flat_signal.T/
                         self._flat_S0.T.reshape(1,self._flat_signal.shape[0]),
                          self._flat_tf]).T
-        tissue_ball = self.gray_D * np.hstack([np.ones(len(self.b_idx)+1)])
-        water_ball = self.water_D * np.hstack([np.ones(len(self.b_idx)), 0])
+        
+        tissue_ball = np.hstack([self.gray_D * np.ones(len(self.b_idx)), 0.15])
+        water_ball = np.hstack([self.water_D * np.ones(len(self.b_idx)), 0])
         
         for idx in range(len(self.b_idx)):
             # The tensor does not contribute to the TF:
-            rot = self.gray_D * np.hstack(
-                [self.rotations[idx]/np.max(self.rotations[idx]),1])
+            rot = np.hstack(
+        [self.gray_D * self.rotations[idx]/np.max(self.rotations[idx]), 0.3])
             # The 'design matrix':
             d = np.vstack([rot,tissue_ball.T, water_ball.T])
             #This is $(X' X)^{-1} X':
@@ -1686,9 +1687,9 @@ class TissueFractionModel(CanonicalTensorModel):
             i2_w = self.ols[:,2,:].copy().squeeze()
             
             # nan out the places where weights are negative: 
-            b_w[b_w<0] = np.nan
-            i1_w[i1_w<0] = np.nan
-            i2_w[i2_w<0] = np.nan
+            #b_w[b_w<0] = np.nan
+            #i1_w[i1_w<0] = np.nan
+            #i2_w[i2_w<0] = np.nan
 
             params = np.empty((self._flat_signal.shape[0],4))
             # Find the best OLS solution in each voxel:
@@ -1740,10 +1741,8 @@ class TissueFractionModel(CanonicalTensorModel):
     @desc.auto_attr
     def fit(self):
         """
+        Derive the fit of the TissueFractionModel
         """
-        # XXX The implementation needs to recover the signal relative to the
-        # attenuation, which was used in fitting the weights. So, it will be
-        # slightly different from the fit method in CanonicalTensorModel  
         if self.verbose:
             print("Predicting signal from TissueFractionModel")
         out_flat = np.empty(self._flat_signal.shape)
@@ -1751,6 +1750,9 @@ class TissueFractionModel(CanonicalTensorModel):
         for vox in xrange(out_flat.shape[0]):
             if ~np.any(np.isnan(flat_params[vox])):
                 out_flat[vox]=(
+        # recover the signal relative to the attenuation, which was used in
+        # fitting the weights.
+        
         self.gray_D * flat_params[vox,1] * self.rotations[flat_params[vox,0]] +
         self.gray_D * flat_params[vox,2] +
         self.water_D * flat_params[vox,3]) * self._flat_S0[vox]
@@ -1810,7 +1812,6 @@ class FiberModel(BaseModel):
         # The only additional thing is that this one also has a fiber group,
         # which is xformed to match the coordinates of the DWI:
         self.FG = FG.xform(self.affine.getI(), inplace=False)
-
 
         # XXX There's got to be a way to get a mask here, which will refer only
         # to where the fibers are. 
@@ -1888,7 +1889,7 @@ class FiberModel(BaseModel):
         return sps.coo_matrix((matrix_sig,[matrix_row, matrix_col]))
     
     @desc.auto_attr
-    def flat_signal(self):
+    def fiber_signal(self):
         """
         XXX - need to change the name of this. This refers to something else
         usually
@@ -1896,8 +1897,8 @@ class FiberModel(BaseModel):
         The signal in the voxels corresponding to where the fibers pass through.
         """ 
         return self.signal[self.fg_idx_unique[0],
-                               self.fg_idx_unique[1],
-                               self.fg_idx_unique[2]].ravel()
+                           self.fg_idx_unique[1],
+                           self.fg_idx_unique[2]].ravel()
 
 
 
