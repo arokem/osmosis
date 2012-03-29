@@ -23,6 +23,8 @@ import scipy.sparse as sps
 import scipy.linalg as la
 import scipy.stats as stats
 from scipy.special import sph_harm
+from scipy.optimize import leastsq
+
 
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
@@ -540,7 +542,6 @@ def params_file_resolver(object, file_name_root, params_file=None):
             params_file = '%s.nii.gz'%file_name_root
 
     return params_file
-
 
 class TensorModel(BaseModel):
 
@@ -1092,7 +1093,6 @@ class CanonicalTensorModel(BaseModel):
                                                 'CanonicalTensorModel',
                                                  params_file)
 
-
     @desc.auto_attr
     def response_function(self):
         """
@@ -1236,7 +1236,54 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
+def err_func_CanonicalTensorModelOpt(x, object, signal):
+    """
+    The error function for the fit:
+    """
+    theta,phi,tensor_w,iso_w = x
+    # Convert to cartesian coordinates:
+    x,y,z = geo.sphere2cart(1, theta, phi)
+    bvec = [x,y,z]
+    evals, evecs = object.response_function.decompose
+    rot_tensor = mtt.tensor_from_eigs(
+        evecs * mtu.calculate_rotation(bvec, evecs[0]),
+               evals, object.bvecs[:,object.b_idx], object.bvals[:,object.b_idx])
 
+    # Relative to an S0=1:
+    pred_sig = tensor_w * rot_tensor.predicted_signal(1) + iso_w
+    return pred_sig - signal
+
+class CanonicalTensorModelOpt(CanonicalTensorModel):
+    """
+    This one is supposed to do the same thing as CanonicalTensorModel, except
+    here scipy.optimize is used to find the parameters, instead of OLS fitting.
+    """
+
+    @desc.auto_attr
+    def model_params(self):
+        """
+        Find the model parameters using least-squares optimization.
+        """
+
+        params = np.empty((self._flat_signal.shape[0],4))
+        for vox in range(self._flat_signal.shape[0]):
+            # Starting conditions
+            mean_sig = np.mean(self._flat_signal[vox])
+            x0 = 0,0,mean_sig,mean_sig 
+            this_params, status = leastsq(err_func_CanonicalTensorModelOpt,
+                                          x0,
+                                         (self, self._flat_signal[vox]))
+            params[vox] = this_params
+
+            if self.verbose: 
+                if np.mod(vox, 100)==0:
+                    print ("Fit %s voxels, %s percent"%(vox,
+                            100*vox/float(self._flat_signal.shape[0])))
+
+        out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
+        out_params[self.mask] = np.array(params).squeeze()
+
+            
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
     This model extends CanonicalTensorModel with the addition of another
@@ -1485,6 +1532,8 @@ class TissueFractionModel(CanonicalTensorModel):
                  data,
                  bvecs,
                  bvals,
+                 water_D=3,
+                 gray_D=1.5,
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
@@ -1515,43 +1564,89 @@ class TissueFractionModel(CanonicalTensorModel):
                                                 'TissueFractionModel',
                                                 params_file)
 
+        # Set the diffusivity constants:
+        self.gray_D = gray_D
+        self.water_D = water_D
 
+        
     @desc.auto_attr
     def _flat_tf(self):
         """
         Flatten the TF
+
         """
+
         return self.tissue_fraction[self.mask]
-    
+
+
+    @desc.auto_attr
+    def fit_tf():
+        """
+
+        Fitting the weights for the TissueFractionModel is done as a second
+        stage, after done fitting the CanonicalTensorModel.
+
+        The logic is as follows:
+
+        The isotropic weight calculated in the previous stage subsumes two
+        different components: one is the free water isotropic component and the
+        other is a hindered tissue water component.
+
+        .. math::
+
+            \beta_{iso} = \beta_2 + \beta_3
+
+        Where $\beta_{iso}$ is the weight for the isotropic component fit for
+        the initial fit and $\beta_{2,3}$ are the weights of tissue water and
+        free water respectively.
+
+        In addition, we know that the tissue water, together with the tensor
+        signal should account for the tissue fraction measurement:
+
+        .. math::
+        
+            TF = \beta_1 * \lambda_1 + \beta_2 * \lambda_2 + \beta_3 * \lambda_3
+
+        Where $\beta_1$ is the weight for the canonical tensor and $\beta_2$ is
+        the weight on the tissue isotropic component. $\lambda_{1,2}$ are
+        additional relative weights of the two components within the tissue
+        (canonical tensor and tissue  water) and $\lambda_3 = 0$, reflecting
+        the fact that the free water is not part of the tissue fraction at all.
+        """
+
+        pass
+
+
     @desc.auto_attr
     def ols(self):
         """
         Compute the design matrices the matrices for OLS fitting and the OLS
         solution. Cache them for reuse in each direction over all voxels.
         """
-
+        
         # Preallocate:
         ols_weights = np.empty((len(self.b_idx), 3, self._flat_signal.shape[0]))
-
+        
         # Fit the attenuation of the signal, not the signal itself:
         flat_att_tf = np.vstack([self._flat_signal.T/
                         self._flat_S0.T.reshape(1,self._flat_signal.shape[0]),
-                        self._flat_tf]).T
-        tissue_ball = np.hstack([np.ones(len(self.b_idx)),0])
-        water_ball = np.hstack([np.ones(len(self.b_idx)+1)])
+                         self._flat_tf]).T
+        tissue_ball = self.gray_D * np.hstack([np.ones(len(self.b_idx)+1)])
+        water_ball = self.water_D * np.hstack([np.ones(len(self.b_idx)), 0])
         
         for idx in range(len(self.b_idx)):
             # The tensor does not contribute to the TF:
-            rot = np.hstack([self.rotations[idx],0])
+            rot = self.gray_D * np.hstack(
+                [self.rotations[idx]/np.max(self.rotations[idx]),1])
             # The 'design matrix':
-            d = np.vstack([rot,tissue_ball.T,water_ball.T])
+            d = np.vstack([rot,tissue_ball.T, water_ball.T])
             #This is $(X' X)^{-1} X':
             ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution:
-            ols_weights[idx] = np.array(np.dot(ols_mat.T,
-                                               flat_att_tf.T)).squeeze()
+            ols_weights[idx] = np.array(np.dot(ols_mat.T,flat_att_tf.T))
 
         return ols_weights
+
 
     @desc.auto_attr
     def model_params(self):
@@ -1656,8 +1751,10 @@ class TissueFractionModel(CanonicalTensorModel):
         for vox in xrange(out_flat.shape[0]):
             if ~np.any(np.isnan(flat_params[vox])):
                 out_flat[vox]=(
-                    flat_params[vox,1] * self.rotations[flat_params[vox,0]] +
-                    flat_params[vox,2] + flat_params[vox,3]) * self._flat_S0[vox]
+        self.gray_D * flat_params[vox,1] * self.rotations[flat_params[vox,0]] +
+        self.gray_D * flat_params[vox,2] +
+        self.water_D * flat_params[vox,3]) * self._flat_S0[vox]
+                
             else:
                 out_flat[vox] = np.nan
                 

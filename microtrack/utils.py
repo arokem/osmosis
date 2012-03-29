@@ -224,12 +224,29 @@ def ols_matrix(A, norm=None):
     return la.pinv(X.T * X) * X.T
 
 
-def cls_matrix():
+def cls_matrix(A, Q=None, c=1):
     """
     Constrained least squares estimation. Compute the parameters $\hat{\beta}$
     that fulfill the constraint: $Q\beta=c$
     
     http://en.wikipedia.org/wiki/Ordinary_least_squares#Constrained_estimation
+
+    Parameters
+    ----------
+    A: The design matrix
+
+    Q: A matrix or square ndarray
+        defaults to np.eye(A.shape[0])
+
+    c: float,
+        The constraint for the optimization
+    """
+    # XXX Make it! 
+    raise NotImplementedError
+
+def rols_matrix(A, l):
+    """
+    Regularized ordinary least squares:
     
     """
     # XXX Make it! 
