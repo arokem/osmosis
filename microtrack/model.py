@@ -1801,10 +1801,10 @@ class FiberModel(BaseModel):
                             data,
                             bvecs,
                             bvals,
-                            affine=None,
-                            mask=None,
+                            affine=affine,
+                            mask=mask,
                             scaling_factor=scaling_factor,
-                            sub_sample=None)
+                            sub_sample=sub_sample)
 
         self.axial_diffusivity = axial_diffusivity
         self.radial_diffusivity = radial_diffusivity
@@ -1812,9 +1812,6 @@ class FiberModel(BaseModel):
         # The only additional thing is that this one also has a fiber group,
         # which is xformed to match the coordinates of the DWI:
         self.FG = FG.xform(self.affine.getI(), inplace=False)
-
-        # XXX There's got to be a way to get a mask here, which will refer only
-        # to where the fibers are. 
         
     @desc.auto_attr
     def fg_idx(self):
@@ -1845,7 +1842,9 @@ class FiberModel(BaseModel):
         n_vox = vox_coords.shape[-1]
         n_bvecs = self.b_idx.shape[0]
         n_fibers = self.FG.n_fibers
-        matrix_dims = np.array([n_vox * n_bvecs, n_fibers])
+
+        # Rows: voxels by bvecs, columns: fibers + voxels
+        matrix_dims = np.array([n_vox * n_bvecs, n_fibers + n_vox])
         matrix_len = matrix_dims.prod()
 
         # Preallocate these:
@@ -1885,8 +1884,18 @@ class FiberModel(BaseModel):
                                start + k * n_bvecs + n_bvecs] += \
                         fiber_pred[i:i+n_bvecs]
 
+        # Add the isotropic component to the right side of the matrix: 
+        for v_idx in xrange(n_fibers, n_fibers + n_vox):
+            start = v_idx * n_vox * n_bvecs 
+            matrix_row[start:start + matrix_dims[0]] = np.arange(matrix_dims[0])
+            matrix_col[start:start + matrix_dims[0]] = v_idx*np.ones(
+                                                                  matrix_dims[0])
+
+            idx_in_diag = (v_idx - n_fibers) * n_bvecs
+            matrix_sig[start + idx_in_diag:start + idx_in_diag + n_bvecs] = 1
+            
         #Put it all in one sparse matrix:
-        return sps.coo_matrix((matrix_sig,[matrix_row, matrix_col]))
+        return sps.coo_matrix((matrix_sig, [matrix_row, matrix_col]))
     
     @desc.auto_attr
     def fiber_signal(self):
@@ -1900,5 +1909,10 @@ class FiberModel(BaseModel):
                            self.fg_idx_unique[1],
                            self.fg_idx_unique[2]].ravel()
 
+    @desc.auto_attr
+    def fit(self):
+        """
+        """
+        raise NotImplementedError 
 
 
