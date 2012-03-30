@@ -19,6 +19,7 @@ except ImportError:
     
 # Import stuff for sparse matrices:
 import scipy.sparse as sps
+import scipy.sparse.linalg as sla
 
 import scipy.linalg as la
 import scipy.stats as stats
@@ -1896,7 +1897,8 @@ class FiberModel(BaseModel):
             
         #Put it all in one sparse matrix:
         return sps.coo_matrix((matrix_sig, [matrix_row, matrix_col]))
-    
+        
+        
     @desc.auto_attr
     def fiber_signal(self):
         """
@@ -1910,9 +1912,22 @@ class FiberModel(BaseModel):
                            self.fg_idx_unique[2]].ravel()
 
     @desc.auto_attr
+    def weights(self):
+        """
+        Get the weights using scipy.sparse.linalg
+        """
+        w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
+            sla.lsqr(self.matrix.tocsr(), self.fiber_signal, damp=0.1, show=True,
+                     iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
+
+        return w
+    
+    @desc.auto_attr
     def fit(self):
         """
         """
-        raise NotImplementedError 
 
+        pred_sig = np.array(np.dot(self.weights,
+                                   self.matrix.transpose())).squeeze()
+        
 
