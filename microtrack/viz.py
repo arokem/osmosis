@@ -326,6 +326,9 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     
     return fig
 
+
+# XXX Maybe implement the following as a subclass of matplotlib.axes.Axes?
+
 def quick_ax(fig=None,subplot=111):
     if fig is None:
         fig = plt.figure()

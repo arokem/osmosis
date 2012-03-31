@@ -14,7 +14,8 @@ import numpy as np
 try:
     import numexpr
     has_numexpr = True
-except ImportError: 
+except ImportError:
+    warnings.warn("Could not import numexpr")
     has_numexpr = False
     
 # Import stuff for sparse matrices:
@@ -23,9 +24,25 @@ import scipy.sparse.linalg as sla
 
 # Get stuff from sklearn, if that's available: 
 try:
-    from sklearn.linear_model.sparse import Lasso
+    # Get both the sparse version of the Lasso: 
+    from sklearn.linear_model.sparse import Lasso as spLasso
+    # And the dense version:
+    from sklearn.linear_model import Lasso
+    # Get other stuff from sklearn.linear_model:
+    from sklearn.linear_model import ElasticNet, Lars, Ridge
+    # Get OMP:
+    from sklearn.linear_model.omp import OrthogonalMatchingPursuit as OMP
+     
     has_sklearn = True
+
+    # Make a dict with solvers to be used for choosing among them:
+    sklearn_solvers = dict(Lasso=Lasso,
+                           OMP=OMP,
+                           ElasticNet=ElasticNet,
+                           Lars=Lars)
+
 except ImportError:
+    warnings.warn("Could not import sklearn")
     has_sklearn = False    
 
 import scipy.linalg as la
@@ -2041,10 +2058,10 @@ class FiberModel(BaseModel):
     @desc.auto_attr
     def _Lasso(self):
         """
-        This is the sklearn Lasso object. XXX Maybe needs some more
+        This is the sklearn spLasso object. XXX Maybe needs some more
         param-settin options...   
         """
-        return Lasso().fit(self.matrix[0], self.voxel_signal_demeaned)
+        return spLasso().fit(self.matrix[0], self.voxel_signal_demeaned)
     
     @desc.auto_attr
     def _fiber_fit(self):
@@ -2075,3 +2092,128 @@ class FiberModel(BaseModel):
                
                  
                 
+class SparseDeconvolutionModel(CanonicalTensorModel):
+    """
+    Use the lasso to do spherical deconvolution with a canonical tensor basis
+    set. 
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 solver=None,
+                 solver_params=None,
+                 params_file=None,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 over_sample=None,
+                 verbose=True,
+                 n_canonicals=2):
+        """
+        Initialize SparseDeconvolutionModel class instance.
+        """
+        # Initialize the super-class:
+        CanonicalTensorModel.__init__(self,
+                                      data,
+                                      bvecs,
+                                      bvals,
+                                      params_file=params_file,
+                                      axial_diffusivity=axial_diffusivity,
+                                      radial_diffusivity=radial_diffusivity,
+                                      affine=affine,
+                                      mask=mask,
+                                      scaling_factor=scaling_factor,
+                                      sub_sample=sub_sample,
+                                      over_sample=over_sample,
+                                      verbose=verbose)
+        
+        self.params_file = params_file_resolver(self,
+                                                'SparseDeconvolutionModel',
+                                                params_file)
+
+        # For now, the default is Lasso:
+        if solver is None:
+            self.solver = 'Lasso'
+        else:
+            self.solver = solver
+
+        # This will be passed as kwarg to the solver initialization:
+        self.solver_params = solver_params
+            
+    @desc.auto_attr
+    def response_function(self):
+        """
+        A canonical tensor that describes the presumed response of a single
+        fiber 
+        """
+        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+                              self.bvecs[:,self.b_idx],
+                              self.bvals[self.b_idx])
+
+     
+    @desc.auto_attr
+    def rotations(self):
+        # assume S0==1, the fit weight should soak that up:
+        return np.array([this.predicted_signal(1) 
+                         for this in self.response_function._rotations])
+
+    @desc.auto_attr
+    def design_matrix(self):
+        """
+        Generate the design matrix for fitting
+        """
+        return np.vstack([self.rotations, np.ones(self.b_idx.shape[0])]).T
+
+    @desc.auto_attr
+    def _solver(self):
+        """
+        Choose the sklearn solver to be used:
+        """
+        chosen_solver = sklearn_solvers[self.solver]
+
+        if self.solver_params is not None:
+            return chosen_solver(self.solver_params) 
+        else:
+            return chosen_solver()
+    @desc.auto_attr
+    def model_params(self):
+        """
+        Use sklearn to fit the parameters:
+        """
+        # One weight for each rotation + isotropic:
+        params = np.empty((self._flat_signal.shape[0],
+                          self.design_matrix.shape[-1]))
+
+        for vox in xrange(self._flat_signal.shape[0]):
+            d = self.design_matrix
+            sig = self._flat_signal[vox]
+            params[vox] = self._solver.fit(d, sig).coef_
+
+        out_params = np.nan * np.ones((self.signal.shape[:3] + 
+                                      (self.design_matrix.shape[-1],)))
+
+        out_params[self.mask] = params
+        return out_params
+            
+
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict the data from the fit of the SparseDeconvolutionModel
+        """
+        if self.verbose:
+            print("Predicting signal from SparseDeconvolutionModel")
+
+        out_flat = np.empty(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            out_flat[vox] = np.dot(self.design_matrix, flat_params[vox]) 
+                
+        out = np.nan * np.ones(self.signal.shape)
+        out[self.mask] = out_flat
+
+        return out
