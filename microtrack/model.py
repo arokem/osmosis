@@ -2143,30 +2143,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
         # This will be passed as kwarg to the solver initialization:
         self.solver_params = solver_params
-            
-    @desc.auto_attr
-    def response_function(self):
-        """
-        A canonical tensor that describes the presumed response of a single
-        fiber 
-        """
-        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
-                              self.bvecs[:,self.b_idx],
-                              self.bvals[self.b_idx])
-
-     
-    @desc.auto_attr
-    def rotations(self):
-        # assume S0==1, the fit weight should soak that up:
-        return np.array([this.predicted_signal(1) 
-                         for this in self.response_function._rotations])
-
-    @desc.auto_attr
-    def design_matrix(self):
-        """
-        Generate the design matrix for fitting
-        """
-        return np.vstack([self.rotations, np.ones(self.b_idx.shape[0])]).T
 
     @desc.auto_attr
     def _solver(self):
@@ -2179,6 +2155,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             return chosen_solver(self.solver_params) 
         else:
             return chosen_solver()
+
+
     @desc.auto_attr
     def model_params(self):
         """
@@ -2186,15 +2164,18 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         # One weight for each rotation + isotropic:
         params = np.empty((self._flat_signal.shape[0],
-                          self.design_matrix.shape[-1]))
+                           self.rotations.shape[0]))
+
+        # One basis function per column (instead of rows): 
+        design_matrix = self.rotations.T
 
         for vox in xrange(self._flat_signal.shape[0]):
-            d = self.design_matrix
-            sig = self._flat_signal[vox]
-            params[vox] = self._solver.fit(d, sig).coef_
+            # Fit the signal attentuation:
+            sig = self._flat_signal[vox]/self._flat_S0[vox]
+            params[vox] = self._solver.fit(design_matrix, sig).coef_
 
         out_params = np.nan * np.ones((self.signal.shape[:3] + 
-                                      (self.design_matrix.shape[-1],)))
+                                      (design_matrix.shape[-1],)))
 
         out_params[self.mask] = params
         return out_params
@@ -2211,8 +2192,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = np.dot(self.design_matrix, flat_params[vox]) 
-                
+            out_flat[vox] = (np.dot(self.rotations.T, flat_params[vox])
+                             * self._flat_S0[vox]) # Recover the signal by
+                                                    # multiplying with S0
+            
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
 
