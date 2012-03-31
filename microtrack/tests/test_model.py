@@ -117,7 +117,7 @@ def test_FiberModel():
                        data_path + 'dwi.bvals',
                        FG, ad, rd)
 
-    npt.assert_equal(M.matrix.shape[0], M.flat_signal.shape[0])
+    npt.assert_equal(M.matrix.shape[0], M.fiber_signal.shape[0])
     npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
 
 

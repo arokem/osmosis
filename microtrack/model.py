@@ -21,6 +21,13 @@ except ImportError:
 import scipy.sparse as sps
 import scipy.sparse.linalg as sla
 
+# Get stuff from sklearn, if that's available: 
+try:
+    from sklearn.linear_model.sparse import Lasso
+    has_sklearn = True
+except ImportError:
+    has_sklearn = False    
+
 import scipy.linalg as la
 import scipy.stats as stats
 from scipy.special import sph_harm
@@ -1810,10 +1817,10 @@ class FiberModel(BaseModel):
         self.axial_diffusivity = axial_diffusivity
         self.radial_diffusivity = radial_diffusivity
 
-        # The only additional thing is that this one also has a fiber group,
-        # which is xformed to match the coordinates of the DWI:
+        # This one also has a fiber group, which is xformed to match the
+        # coordinates of the DWI: 
         self.FG = FG.xform(self.affine.getI(), inplace=False)
-        
+
     @desc.auto_attr
     def fg_idx(self):
         """
@@ -1830,81 +1837,155 @@ class FiberModel(BaseModel):
 
     @desc.auto_attr
     def fg_idx_unique(self):
-        return mtu.unique_rows(self.fg_idx)
+        """
+        The *unique* voxel indices
+        """
+        return mtu.unique_rows(self.fg_idx.T).T
 
-    
+    @desc.auto_attr
+    def voxel2fiber(self):
+        """
+        The first list in the tuple answers the question: Given a voxel (from
+        the unique indices in this model), which fibers pass through it?
+
+        The second answers the question: Given a voxel, for each fiber, which
+        nodes are in that voxel? 
+        """
+        # Preallocate for speed:
+        
+        # Make a voxels by fibers grid. If the fiber is in the voxel, the value
+        # there will be 1, otherwise 0:
+        v2f = np.zeros((len(self.fg_idx_unique.T), len(self.FG.fibers)))
+
+        # This is a grid of size (fibers, maximal length of a fiber), so that
+        # we can capture put in the voxel number in each fiber/node combination:
+        v2fn = np.nan * np.ones((len(self.FG.fibers),
+                         np.max([f.coords.shape[-1] for f in self.FG])))
+
+        # In each fiber:
+        for f_idx, f in enumerate(self.FG.fibers):
+            # In each voxel present in there:
+            for vv in f.coords.astype(int).T:
+                # What serial number is this voxel in the unique fiber indices:
+                voxel_id = np.where((vv[0] == self.fg_idx_unique[0]) *
+                                    (vv[1] == self.fg_idx_unique[1]) *
+                                    (vv[2] == self.fg_idx_unique[2]))[0]
+                # Add that combination to the grid:
+                v2f[voxel_id,f_idx] += 1 
+                # All the nodes going through this voxel get its number:
+                v2fn[f_idx][np.where((f.coords.astype(int)[0]==vv[0]) *
+                                     (f.coords.astype(int)[1]==vv[1]) *
+                                     (f.coords.astype(int)[2]==vv[2]))]=voxel_id
+            
+            if self.verbose and np.mod(f_idx, 100)==0:
+                print("V2F: Done with: %s percent"%(100*
+                                (float(f_idx)/len(self.FG.fibers))))
+
+        return v2f,v2fn
+
+
+    @desc.auto_attr
+    def fiber_tensors(self):
+        """
+        The tensors for each fiber along it's length
+        """
+        ten = np.empty(len(self.FG.fibers), dtype='object')
+        # In each fiber:
+        for f_idx, f in enumerate(self.FG):
+            ten[f_idx] = f.tensors(self.bvecs[:, self.b_idx],
+                                 self.bvals[:, self.b_idx],
+                                 self.axial_diffusivity,
+                                 self.radial_diffusivity)
+
+            if self.verbose and np.mod(f_idx, 100)==0:
+                print("fiber_tensors: Done with: %s percent"%(100*
+                                (float(f_idx)/len(self.FG.fibers))))
+
+        return ten
+        
     @desc.auto_attr
     def matrix(self):
         """
         The matrix of fiber-contributions to the DWI signal.
         """
         # Assign some local variables, for shorthand:
-        vox_coords = self.fg_idx_unique
-        n_vox = vox_coords.shape[-1]
+        vox_coords = self.fg_idx_unique.T
+        n_vox = self.fg_idx_unique.shape[-1]
         n_bvecs = self.b_idx.shape[0]
         n_fibers = self.FG.n_fibers
+        v2f,v2fn = self.voxel2fiber
 
-        # Rows: voxels by bvecs, columns: fibers + voxels
-        matrix_dims = np.array([n_vox * n_bvecs, n_fibers + n_vox])
-        matrix_len = matrix_dims.prod()
+        if self.verbose:
+            print "Done with voxel2fiber"
 
-        # Preallocate these:
-        matrix_sig = np.zeros(matrix_len)
-        matrix_row = np.zeros(matrix_len)
-        matrix_col = np.zeros(matrix_len)
+        # How many fibers in each voxel (this will determine how many
+        # components are in the fiber part of the matrix):
+        n_unique_f = np.sum(v2f)        
         
-        for f_idx, fiber in enumerate(self.FG.fibers):
-            start = f_idx * n_vox * n_bvecs
-            # These are easy:
-            matrix_row[start:start+matrix_dims[0]] = (np.arange(matrix_dims[0]))
-            matrix_col[start:start+matrix_dims[0]] = f_idx * np.ones(n_vox *
-                                                                     n_bvecs)
-            # Here comes the tricky part:
-            print "working on fiber %s"%(f_idx + 1)
-            fiber_idx =  fiber.coords.astype(int)
-            fiber_pred = fiber.predicted_signal(
-                                self.bvecs[:, self.b_idx],
-                                self.bvals[:, self.b_idx],
-                                self.axial_diffusivity,
-                                self.radial_diffusivity,
-                                self.S0[fiber_idx[0],
-                                        fiber_idx[1],
-                                        fiber_idx[2]]
-                                ).ravel()
-            # Do we really have to do this one-by-one?
-            for i in xrange(fiber_idx.shape[-1]):
-                arr_list = [np.where(self.fg_idx_unique[j]==fiber_idx[:,i][j])[0]
-                            for j in [0,1,2]]
-                this_idx = mtu.intersect(arr_list)
-                # Sum the signals from all the fibers/all the nodes in each
-                # voxel, by summing over the predicted signal from each fiber
-                # through all its
-                # nodes and just adding it in:
-                for k in this_idx:
-                    matrix_sig[start + k * n_bvecs:
-                               start + k * n_bvecs + n_bvecs] += \
-                        fiber_pred[i:i+n_bvecs]
+        # Preallocate these, which will be used to generate the two sparse
+        # matrices:
 
-        # Add the isotropic component to the right side of the matrix: 
-        for v_idx in xrange(n_fibers, n_fibers + n_vox):
-            start = v_idx * n_vox * n_bvecs 
-            matrix_row[start:start + matrix_dims[0]] = np.arange(matrix_dims[0])
-            matrix_col[start:start + matrix_dims[0]] = v_idx*np.ones(
-                                                                  matrix_dims[0])
+        # This one will hold the fiber-predicted signal
+        f_matrix_sig = np.zeros(n_unique_f * n_bvecs)
+        f_matrix_row = np.zeros(n_unique_f * n_bvecs)
+        f_matrix_col = np.zeros(n_unique_f * n_bvecs)
 
-            idx_in_diag = (v_idx - n_fibers) * n_bvecs
-            matrix_sig[start + idx_in_diag:start + idx_in_diag + n_bvecs] = 1
-            
-        #Put it all in one sparse matrix:
-        return sps.coo_matrix((matrix_sig, [matrix_row, matrix_col]))
+        # And this will hold weights to soak up the isotropic component in each
+        # voxel: 
+        i_matrix_sig = np.zeros(n_vox * n_bvecs)
+        i_matrix_row = np.zeros(n_vox * n_bvecs)
+        i_matrix_col = np.zeros(n_vox * n_bvecs)
         
+        keep_ct1 = 0
+        keep_ct2 = 0
+
+        # In each voxel:
+        for v_idx, vox in enumerate(vox_coords):
+            # For each fiber:
+            for f_idx in np.where(v2f[v_idx])[0]:
+                # Sum the signal from each node of the fiber in that voxel: 
+                pred_sig = np.zeros(n_bvecs)
+                for n_idx in np.where(v2fn[f_idx]==v_idx)[0]: 
+                    # Predict the signal and demean it, so that the isotropic
+                    # part can carry that:
+                    pred_sig +=\
+                        (self.fiber_tensors[f_idx][n_idx].predicted_signal(
+                        self.S0[vox[0],vox[1],vox[2]]) -
+                        np.mean(self.signal[vox[0],vox[1],vox[2]]))
+                    
+            # For each fiber-voxel combination, we now store the row/column
+            # indices and the signal in the pre-allocated linear arrays
+            f_matrix_row[keep_ct1:keep_ct1+n_bvecs] =\
+                np.arange(n_bvecs) + v_idx * n_bvecs
+            f_matrix_col[keep_ct1:keep_ct1+n_bvecs] = np.ones(n_bvecs) * f_idx 
+            f_matrix_sig[keep_ct1:keep_ct1+n_bvecs] = pred_sig
+            keep_ct1 += n_bvecs
+
+            # Put in the isotropic part in the other matrix: 
+            i_matrix_row[keep_ct2:keep_ct2+n_bvecs]=\
+                np.arange(v_idx*n_bvecs, (v_idx + 1)*n_bvecs)
+            i_matrix_col[keep_ct2:keep_ct2+n_bvecs]= v_idx * np.ones(n_bvecs)
+            i_matrix_sig[keep_ct2:keep_ct2+n_bvecs] = 1
+            keep_ct2 += n_bvecs
+            if self.verbose and np.mod(v_idx,100)==0:
+                print("Built %s percent"%(100 * float(v_idx)/len(vox_coords)))
+        
+        # Allocate the sparse matrices, using the more memory-efficient 'csr'
+        # format: 
+        fiber_matrix = sps.coo_matrix((f_matrix_sig,
+                                       [f_matrix_row, f_matrix_col])).tocsr()
+        iso_matrix = sps.coo_matrix((i_matrix_sig,
+                                       [i_matrix_row, i_matrix_col])).tocsr()
+
+        if self.verbose:
+            print("Generated model matrices")
+
+        return (fiber_matrix, iso_matrix)
+                
         
     @desc.auto_attr
-    def fiber_signal(self):
-        """
-        XXX - need to change the name of this. This refers to something else
-        usually
-        
+    def voxel_signal(self):
+        """        
         The signal in the voxels corresponding to where the fibers pass through.
         """ 
         return self.signal[self.fg_idx_unique[0],
@@ -1912,22 +1993,85 @@ class FiberModel(BaseModel):
                            self.fg_idx_unique[2]].ravel()
 
     @desc.auto_attr
-    def weights(self):
+    def voxel_signal_demeaned(self):
+        """        
+        The signal in the voxels corresponding to where the fibers pass
+        through, with mean removed
         """
-        Get the weights using scipy.sparse.linalg
-        """
-        w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
-            sla.lsqr(self.matrix.tocsr(), self.fiber_signal, damp=0.1, show=True,
-                     iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
+        # First get the signal
+        a = self.signal[self.fg_idx_unique[0],
+                        self.fg_idx_unique[1],
+                        self.fg_idx_unique[2]] 
 
-        return w
+        # Get the average, broadcast it back to the original shape and ravel
+        # and finally remove:
+        return(a.ravel() -
+               (np.mean(a,-1)[np.newaxis,...] +
+                np.zeros((len(self.b_idx),a.shape[0]))).T.ravel())
     
+    @desc.auto_attr
+    def iso_weights(self):
+        """
+        Get the weights using scipy.sparse.linalg or sklearn.linear_model.sparse
+
+        """
+        if self.verbose:
+            show=True
+        else:
+            show=False
+
+        iso_w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
+        sla.lsqr(self.matrix[1], self.voxel_signal, show=show,
+                 iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
+
+        if istop not in [1,2]:
+            warnings.warn("LSQR did not properly converge")
+
+        return iso_w
+    
+    @desc.auto_attr
+    def fiber_weights(self):
+        """
+        Get the weights for the fiber part of the matrix
+        """
+        fiber_w =  self._Lasso.coef_
+        return fiber_w
+
+
+    @desc.auto_attr
+    def _Lasso(self):
+        """
+        This is the sklearn Lasso object. XXX Maybe needs some more
+        param-settin options...   
+        """
+        return Lasso().fit(self.matrix[0], self.voxel_signal_demeaned)
+    
+    @desc.auto_attr
+    def _fiber_fit(self):
+        """
+        This is the fit for the non-isotropic part of the signal:
+        """
+        return self._Lasso.predict(self.matrix[0])
+
+
+    @desc.auto_attr
+    def _iso_fit(self):
+        # We want this to have the size of the original signal which is
+        # (n_bvecs * n_vox), so we broadcast across directions in each voxel:
+        return (self.iso_weights[np.newaxis,...] +
+                np.zeros((len(self.b_idx), self.iso_weights.shape[0]))).T.ravel()
+
+
     @desc.auto_attr
     def fit(self):
         """
+        The predicted signal from the FiberModel
         """
-
-        pred_sig = np.array(np.dot(self.weights,
-                                   self.matrix.transpose())).squeeze()
+        # We generate the lasso prediction and in each voxel, we add the
+        # offset, according to the isotropic part of the signal, which was
+        # removed prior to fitting:
         
-
+        return self._fiber_fit + self._iso_fit
+               
+                 
+                

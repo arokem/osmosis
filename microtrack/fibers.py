@@ -187,7 +187,7 @@ class Fiber(desc.ResetMixin):
 
         for grad_idx, this_grad in enumerate(grad.T):
             usv = la.svd(np.matrix(this_grad), overwrite_a=True)
-            this_Q = (np.matrix(usv[2]).T * d_matrix * np.matrix(usv[2]))
+            this_Q = (np.matrix(usv[2]) * d_matrix * np.matrix(usv[2]))
             tensors[grad_idx]= mtt.Tensor(this_Q, bvecs, bvals)
 
         return tensors
@@ -201,7 +201,7 @@ class Fiber(desc.ResetMixin):
         """
         Compute the fiber contribution to the signal along its coords.
 
-
+        
         Notes
         -----
         
@@ -213,7 +213,6 @@ class Fiber(desc.ResetMixin):
 
         Where $S0$ is the unweighted signal and $\vec{b} * Q * \vec{b}^t$ is
         the ADC for each tensor.
-
 
         Parameters
         ----------

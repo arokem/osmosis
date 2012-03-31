@@ -88,7 +88,7 @@ class Tensor(object):
         # They should all be unit-length (to within tolerance):
         for bv in bvecs.T:
             norm = np.sqrt(np.dot(bv,bv))
-            if not np.allclose(norm, 1):
+            if not np.allclose(norm, 1, 1e-4):
                 e_s = "One of the bvecs is length %s "%norm
                 e_s += "; make sure they're all approximately"
                 e_s += " unit length"
@@ -251,7 +251,7 @@ def apparent_diffusion_coef(bvecs, q):
     $ADC = \vec{b} Q \vec{b}^T$
     """
     bvecs = np.matrix(bvecs)
-    return np.diag(bvecs.T* q* bvecs)
+    return np.diag(bvecs.T*q* bvecs)
 
 
 def tensor_from_eigs(evecs, evals, bvecs, bvals):
