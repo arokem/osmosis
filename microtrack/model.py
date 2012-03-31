@@ -1301,7 +1301,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             params[vox] = this_params
 
             if self.verbose: 
-                if np.mod(vox, 100)==0:
+                if np.mod(vox, 1000)==0:
                     print ("Fit %s voxels, %s percent"%(vox,
                             100*vox/float(self._flat_signal.shape[0])))
 
@@ -1479,7 +1479,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                                np.nan])
 
                 if self.verbose: 
-                    if np.mod(vox, 100)==0:
+                    if np.mod(vox, 1000)==0:
                         print ("Fit %s voxels, %s percent"%(vox,
                                 100*vox/float(self._flat_signal.shape[0])))
 
@@ -1655,8 +1655,8 @@ class TissueFractionModel(CanonicalTensorModel):
         # Fit the attenuation of the signal, not the signal itself:
         flat_att_tf = np.vstack([self._flat_signal.T/
                         self._flat_S0.T.reshape(1,self._flat_signal.shape[0]),
-                         self._flat_tf]).T
-        
+                        self._flat_tf]).T.astype(float) # To be on the safe side
+         
         tissue_ball = np.hstack([self.gray_D * np.ones(len(self.b_idx)), 0.15])
         water_ball = np.hstack([self.water_D * np.ones(len(self.b_idx)), 0])
         
@@ -2090,7 +2090,6 @@ class FiberModel(BaseModel):
         
         return self._fiber_fit + self._iso_fit
                
-                 
                 
 class SparseDeconvolutionModel(CanonicalTensorModel):
     """
@@ -2170,10 +2169,15 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         design_matrix = self.rotations.T
 
         for vox in xrange(self._flat_signal.shape[0]):
-            # Fit the signal attentuation:
-            sig = self._flat_signal[vox]/self._flat_S0[vox]
+            sig = self._flat_signal[vox] #/float(self._flat_S0[vox]) # Fit the
+                                         #signal attentuation?
             params[vox] = self._solver.fit(design_matrix, sig).coef_
 
+            if self.verbose and np.mod(vox,1000)==0:
+                print("Fit %s percent"%(100*float(vox)/
+                                        self._flat_signal.shape[0]))
+
+                
         out_params = np.nan * np.ones((self.signal.shape[:3] + 
                                       (design_matrix.shape[-1],)))
 
@@ -2192,8 +2196,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = (np.dot(self.rotations.T, flat_params[vox])
-                             * self._flat_S0[vox]) # Recover the signal by
+            out_flat[vox] = (np.dot(self.rotations.T, flat_params[vox]))
+                             #* self._flat_S0[vox]) # Recover the signal by
                                                     # multiplying with S0
             
         out = np.nan * np.ones(self.signal.shape)

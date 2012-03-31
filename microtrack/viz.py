@@ -7,6 +7,8 @@ now, only matplotlib stuff.
 
 """
 
+from itertools import cycle
+
 import matplotlib
 
 import matplotlib.pyplot as plt
@@ -16,6 +18,11 @@ import numpy as np
 import dipy.core.geometry as geo
 
 import microtrack.utils as mtu
+
+
+# make a color-cycle that can be used in plotting stuff: 
+color_cycle = cycle(['maroon','red','purple','fuchsia','green',
+                     'lime','olive','yellow','navy','blue'])
 
 def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
            return_mosaic=False, return_cbar=False, **kwargs):
