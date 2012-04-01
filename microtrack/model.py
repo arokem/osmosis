@@ -2161,28 +2161,46 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         Use sklearn to fit the parameters:
         """
-        # One weight for each rotation + isotropic:
-        params = np.empty((self._flat_signal.shape[0],
-                           self.rotations.shape[0]))
 
-        # One basis function per column (instead of rows): 
-        design_matrix = self.rotations.T
+        # The file already exists: 
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading params from file: %s"%self.params_file)
 
-        for vox in xrange(self._flat_signal.shape[0]):
-            sig = self._flat_signal[vox] #/float(self._flat_S0[vox]) # Fit the
-                                         #signal attentuation?
-            params[vox] = self._solver.fit(design_matrix, sig).coef_
+            # Get the cached values and be done with it:
+            return ni.load(self.params_file).get_data()
 
-            if self.verbose and np.mod(vox,1000)==0:
-                print("Fit %s percent"%(100*float(vox)/
-                                        self._flat_signal.shape[0]))
+        else:
 
-                
-        out_params = np.nan * np.ones((self.signal.shape[:3] + 
-                                      (design_matrix.shape[-1],)))
+            # One weight for each rotation
+            params = np.empty((self._flat_signal.shape[0],
+                               self.rotations.shape[0]))
 
-        out_params[self.mask] = params
-        return out_params
+            # One basis function per column (instead of rows): 
+            design_matrix = self.rotations.T
+
+            for vox in xrange(self._flat_signal.shape[0]):
+                sig = self._flat_signal[vox] #/float(self._flat_S0[vox]) # Fit
+                                        #the signal attentuation?
+                params[vox] = self._solver.fit(design_matrix, sig).coef_
+
+                if self.verbose and np.mod(vox,1000)==0:
+                    print("Fit %s percent"%(100*float(vox)/
+                                            self._flat_signal.shape[0]))
+
+
+            out_params = np.nan * np.ones((self.signal.shape[:3] + 
+                                          (design_matrix.shape[-1],)))
+
+            out_params[self.mask] = params
+            # Save the params to a file: 
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.verbose:
+                print("Saving params to file: %s"%self.params_file)
+            params_ni.to_filename(self.params_file)
+
+            # And return the params for current use:
+            return out_params
             
 
     @desc.auto_attr
@@ -2196,7 +2214,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = (np.dot(self.rotations.T, flat_params[vox]))
+            out_flat[vox] = np.dot(flat_params[vox], self.rotations)
                              #* self._flat_S0[vox]) # Recover the signal by
                                                     # multiplying with S0
             
