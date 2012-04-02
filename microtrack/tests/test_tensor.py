@@ -50,6 +50,11 @@ def test_Tensor():
                            bvals)
     
 
+    # bvecs and bvals need to have the same length!
+    Q8 = npt.assert_raises(ValueError, mtt.Tensor, Q4, [[1,0,0],[0,1,0],[0,0,1]],
+                           np.hstack([bvals, 1]))
+
+
 def test_Tensor_ADC():
     # If we have a diagonal tensor: 
     Q1_diag = np.random.rand(3)

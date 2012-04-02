@@ -2185,8 +2185,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean: 
-                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox]) 
-                params[vox] = self._solver.fit(design_matrix, sig).coef_
+                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox])
+                try:
+                    params[vox] = self._solver.fit(design_matrix, sig).coef_
+                except:
+                    print "could not fit here: %s"%vox
+                    params[vox] = np.nan * np.ones(design_matrix.shape[-1])
 
                 if self.verbose and np.mod(vox,1000)==0:
                     print("Fit %s percent"%(100*float(vox)/
@@ -2213,7 +2217,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Predict the data from the fit of the SparseDeconvolutionModel
         """
         if self.verbose:
-            print("Predicting signal from SparseDeconvolutionModel")
+            msg = "Predicting signal from SparseDeconvolutionModel"
+            msg += "with %s"%self.solver
+            print(msg)
 
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]

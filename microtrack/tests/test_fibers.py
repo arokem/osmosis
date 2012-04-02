@@ -23,8 +23,11 @@ def test_Fiber():
     f2 = mtf.Fiber(arr2d)    
     # But this raises a ValueError:
     npt.assert_raises(ValueError, mtf.Fiber, arr2d.T)
-    # This should also raise (second dim is 4, rather than 3): 
-    npt.assert_raises(ValueError, mtf.Fiber, np.empty((10,4)))
+    # This should also raise (first dim is 4, rather than 3): 
+    npt.assert_raises(ValueError, mtf.Fiber, np.empty((4,10)))
+    # This should also raise (funky affine): 
+    npt.assert_raises(ValueError, mtf.Fiber, np.empty((3,10)), np.eye(5))
+    
     # This should be OK:
     f3 = mtf.Fiber(np.array(arr2d), affine = np.eye(4), fiber_stats=dict(a=1))
     npt.assert_equal(f3.fiber_stats, {'a':1})
@@ -38,7 +41,16 @@ def test_Fiber_xform():
     npt.assert_equal(f1.coords, arr2d)
     f2 = f1.xform(inplace=False)
     npt.assert_equal(f2.coords, f1.coords)
-    
+
+    f1_noaff =  mtf.Fiber(arr2d,affine=None)
+    f1_noaff_notinplace = f1_noaff.xform(affine=None, inplace=False)    
+
+    # Should give you back a different object:
+    npt.assert_equal(not f1_noaff_notinplace is f1_noaff, True)
+
+    # But with equal coords:
+    npt.assert_equal(f1_noaff_notinplace.coords, f1_noaff.coords)
+
     # Keep everything the same, but translate the x coords by 1 downwards
     # http://en.wikipedia.org/wiki/Transformation_matrix#Affine_transformations:
     affine2 = np.matrix([[1, 0, 0, -1],
