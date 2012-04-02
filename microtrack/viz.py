@@ -151,17 +151,17 @@ def color_from_val(val, min_val=0, max_val=255,
         return tuple(rgb)
 
 
-def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
+def sig_on_sphere(bvecs, val, fig=None, sphere_dim=100, r_from_val=False,
                   **kwargs):
     """
     Presente values on a sphere.
 
     Parameters
     ----------
-    val: array with data
-
-    theta, phi: co-linear to the array with data, the theta, phi on the circle
+    bvecs: co-linear to the array with data, the theta, phi on the circle
         from which the data was taken
+
+    val: array with data
 
     fig: matplotlib figure, optional. Default: make new figure
 
@@ -176,6 +176,9 @@ def sig_on_sphere(val, theta, phi, fig=None, sphere_dim=100, r_from_val=False,
     Additional kwargs can be passed to the matplotlib.pyplot.plot3D command.
 
     """
+
+    # We don't need the r output
+    _, phi, theta = geo.cart2sphere(bvecs[0], bvecs[1], bvecs[2])
 
     if fig is None:
         fig = plt.figure()

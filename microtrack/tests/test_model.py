@@ -117,9 +117,11 @@ def test_FiberModel():
                        data_path + 'dwi.bvals',
                        FG, ad, rd)
 
-    npt.assert_equal(M.matrix.shape[0], M.fiber_signal.shape[0])
-    npt.assert_equal(M.matrix.shape[-1], len(FG.fibers))
+    npt.assert_equal(M.matrix[0].shape[0], M.voxel_signal.shape[0])
+    npt.assert_equal(M.matrix[0].shape[-1], len(FG.fibers))
 
+    npt.assert_equal(M.matrix[1].shape[0], M.voxel_signal.shape[0])
+    npt.assert_equal(M.matrix[1].shape[-1], len(M.fg_idx_unique.T))
 
 @npt.decorators.slow
 @npt.decorators.skipif(not 'CSD10.nii.gz' in os.listdir(data_path))

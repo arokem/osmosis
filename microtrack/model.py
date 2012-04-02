@@ -2176,11 +2176,16 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             params = np.empty((self._flat_signal.shape[0],
                                self.rotations.shape[0]))
 
-            # One basis function per column (instead of rows): 
-            design_matrix = self.rotations.T
+            # We fit the deviations from the mean signal, which is why we also
+            # demean each of the basis functions:
+            design_matrix = self.rotations - np.mean(self.rotations,0)
 
+            # One basis function per column (instead of rows):
+            design_matrix = design_matrix.T
+            
             for vox in xrange(self._flat_signal.shape[0]):
-                sig = self._flat_signal[vox] #/float(self._flat_S0[vox]) # Fit
+                # Fit the deviations from the mean: 
+                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox]) #/float(self._flat_S0[vox]) # Fit
                                         #the signal attentuation?
                 params[vox] = self._solver.fit(design_matrix, sig).coef_
 
@@ -2214,7 +2219,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = np.dot(flat_params[vox], self.rotations)
+            # Add back the mean signal:
+            out_flat[vox] = (np.dot(flat_params[vox], self.rotations) +
+                             np.mean(self._flat_signal[vox]))
                              #* self._flat_S0[vox]) # Recover the signal by
                                                     # multiplying with S0
             
