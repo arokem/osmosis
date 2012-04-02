@@ -2110,8 +2110,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
                  over_sample=None,
-                 verbose=True,
-                 n_canonicals=2):
+                 verbose=True):
         """
         Initialize SparseDeconvolutionModel class instance.
         """
@@ -2130,15 +2129,16 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                                       over_sample=over_sample,
                                       verbose=verbose)
         
-        self.params_file = params_file_resolver(self,
-                                                'SparseDeconvolutionModel',
-                                                params_file)
-
         # For now, the default is Lasso:
         if solver is None:
             self.solver = 'Lasso'
         else:
             self.solver = solver
+
+        self.params_file = params_file_resolver(self,
+                                            'SparseDeconvolutionModel%s'%solver,
+                                             params_file)
+
 
         # This will be passed as kwarg to the solver initialization:
         self.solver_params = solver_params
@@ -2185,8 +2185,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean: 
-                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox]) #/float(self._flat_S0[vox]) # Fit
-                                        #the signal attentuation?
+                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox]) 
                 params[vox] = self._solver.fit(design_matrix, sig).coef_
 
                 if self.verbose and np.mod(vox,1000)==0:
@@ -2222,8 +2221,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             # Add back the mean signal:
             out_flat[vox] = (np.dot(flat_params[vox], self.rotations) +
                              np.mean(self._flat_signal[vox]))
-                             #* self._flat_S0[vox]) # Recover the signal by
-                                                    # multiplying with S0
             
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
