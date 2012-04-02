@@ -127,8 +127,11 @@ def test_ols_matrix():
     # Outputs (noise-less!)
     y = np.dot(x, beta)
     # Estimate back:
-    beta_hat = np.array(np.dot(mtu.ols_matrix(x),y)).squeeze()
+    ols_matrix = mtu.ols_matrix(x)
+    beta_hat = np.array(np.dot(ols_matrix, y)).squeeze()
     # This should have recovered the original:
     npt.assert_almost_equal(beta, beta_hat)
     
-    
+    # Make sure that you can normalize and it gives you the same shape matrix: 
+    npt.assert_almost_equal(ols_matrix.shape,
+                            mtu.ols_matrix(x, norm_func=mtu.l2_norm).shape)

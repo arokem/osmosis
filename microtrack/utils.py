@@ -75,7 +75,8 @@ def l2_norm(arr):
     The l2 norm of an array is is defined as: sqrt(||x||), where ||x|| is the
     dot product of the vector.
     """
-    return np.sqrt(np.dot(arr, arr))
+    arr = np.asarray(arr)
+    return np.sqrt(np.dot(arr.ravel().squeeze(), arr.ravel().squeeze()))
 
 
 def unit_vector(arr, norm_func=l2_norm):
@@ -180,7 +181,7 @@ def fractional_anisotropy(lambda_1, lambda_2, lambda_3):
 
     return fa
 
-def ols_matrix(A, norm=None):
+def ols_matrix(A, norm_func=None):
     """
     Generate the matrix used to solve OLS regression.
 
@@ -216,8 +217,8 @@ def ols_matrix(A, norm=None):
 
     A = np.asarray(A)
     
-    if norm is not None:
-        X = norm(np.matrix(A.copy()))
+    if norm_func is not None:
+        X = np.matrix(unit_vector(A.copy(), norm_func=norm_func))
     else:
         X = np.matrix(A.copy())
 
