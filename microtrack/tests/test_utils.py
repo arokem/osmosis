@@ -94,7 +94,27 @@ def test_decompose_tensor():
         # The result is always going to be equal, up to a sign reversal of one
         # of the vectors (why does this happen?):
         npt.assert_almost_equal(np.abs(evecs_est/evecs), np.ones((3,3)))
-    
+
+def test_fractional_anisotropy():
+    """
+    Test the calculation of FA
+    """
+    # Test this both with and without numexpr, if you can: 
+    try:
+        import numexpr
+        has_numexpr = True
+    except ImportError:
+        has_numexpr = False
+
+    if has_numexpr:
+        for tst_numexpr in [False,True]:
+            mtu.has_numexpr = tst_numexpr
+            npt.assert_almost_equal(mtu.fractional_anisotropy(1,0,0), 1)
+            npt.assert_almost_equal(mtu.fractional_anisotropy(1,1,1), 0)
+    else:
+            npt.assert_almost_equal(mtu.fractional_anisotropy(1,0,0), 1)
+            npt.assert_almost_equal(mtu.fractional_anisotropy(1,1,1), 0)
+
     
 def test_ols_matrix():
     """
@@ -110,3 +130,5 @@ def test_ols_matrix():
     beta_hat = np.array(np.dot(mtu.ols_matrix(x),y)).squeeze()
     # This should have recovered the original:
     npt.assert_almost_equal(beta, beta_hat)
+    
+    

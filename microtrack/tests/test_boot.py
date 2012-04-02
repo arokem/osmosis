@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.testing as npt
 
+import microtrack as mt
 import microtrack.boot as mtb
 import microtrack.utils as mtu
 
@@ -15,6 +16,12 @@ def test_subsample():
     # The following runs through most of the module w/o verifying correctness:
     sub_sample = mtb.subsample(bvecs, 100)
 
+    # optionally, you can provide elec_points as input. Here we test this with
+    # the same points
+    mt_path = mt.__path__[0]
+    e_points = np.loadtxt('%s/camino_pts/Elec%03d.txt'%(mt_path, 100))
+    sub_sample = mtb.subsample(bvecs, 100, elec_points=e_points)
+    
 def test_dyad():
     """
     Test the dyadic tensor and coherence based on the dyadic tensor
