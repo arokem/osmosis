@@ -103,8 +103,9 @@ def dyadic_tensor(eigs,average=True):
     orientation from diffusion tensor MRI MRM, 49: 7-12
     """
 
+    eigs = np.asarray(eigs)
     dyad = np.empty(eigs.shape)
-
+    
     for idx in xrange(eigs.shape[0]):
         # We only look at the first eigen-vector:
         dyad[idx] = np.matrix(eigs[idx][0]).T * np.matrix(eigs[idx][0])
@@ -134,11 +135,14 @@ def dyad_dispersion(dyad):
     the full distribution of dyadic tensors (dyadic_tensor calculated with
     average=False) 
     """
-    mean_principal_eigvec  = la.eigh(np.mean(dyad,0))[1]
+    mean_eigvals, mean_eigvecs  = la.eig(np.mean(dyad,0))
+
+    mean_principal_eigvec = mean_eigvecs[0]
+                 
     theta = []
     for this_d in dyad:
         # Using equation 3 in Jones(2003):
-        theta.append(np.arccos(this_d[0], mean_principal_eigvec))
+        theta.append(np.arccos(np.dot(this_d[0], mean_principal_eigvec)))
 
     # Average over all the tensors:
     return np.mean(theta)
