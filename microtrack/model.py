@@ -364,6 +364,23 @@ class DWI(desc.ResetMixin):
         """
         return self.data[...,self.b_idx].squeeze()
 
+    @desc.auto_attr
+    def signal_attenuation(self):
+        """
+        The signal attenuation in each b-weighted volume, relative to the mean
+        of the non b-weighted volumes
+        """
+        # Need to broadcast for this to work:
+        return self.signal/np.reshape(self.S0, (self.S0.shape + (1,)))
+
+    @desc.auto_attr
+    def _flat_signal_attenuation(self):
+        """
+        Get the flat signal attenuation only in the mask
+        """        
+        return np.reshape(self.signal_attenuation[self.mask],
+                          (-1, self.b_idx.shape[0]))
+
 
 class BaseModel(DWI):
     """
@@ -690,12 +707,9 @@ class TensorModel(BaseModel):
             ADC = -log \frac{S}{S0}
 
         """
-        out = np.nan * np.ones(self.signal.shape)
-        flat_S0 = (self._flat_S0[:, np.newaxis] +
-                   np.zeros(self._flat_signal.shape))
-        
+        out = np.nan * np.ones(self.signal.shape)        
         out[self.mask] = ((-1/self.bvals[self.b_idx][0]) *
-                          np.log(self._flat_signal/flat_S0))
+                        np.log(self._flat_signal_attenuation))
 
         return out
         
@@ -1146,12 +1160,13 @@ class CanonicalTensorModel(BaseModel):
         for idx in range(len(self.b_idx)):
             # The 'design matrix':
             d = np.vstack([self.rotations[idx],
-                           np.ones(self.b_idx.shape[0])]).T
+                           np.ones(self.b_idx.shape[0])] ).T
             # This is $(X' X)^{-1} X':
             ols_mat = mtu.ols_matrix(d)
-            # Multiply to find the OLS solution:
+            # Multiply to find the OLS solution (fitting to the signal
+            # attenuation in each voxel):
             ols_weights[idx] = np.array(np.dot(ols_mat,
-                                     self._flat_signal.T)).squeeze()
+                                        self._flat_signal_attenuation.T))
         return ols_weights
 
 
@@ -1201,11 +1216,14 @@ class CanonicalTensorModel(BaseModel):
                 # possible...) to not blow up the memory:
                 vox_fits = np.empty(self.rotations.shape)
                 for rot_i, rot in enumerate(self.rotations):
-                    vox_fits[rot_i] = b_w[rot_i,vox] * rot + i_w[rot_i,vox]
+                    vox_fits[rot_i] = ((b_w[rot_i,vox] * rot + i_w[rot_i,vox]) *
+                                       self._flat_S0[vox])
 
                 # Find the predicted signal that best matches the original
-                # signal. That will choose the direction for the tensor we use: 
-                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+                # signal attenuation. That will choose the direction for the
+                # tensor we use:
+                corrs = mtu.seed_corrcoef(self._flat_signal_attenuation[vox],
+                                          vox_fits)
                 idx = np.where(corrs==np.nanmax(corrs))[0]
 
                 # Sometimes there is no good solution (maybe we need to fit
@@ -1241,7 +1259,7 @@ class CanonicalTensorModel(BaseModel):
     @desc.auto_attr
     def fit(self):
         """
-        Predict the data from the fit of the CanonicalTensorModel
+        Predict the signal attenuation from the fit of the CanonicalTensorModel
         """
         if self.verbose:
             print("Predicting signal from CanonicalTensorModel")
@@ -1394,9 +1412,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                 np.ones(self.b_idx.shape[0])]).T
             # This is $(X' X)^{-1} X':
             ols_mat = mtu.ols_matrix(d)
-            # Multiply to find the OLS solution:
+            # Multiply to find the OLS solution (fit to signal attenuation):
             ols_weights[row] = np.array(
-                np.dot(ols_mat, self._flat_signal.T)).squeeze()
+                np.dot(ols_mat, self._flat_signal_attenuation.T)).squeeze()
 
         return ols_weights
 
@@ -1456,10 +1474,13 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     vox_fits[idx] = i_w[idx,vox]
                     vox_fits[idx] += (np.dot(b_w[idx,:,vox],
                                 np.array([self.rotations[x] for x in rot_idx])))
-                    
+
                 # Find the predicted signal that best matches the original
-                # signal. That will choose the direction for the tensor we use: 
-                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
+                # signal attenuation. That will choose the direction for the
+                # tensor we use:
+                corrs = mtu.seed_corrcoef(self._flat_signal_attenuation[vox],
+                                          vox_fits)
+                
                 idx = np.where(corrs==np.nanmax(corrs))[0]
 
                 # Sometimes there is no good solution:
@@ -1498,7 +1519,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
     @desc.auto_attr
     def fit(self):
         """
-        Predict the data from the fit of the MultiCanonicalTensorModel
+        Predict the signal attenuation from the fit of the
+     MultiCanonicalTensorModel 
         """
         if self.verbose:
             print("Predicting signal from MultiCanonicalTensorModel")
@@ -1519,7 +1541,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                np.array([self.rotations[i] for i in rot_idx])) +
                                i_w)
             else:
-                out_flat[vox] = np.nan
+                out_flat[vox] = np.nan  # This gets broadcast to the right
+                                        # length on assigment?
         
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
@@ -1528,7 +1551,6 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
 class TissueFractionModel(CanonicalTensorModel):
     """
-
     This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
     measurement of the tissue fraction in different parts of the brain. The
     model posits that tissue fraction accounts for non-free water, restriced or
@@ -1550,6 +1572,7 @@ class TissueFractionModel(CanonicalTensorModel):
 
     tissue_fraction: Full path to a file containing the TF, registered to the
     DWI data and resampled to the DWI data resolution.
+
     """
 
     def __init__(self,
@@ -1593,6 +1616,9 @@ class TissueFractionModel(CanonicalTensorModel):
         self.gray_D = gray_D
         self.water_D = water_D
 
+        # We're going to grid-search over these:
+        self.l1 = np.linspace(0.1,1,10)
+        self.l2 = np.linspace(0.1,1,10)
         
     @desc.auto_attr
     def _flat_tf(self):
@@ -1605,12 +1631,12 @@ class TissueFractionModel(CanonicalTensorModel):
 
 
     @desc.auto_attr
-    def fit_tf():
+    def fit_tf(self):
         """
 
         Fitting the weights for the TissueFractionModel is done as a second
         stage, after done fitting the CanonicalTensorModel.
-
+        
         The logic is as follows:
 
         The isotropic weight calculated in the previous stage subsumes two
@@ -1620,7 +1646,7 @@ class TissueFractionModel(CanonicalTensorModel):
         .. math::
 
             \beta_{iso} = \beta_2 + \beta_3
-
+            
         Where $\beta_{iso}$ is the weight for the isotropic component fit for
         the initial fit and $\beta_{2,3}$ are the weights of tissue water and
         free water respectively.
@@ -1637,132 +1663,42 @@ class TissueFractionModel(CanonicalTensorModel):
         additional relative weights of the two components within the tissue
         (canonical tensor and tissue  water) and $\lambda_3 = 0$, reflecting
         the fact that the free water is not part of the tissue fraction at all.
-        """
 
-        pass
+        To find $\beta2$ and $\beta3$, we follow these steps:
 
-
-    @desc.auto_attr
-    def ols(self):
-        """
-        Compute the design matrices the matrices for OLS fitting and the OLS
-        solution. Cache them for reuse in each direction over all voxels.
-        """
+        0. We find $\beta_1 = \beta_{tensor}$ using the CanonicalTensorModel
         
-        # Preallocate:
-        ols_weights = np.empty((len(self.b_idx), 3, self._flat_signal.shape[0]))
-        
-        # Fit the attenuation of the signal, not the signal itself:
-        flat_att_tf = np.vstack([self._flat_signal.T/
-                        self._flat_S0.T.reshape(1,self._flat_signal.shape[0]),
-                        self._flat_tf]).T.astype(float) # To be on the safe side
-         
-        tissue_ball = np.hstack([self.gray_D * np.ones(len(self.b_idx)), 0.15])
-        water_ball = np.hstack([self.water_D * np.ones(len(self.b_idx)), 0])
-        
-        for idx in range(len(self.b_idx)):
-            # The tensor does not contribute to the TF:
-            rot = np.hstack(
-        [self.gray_D * self.rotations[idx]/np.max(self.rotations[idx]), 0.3])
-            # The 'design matrix':
-            d = np.vstack([rot,tissue_ball.T, water_ball.T])
-            #This is $(X' X)^{-1} X':
-            ols_mat = mtu.ols_matrix(d)
-            # Multiply to find the OLS solution:
-            ols_weights[idx] = np.array(np.dot(ols_mat.T,flat_att_tf.T))
+        1. We fix the values of \lambda_1 and \lambda_2 and solve for \beta_2:
 
-        return ols_weights
+            \beta_2 = \frac{TF - \lambda_1 \beta_1}{\lambda2} =
 
+        2. From the first equation above, we can then solve for \beta_3:
 
-    @desc.auto_attr
-    def model_params(self):
-        """
-        The model parameters.
-
-        Similar to the TensorModel, if a fit has ocurred, the data is cached on
-        disk as a nifti file 
-
-        If a fit hasn't occured yet, calling this will trigger a model fit and
-        derive the parameters.
-
-        In that case, the steps are as follows:
-
-        1. Perform OLS fitting on all voxels in the mask, with each of the
-           $\vec{b}$. Choose only the non-negative weights. 
-
-        2. Find the PDD that most readily explains the data (highest
-           correlation coefficient between the data and the predicted signal)
-           and use that one to derive the fit for that voxel
-
-        """
-        # The file already exists: 
-        if os.path.isfile(self.params_file):
-            if self.verbose:
-                print("Loading params from file: %s"%self.params_file)
-
-            # Get the cached values and be done with it:
-            return ni.load(self.params_file).get_data()
-        else:
-            # Looks like we might need to do some fitting... 
-
-            # Get the bvec weights and the isotropic weights (for both the
-            # tissue ball and the free water ball):
-            b_w = self.ols[:,0,:].copy().squeeze()
-            i1_w = self.ols[:,1,:].copy().squeeze()
-            i2_w = self.ols[:,2,:].copy().squeeze()
+            \beta_3 = \beta_{iso} - \beta_2
             
-            # nan out the places where weights are negative: 
-            #b_w[b_w<0] = np.nan
-            #i1_w[i1_w<0] = np.nan
-            #i2_w[i2_w<0] = np.nan
+        3. We go back to the expanded model and predict the diffusion and the
+        TF data for these values of     
 
-            params = np.empty((self._flat_signal.shape[0],4))
-            # Find the best OLS solution in each voxel:
-            for vox in xrange(self._flat_signal.shape[0]):
-                # We do this in each voxel (instead of all at once, which is
-                # possible...) to not blow up the memory:
-                vox_fits = np.empty(self.rotations.shape)
-                for rot_i, rot in enumerate(self.rotations):
-                    vox_fits[rot_i] =(
-                        b_w[rot_i,vox] * rot + i1_w[rot_i,vox] + i2_w[rot_i,vox])
+        """
+        # Start by getting the params for the underlying CanonicalTensorModel:
+        temp_p_file = self.params_file
+        self.params_file = params_file_resolver(self,
+                                                'CanonicalTensorModel')
+        tensor_params = super(TissueFractionModel, self).model_params
+        self.params_file = temp_p_file
 
-                # Find the predicted signal that best matches the original
-                # signal. That will choose the direction for the tensor we use: 
-                corrs = mtu.seed_corrcoef(self._flat_signal[vox], vox_fits)
-                idx = np.where(corrs==np.nanmax(corrs))[0]
+        b2 = []
+        b3 = []
+        
+        for l1 in self.l1:
+            for l2 in self.l2:
+                b2.append((self._flat_tf - self.l1 * tensor_params[1]) /
+                          (self.l2))
+                b3.append(tensor_params[2] - b2)
 
-                # Sometimes there is no good solution (maybe we need to fit
-                # just an isotropic to all of these?):
-                if len(idx):
-                    # In case more than one fits the bill, just choose the
-                    # first one:
-                    if len(idx)>1:
-                        idx = idx[0]
-                    
-                    params[vox,:] = np.array([idx,
-                                              b_w[idx, vox],
-                                              i1_w[idx, vox],
-                                              i2_w[idx, vox],
-                                              ]).squeeze()
-                else:
-                    params[vox,:] = np.array([np.nan, np.nan, np.nan, np.nan])
-
-                if self.verbose: 
-                    if np.mod(vox, 1000)==0:
-                        print ("Fit %s voxels, %s percent"%(vox,
-                                100*vox/float(self._flat_signal.shape[0])))
-
-            # Save the params for future use: 
-            out_params = np.nan * np.ones(self.signal.shape[:3] + (4,))
-            out_params[self.mask] = np.array(params).squeeze()
-            params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
-
-            # And return the params for current use:
-            return out_params
-
+        
+        
+        
     @desc.auto_attr
     def fit(self):
         """
@@ -1770,8 +1706,10 @@ class TissueFractionModel(CanonicalTensorModel):
         """
         if self.verbose:
             print("Predicting signal from TissueFractionModel")
+
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
+
         for vox in xrange(out_flat.shape[0]):
             if ~np.any(np.isnan(flat_params[vox])):
                 out_flat[vox]=(

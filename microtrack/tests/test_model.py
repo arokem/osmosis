@@ -89,7 +89,7 @@ def test_TensorModel():
     TM = mtm.TensorModel(data_path + 'small_dwi.nii.gz',
                          data_path + 'dwi.bvecs',
                          data_path + 'dwi.bvals',
-                         params_file=tensor_file)
+                         params_file=tempfile.NamedTemporaryFile().name)
     
     # Make sure the shapes of things make sense: 
     npt.assert_equal(TM.model_params.shape, TM.data.shape[:3] + (12,))
@@ -129,7 +129,7 @@ def test_SphericalHarmonicsModel():
     """
     Test the estimation of SH models.
     """
-
+    
     model_coeffs = ni.load(data_path + 'CSD10.nii.gz').get_data()
 
     SHM = mtm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
@@ -149,7 +149,24 @@ def test_CanonicalTensorModel():
 
     CTM = mtm.CanonicalTensorModel(data,
                                    data_path + 'dwi.bvecs',
-                                   data_path + 'dwi.bvals')
+                                   data_path + 'dwi.bvals',
+        params_file=tempfile.NamedTemporaryFile().name)
     
     # Smoke testing
-    CTM.model_params
+    npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+    idx = (40,40,40)
+    mask_array = np.zeros(ni.load(data_path+'dwi.nii.gz').get_shape()[:3])
+
+    # Fit this on some real dwi data
+    CTM = mtm.CanonicalTensorModel(data_path+'dwi.nii.gz',
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+                                   mask=mask_array,
+        params_file=tempfile.NamedTemporaryFile().name)
+
+    # fit it!
+    npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+    
+
+    
