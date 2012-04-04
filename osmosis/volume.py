@@ -177,7 +177,6 @@ def resample_volume(source, target):
         # This can only be done within the bounding box of the target:
         if (i[0]>=0 and i[0]<new_vol.shape[0] and i[1]>=0 and
             i[1]<new_vol.shape[1] and i[2]>=0 and i[2]<new_vol.shape[2]):
-            print "woot"
             new_vol[i[0], i[1], i[2]] += source.get_data()[source_idx[0,c],
                                                            source_idx[1,c],
                                                            source_idx[2,c]]
