@@ -1,4 +1,4 @@
-"""Microtrack version/release information"""
+"""Osmosis version/release information"""
 
 # Format expected by setup.py and doc/source/conf.py: string of form "X.Y.Z"
 _version_major = 0
@@ -24,7 +24,7 @@ CLASSIFIERS = ["Development Status :: 3 - Alpha",
                "Programming Language :: Python",
                "Topic :: Scientific/Engineering"]
 
-description = "Microtrack"
+description = "Osmosis"
 
 long_description = """
 
