@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# microtrack documentation build configuration file, created by
+# osmosis documentation build configuration file, created by
 # sphinx-quickstart on Mon Jan 30 18:29:16 2012.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -104,7 +104,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'microtrack'
+project = u'osmosis'
 copyright = u'2012, VISTA team'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -113,7 +113,7 @@ copyright = u'2012, VISTA team'
 
 # Get the version info from the source file:
 ver = {}
-execfile('../microtrack/version.py', ver)
+execfile('../osmosis/version.py', ver)
 # The short X.Y version.
 version = '%s.%s' % (ver['_version_major'], ver['_version_minor'])
 # The full version, including alpha/beta/rc tags.
@@ -233,7 +233,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'microtrackdoc'
+htmlhelp_basename = 'osmosisdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -247,7 +247,7 @@ htmlhelp_basename = 'microtrackdoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'microtrack.tex', u'microtrack Documentation',
+  ('index', 'osmosis.tex', u'osmosis Documentation',
    u'VISTA team', 'manual'),
 ]
 
@@ -280,6 +280,6 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'microtrack', u'microtrack Documentation',
+    ('index', 'osmosis', u'osmosis Documentation',
      [u'VISTA team'], 1)
 ]

@@ -2,7 +2,7 @@ import numpy as np
 import numpy.testing as npt
 import scipy.linalg as la
 
-import microtrack.utils as mtu
+import osmosis.utils as mtu
 
 def test_unique_coords():
     """

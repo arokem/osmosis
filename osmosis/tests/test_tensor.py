@@ -1,7 +1,7 @@
 import exceptions
 
-import microtrack.tensor as mtt
-import microtrack.fibers as mtf
+import osmosis.tensor as mtt
+import osmosis.fibers as mtf
 
 import numpy as np
 import numpy.testing as npt

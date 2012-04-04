@@ -1,4 +1,4 @@
-"""Descriptor support for microtrack.
+"""Descriptor support for osmosis.
 
 Originally written by Fernando Perez and taken from nitime.
 

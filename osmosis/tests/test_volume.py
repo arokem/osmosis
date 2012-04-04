@@ -3,9 +3,9 @@ import numpy.testing as npt
 
 import nibabel as ni
 
-import microtrack as mt
-import microtrack.volume as mtv
-import microtrack.fibers as mtf
+import osmosis as mt
+import osmosis.volume as mtv
+import osmosis.fibers as mtf
 
 def test_nii2fg():
     """

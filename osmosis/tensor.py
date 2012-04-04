@@ -3,8 +3,8 @@ import warnings
 import numpy as np
 import scipy.linalg as la
 
-import microtrack.descriptors as desc
-import microtrack.utils as mtu
+import osmosis.descriptors as desc
+import osmosis.utils as mtu
 
 class Tensor(object):
     """

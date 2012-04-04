@@ -1,7 +1,7 @@
 import os
 
-import microtrack as mt
-import microtrack.fibers as mtf
+import osmosis as mt
+import osmosis.fibers as mtf
 
 import numpy as np
 import numpy.testing as npt

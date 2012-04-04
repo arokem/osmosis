@@ -7,11 +7,11 @@ import numpy.testing as npt
 
 import nibabel as ni
 
-import microtrack as mt
-import microtrack.model as mtm
-import microtrack.fibers as mtf
-import microtrack.tensor as mtt
-import microtrack.io as mio
+import osmosis as mt
+import osmosis.model as mtm
+import osmosis.fibers as mtf
+import osmosis.tensor as mtt
+import osmosis.io as mio
 
 # Initially, we want to check whether the data is available (would have to be
 # downloaded separately, because it's huge): 

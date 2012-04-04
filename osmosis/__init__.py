@@ -4,4 +4,4 @@ Top-level docstring
 
 __docformat__ = 'restructuredtext'
 
-from microtrack.version import  __version__
+from osmosis.version import  __version__

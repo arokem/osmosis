@@ -55,11 +55,11 @@ import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import nibabel as ni
 
-import microtrack.descriptors as desc
-import microtrack.fibers as mtf
-import microtrack.tensor as mtt
-import microtrack.utils as mtu
-import microtrack.boot as boot
+import osmosis.descriptors as desc
+import osmosis.fibers as mtf
+import osmosis.tensor as mtt
+import osmosis.utils as mtu
+import osmosis.boot as boot
 
 
 # Global constants for this module:
@@ -891,7 +891,7 @@ class SphericalHarmonicsModel(BaseModel):
         
         Parameters
         ----------
-        DWI: microtrack.dwi.DWI class instance.
+        DWI: osmosis.dwi.DWI class instance.
 
         model_coefficients: ndarray
            Coefficients for a SH model, organized according to the conventions
@@ -1855,7 +1855,7 @@ class FiberModel(BaseModel):
         Parameters
         ----------
         
-        FG: a microtrack.fibers.FiberGroup object, or the name of a pdb file
+        FG: a osmosis.fibers.FiberGroup object, or the name of a pdb file
             containing the fibers to be read in using mtf.fg_from_pdb
 
         axial_diffusivity: The axial diffusivity of a single fiber population.

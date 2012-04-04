@@ -36,7 +36,7 @@ All rights reserved.
 
 """
 
-NAME = "microtrack"
+NAME = "osmosis"
 MAINTAINER = "Ariel Rokem"
 MAINTAINER_EMAIL = "arokem@gmail.com"
 DESCRIPTION = description
@@ -51,13 +51,13 @@ MAJOR = _version_major
 MINOR = _version_minor
 MICRO = _version_micro
 VERSION = __version__
-PACKAGES = ['microtrack',
-            'microtrack.tests',
-            'microtrack.fibers',
-            'microtrack.tensor',
-            'microtrack.viz'
+PACKAGES = ['osmosis',
+            'osmosis.tests',
+            'osmosis.fibers',
+            'osmosis.tensor',
+            'osmosis.viz'
             ]
-PACKAGE_DATA = {"microtrack": ["LICENSE", "data/*.pdb", "data/*.mat",
+PACKAGE_DATA = {"osmosis": ["LICENSE", "data/*.pdb", "data/*.mat",
                                "camino_pts/*.txt"]}
 
 REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel"]

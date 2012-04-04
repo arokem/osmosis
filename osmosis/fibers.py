@@ -7,9 +7,9 @@ import scipy.stats as stats
 import scipy.linalg as la
 
 # Import locally: 
-import microtrack.descriptors as desc
-import microtrack.tensor as mtt
-import microtrack.utils as mtu
+import osmosis.descriptors as desc
+import osmosis.tensor as mtt
+import osmosis.utils as mtu
 
 class Fiber(desc.ResetMixin):
     """

@@ -7,8 +7,8 @@ Utilities for sub-sampling b vectors from dwi experiments
 import numpy as np
 import scipy.linalg as la
 
-import microtrack as mt
-import microtrack.utils as mtu
+import osmosis as mt
+import osmosis.utils as mtu
 
 def subsample(bvecs, n_dirs, elec_points=None):
     """

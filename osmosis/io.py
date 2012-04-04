@@ -64,7 +64,7 @@ import struct
 import os
 
 import numpy as np
-import microtrack.fibers as mtf
+import osmosis.fibers as mtf
 
 
 # XXX The following functions are way too long. Break 'em up!
@@ -82,7 +82,7 @@ def fg_from_pdb(file_name, verbose=True):
     Note
     ----
     This only reads Version 3 PDB. For the full file-format spec, see the
-    microtrack.io module top-level docstring
+    osmosis.io module top-level docstring
     
     """
     # Read the file as binary info:
@@ -210,7 +210,7 @@ _fmt_dict = {'int':['=i', 4],
 
 def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
     """
-    Create a pdb file from a microtrack.fibers.FiberGroup class instance.
+    Create a pdb file from a osmosis.fibers.FiberGroup class instance.
 
     Parameters
     ----------

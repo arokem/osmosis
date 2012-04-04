@@ -1,5 +1,5 @@
 """
-microtrack.volume
+osmosis.volume
 =================
 
 Integration of data from volumes into fiber groups
@@ -11,9 +11,9 @@ import os
 import numpy as np
 import nibabel as ni
 
-import microtrack.fibers as mtf
-import microtrack.io as io
-import microtrack.utils as mtu
+import osmosis.fibers as mtf
+import osmosis.io as io
+import osmosis.utils as mtu
 
 
 def nii2fg(fg, nii, data_node=0, stat_name=None):
@@ -22,7 +22,7 @@ def nii2fg(fg, nii, data_node=0, stat_name=None):
 
     Parameters
     ----------
-    fg: A microtrack.fibers.FiberGroup class instance or a full path to a pdb
+    fg: A osmosis.fibers.FiberGroup class instance or a full path to a pdb
         file.
 
     nii: A nibabel.Nifti1 class instance or a full path to a nifti file.

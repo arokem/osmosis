@@ -5,9 +5,9 @@ import numpy as np
 import numpy.testing as npt
 import scipy.io as sio 
 
-import microtrack.io as mio
-import microtrack.fibers as mtf
-import microtrack as mt
+import osmosis.io as mio
+import osmosis.fibers as mtf
+import osmosis as mt
 
 
 def test_fg_from_pdb():

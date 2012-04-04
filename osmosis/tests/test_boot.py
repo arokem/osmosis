@@ -1,9 +1,9 @@
 import numpy as np
 import numpy.testing as npt
 
-import microtrack as mt
-import microtrack.boot as mtb
-import microtrack.utils as mtu
+import osmosis as mt
+import osmosis.boot as mtb
+import osmosis.utils as mtu
 
 def test_subsample():
     """

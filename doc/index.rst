@@ -1,5 +1,5 @@
 
-Welcome to microtrack's documentation!
+Welcome to osmosis's documentation!
 ======================================
 
 Contents:

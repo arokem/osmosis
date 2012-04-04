@@ -17,7 +17,7 @@ import numpy as np
 
 import dipy.core.geometry as geo
 
-import microtrack.utils as mtu
+import osmosis.utils as mtu
 
 
 # make a color-cycle that can be used in plotting stuff: 
