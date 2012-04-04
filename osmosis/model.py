@@ -1118,7 +1118,6 @@ class CanonicalTensorModel(BaseModel):
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
-                 water_diffusivity=3.0,
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
@@ -1156,7 +1155,6 @@ class CanonicalTensorModel(BaseModel):
         
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
-        self.wd = water_diffusivity
         self.params_file = params_file_resolver(self,
                                                 'CanonicalTensorModel',
                                                  params_file)
@@ -1181,18 +1179,6 @@ class CanonicalTensorModel(BaseModel):
         # assume S0==1, the fit weight should soak that up:
         return np.array([this.predicted_signal(1) 
                          for this in self.response_function._rotations])
-
-    @desc.auto_attr
-    def water_signal(self):
-        """
-        The signal in a voxel containing only water is predicted by an
-        isotropic diffusion tensor, with the mean diffusivity of water at 37 
-        C (which is approximately 3.0), pointing to the north pole.
-        """
-        return mtt.Tensor(
-            np.diag([self.wd, self.wd, self.wd]),  # Water!
-            self.bvecs[:, self.b_idx],
-            self.bvals[:, self.b_idx]).predicted_signal(1)
     
     @desc.auto_attr
     def ols(self):
@@ -1205,7 +1191,7 @@ class CanonicalTensorModel(BaseModel):
         for idx in range(len(self.b_idx)):
             # The 'design matrix':
             d = np.vstack([self.rotations[idx],
-                           self.water_signal]).T
+                           np.ones(self.rotations.shape[-1])]).T
             # This is $(X' X)^{-1} X':
             ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution (fitting to the signal
@@ -1262,7 +1248,7 @@ class CanonicalTensorModel(BaseModel):
                 vox_fits = np.empty(self.rotations.shape)
                 for rot_i, rot in enumerate(self.rotations):
                     vox_fits[rot_i] = ((b_w[rot_i,vox] * rot +
-                                        i_w[rot_i,vox] * self.water_signal) *
+                                        i_w[rot_i,vox]) *
                                        self._flat_S0[vox])
 
                 # Find the predicted signal that best matches the original
@@ -1316,7 +1302,7 @@ class CanonicalTensorModel(BaseModel):
             if ~np.isnan(flat_params[vox, 1]):
                 out_flat[vox]=(
                     flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                    flat_params[vox,2] * self.water_signal)
+                    flat_params[vox,2]) * self._flat_S0[vox]
             else:
                 out_flat[vox] = np.nan
                 
