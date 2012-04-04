@@ -494,4 +494,50 @@ def seed_corrcoef(seed, target):
 
     return r
 
-        
+# Westin stats. Taken from:         
+#
+#    Westin C.-F., Peled S., Gubjartsson H., Kikinis R., Jolesz F.,
+#    "Geometrical diffusion measures for MRI from tensor basis analysis"
+#    in Proc. 5th Annual ISMRM, 1997.
+
+def tensor_linearity(l1, l2, l3):
+    """
+    The 
+    Notes
+    -----
+    Westin C.-F., Peled S., Gubjartsson H., Kikinis R., Jolesz F.,
+    "Geometrical diffusion measures for MRI from tensor basis analysis"
+    in Proc. 5th Annual ISMRM, 1997.
+    
+    """
+
+    return (l1 - l2) / (l1 + l2 + l3)
+
+
+def tensor_planarity(l1, l2, l3):
+    """
+    The planarity 
+
+    Notes
+    -----
+    Westin C.-F., Peled S., Gubjartsson H., Kikinis R., Jolesz F.,
+    "Geometrical diffusion measures for MRI from tensor basis analysis"
+    in Proc. 5th Annual ISMRM, 1997.
+
+    """
+    return (2 * (l2 - l3)) / (l1 + l2 + l3)
+
+
+def tensor_sphericity(l1, l2, l3):
+    """
+
+    Notes
+    -----
+    Westin C.-F., Peled S., Gubjartsson H., Kikinis R., Jolesz F.,
+    "Geometrical diffusion measures for MRI from tensor basis analysis"
+    in Proc. 5th Annual ISMRM, 1997.
+
+    """
+    return (3 * l3) / (l1 + l2 + l3)
+
+

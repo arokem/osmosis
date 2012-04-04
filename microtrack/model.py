@@ -257,15 +257,15 @@ class DWI(desc.ResetMixin):
         """
         Get the flat data only in the mask
         """        
-        return np.reshape(self.data[self.mask],
-                          (-1, self.bvecs.shape[-1]))
-
+        return self.data[self.mask]
+               
     @desc.auto_attr
     def _flat_S0(self):
         """
         Get the signal in the b0 scans in flattened form (only in the mask)
         """
         return np.mean(self._flat_data[:,self.b0_idx], -1)
+
 
     @desc.auto_attr
     def _flat_signal(self):
@@ -276,7 +276,6 @@ class DWI(desc.ResetMixin):
         return self._flat_data[:,self.b_idx]
 
 
-    
     def signal_reliability(self,
                            DWI2,
                            correlator=stats.pearsonr,
@@ -748,6 +747,31 @@ class TensorModel(BaseModel):
     def axial_diffusivity(self):
         return self.evals[...,0]
 
+
+    @desc.auto_attr
+    def linearity(self):
+        out = np.nan * np.ones(self.data.shape[:3])
+        out[self.mask] = mtu.tensor_linearity(self.evals[..., 0][self.mask],
+                                              self.evals[..., 1][self.mask],
+                                              self.evals[..., 2][self.mask])
+        return out
+
+    @desc.auto_attr
+    def planarity(self):
+        out = np.nan * np.ones(self.data.shape[:3])
+        out[self.mask] = mtu.tensor_planarity(self.evals[..., 0][self.mask],
+                                              self.evals[..., 1][self.mask],
+                                              self.evals[..., 2][self.mask])
+        return out
+
+    @desc.auto_attr
+    def sphericity(self):
+        out = np.nan * np.ones(self.data.shape[:3])
+        out[self.mask] = mtu.tensor_sphericity(self.evals[..., 0][self.mask],
+                                               self.evals[..., 1][self.mask],
+                                               self.evals[..., 2][self.mask])
+        return out
+
     # Self Diffusion Tensor, taken from dipy.reconst.dti:
     @desc.auto_attr
     def tensors(self):
@@ -1091,6 +1115,7 @@ class CanonicalTensorModel(BaseModel):
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
+                 water_diffusivity=3.0,
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
@@ -1128,6 +1153,7 @@ class CanonicalTensorModel(BaseModel):
         
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
+        self.wd = water_diffusivity
         self.params_file = params_file_resolver(self,
                                                 'CanonicalTensorModel',
                                                  params_file)
@@ -1145,10 +1171,26 @@ class CanonicalTensorModel(BaseModel):
      
     @desc.auto_attr
     def rotations(self):
+        """
+        These are the canonical tensors pointing in the direction of each of
+        the bvecs in the sampling scheme
+        """
         # assume S0==1, the fit weight should soak that up:
         return np.array([this.predicted_signal(1) 
                          for this in self.response_function._rotations])
 
+    @desc.auto_attr
+    def water_signal(self):
+        """
+        The signal in a voxel containing only water is predicted by an
+        isotropic diffusion tensor, with the mean diffusivity of water at 37 
+        C (which is approximately 3.0), pointing to the north pole.
+        """
+        return mtt.Tensor(
+            np.diag([self.wd, self.wd, self.wd]),  # Water!
+            self.bvecs[:, self.b_idx],
+            self.bvals[:, self.b_idx]).predicted_signal(1)
+    
     @desc.auto_attr
     def ols(self):
         """
@@ -1156,11 +1198,11 @@ class CanonicalTensorModel(BaseModel):
         """
         # Preallocate:
         ols_weights = np.empty((len(self.b_idx), 2, self._flat_signal.shape[0]))
-        
+
         for idx in range(len(self.b_idx)):
             # The 'design matrix':
             d = np.vstack([self.rotations[idx],
-                           np.ones(self.b_idx.shape[0])] ).T
+                           self.water_signal]).T
             # This is $(X' X)^{-1} X':
             ols_mat = mtu.ols_matrix(d)
             # Multiply to find the OLS solution (fitting to the signal
@@ -1216,7 +1258,8 @@ class CanonicalTensorModel(BaseModel):
                 # possible...) to not blow up the memory:
                 vox_fits = np.empty(self.rotations.shape)
                 for rot_i, rot in enumerate(self.rotations):
-                    vox_fits[rot_i] = ((b_w[rot_i,vox] * rot + i_w[rot_i,vox]) *
+                    vox_fits[rot_i] = ((b_w[rot_i,vox] * rot +
+                                        i_w[rot_i,vox] * self.water_signal) *
                                        self._flat_S0[vox])
 
                 # Find the predicted signal that best matches the original
@@ -1270,7 +1313,7 @@ class CanonicalTensorModel(BaseModel):
             if ~np.isnan(flat_params[vox, 1]):
                 out_flat[vox]=(
                     flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                    flat_params[vox,2])
+                    flat_params[vox,2] * self.water_signal)
             else:
                 out_flat[vox] = np.nan
                 
@@ -1551,22 +1594,26 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
 class TissueFractionModel(CanonicalTensorModel):
     """
-    This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
+    This is an extension of the CanonicalTensorModel, based on Mazer et al.'s
     measurement of the tissue fraction in different parts of the brain. The
     model posits that tissue fraction accounts for non-free water, restriced or
     hindered by tissue components, which can be represented by a canonical
     tensor and a sphere. The rest (1-tf) is free water, which is represented by
     a second sphere (free water).
 
-    Thus, the combined signals in each voxel can be represented as a set
-    of linear equations: 
+    Thus, the model is as follows: 
 
-    I TF = w1 TV1 + w2 TV2 
-    II D = w1 * D1 + w2 * D2 + w3 * D3
+    .. math:
 
-    Where w1 is the coefficient on the canonical tensor, w2 is the coefficient on
-    the tissue sphere and w3 is the coefficient on the free water sphere.
+    \begin{pmatrix} D_1 \\ D_2 \\ ... \\D_n \\ TF \end{pmatrix} =
 
+    \begin{pmatrix} T_1 & D_g & D_iso \\ T_2 & D_g & D_iso \\ T_n & D_g & D_iso
+    \\ ... & ... & ... \\ \lambda_1 & \lambda_2 & 0 \end{pmatrix}
+    \begin{pmatrix} w_1 & w_2 & w_3 \end{pmatrix}
+
+    And w_2, w_3 are the proportions of tissue-hinderd and free water
+    respectively. See below for the estimation proceure
+    
     Parameters
     ----------
 
@@ -1580,8 +1627,10 @@ class TissueFractionModel(CanonicalTensorModel):
                  data,
                  bvecs,
                  bvals,
-                 water_D=3.0,
-                 gray_D=1.0,
+                 l1=0.32,
+                 l2=0.15,
+                 water_D=0.75,
+                 gray_D=0.25,
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
@@ -1617,8 +1666,8 @@ class TissueFractionModel(CanonicalTensorModel):
         self.water_D = water_D
 
         # We're going to grid-search over these:
-        self.l1 = np.linspace(0.1,1,10)
-        self.l2 = np.linspace(0.1,1,10)
+        self.l1 = l1
+        self.l2 = l2
         
     @desc.auto_attr
     def _flat_tf(self):
@@ -1626,14 +1675,50 @@ class TissueFractionModel(CanonicalTensorModel):
         Flatten the TF
 
         """
-
         return self.tissue_fraction[self.mask]
 
 
     @desc.auto_attr
-    def fit_tf(self):
+    def signal(self):
         """
+        The relevant signal here is:
 
+        .. math::
+
+           \begin{pmatrix} \frac{S_1}{S^0_1} \\ \frac{S_2}{S^0_2} \\ ... \\
+           \frac{S_3}{S^0_3} \\ TF \end{pmatrix} 
+        
+        """
+        dw_signal = self.data[...,self.b_idx].squeeze()
+        tf_signal = np.reshape(self.tissue_fraction,
+                               self.tissue_fraction.shape + (1,))
+
+        return np.concatenate([dw_signal, tf_signal], -1)
+
+    @desc.auto_attr
+    def signal_attenuation(self):
+        """
+        The signal attenuation in each b-weighted volume, relative to the mean
+        of the non b-weighted volumes. We add the original TF here as a last
+        volume, so that we can compare fit to signal. 
+
+        Note
+        ----
+        Need to overload this function for this class, so that the TF does not
+        get attenuated.  
+
+        """
+        dw_att= self.data[...,self.b_idx]/np.reshape(self.S0,
+                                                       (self.S0.shape + (1,)))
+
+        tf_signal = np.reshape(self.tissue_fraction,
+                               self.tissue_fraction.shape + (1,))
+
+        return np.concatenate([dw_att, tf_signal], -1) 
+
+    @desc.auto_attr
+    def model_params(self):
+        """
         Fitting the weights for the TissueFractionModel is done as a second
         stage, after done fitting the CanonicalTensorModel.
         
@@ -1645,60 +1730,73 @@ class TissueFractionModel(CanonicalTensorModel):
 
         .. math::
 
-            \beta_{iso} = \beta_2 + \beta_3
+            \w_{iso} = \w_2 D_g + \w_3 D_{csf}
             
-        Where $\beta_{iso}$ is the weight for the isotropic component fit for
-        the initial fit and $\beta_{2,3}$ are the weights of tissue water and
-        free water respectively.
+        Where $\w_{iso}$ is the weight for the isotropic component fit for
+        the initial fit and $\w_{2,3}$ are the weights of tissue water and
+        free water respectively. $D_g \approx 1$ and $D_{csf} \approx 3$ are
+        the diffusivities of gray and white matter, respectively. 
 
         In addition, we know that the tissue water, together with the tensor
         signal should account for the tissue fraction measurement:
 
         .. math::
         
-            TF = \beta_1 * \lambda_1 + \beta_2 * \lambda_2 + \beta_3 * \lambda_3
+            TF = \w_1 * \lambda_1 + \w_2 * \lambda_2 
 
-        Where $\beta_1$ is the weight for the canonical tensor and $\beta_2$ is
-        the weight on the tissue isotropic component. $\lambda_{1,2}$ are
-        additional relative weights of the two components within the tissue
-        (canonical tensor and tissue  water) and $\lambda_3 = 0$, reflecting
-        the fact that the free water is not part of the tissue fraction at all.
+        Where $\w_1$ is the weight for the canonical tensor found in
+        CanonicalTensorModel and $\w_2$ is the weight on the tissue isotropic
+        component. $\lambda_{1,2}$ are additional relative weights of the two
+        components within the tissue  (canonical tensor and tissue
+        water). Implicitly, $\lambda_3 = 0$, reflecting the fact that the free
+        water is not part of the tissue fraction at all. To find \lambda{i}, we
+        perform a grid search over plausible values of these and choose the
+        ones that best account for the diffusion and TF signal.
 
-        To find $\beta2$ and $\beta3$, we follow these steps:
+        To find $\w_2$ and $\w_3$, we follow these steps:
 
-        0. We find $\beta_1 = \beta_{tensor}$ using the CanonicalTensorModel
+        0. We find $\w_1 = \w_{tensor}$ using the CanonicalTensorModel
         
-        1. We fix the values of \lambda_1 and \lambda_2 and solve for \beta_2:
+        1. We fix the values of \lambda_1 and \lambda_2 and solve for \w_2:
 
-            \beta_2 = \frac{TF - \lambda_1 \beta_1}{\lambda2} =
+            \w_2 = \frac{TF - \lambda_1 \w_1}{\lambda2} =
 
-        2. From the first equation above, we can then solve for \beta_3:
+        2. From the first equation above, we can then solve for \w_3:
 
-            \beta_3 = \beta_{iso} - \beta_2
+            \w_3 = \w_{iso} - \w_2
             
         3. We go back to the expanded model and predict the diffusion and the
         TF data for these values of     
 
         """
+
         # Start by getting the params for the underlying CanonicalTensorModel:
         temp_p_file = self.params_file
         self.params_file = params_file_resolver(self,
                                                 'CanonicalTensorModel')
         tensor_params = super(TissueFractionModel, self).model_params
+        
+        # Restore order: 
         self.params_file = temp_p_file
 
-        b2 = []
-        b3 = []
-        
-        for l1 in self.l1:
-            for l2 in self.l2:
-                b2.append((self._flat_tf - self.l1 * tensor_params[1]) /
-                          (self.l2))
-                b3.append(tensor_params[2] - b2)
+        # The tensor weight is the second parameter in each voxel: 
+        w_ten = tensor_params[self.mask, 1]
+        # And the isotropic weight is the third:
+        w_iso = tensor_params[self.mask, 2]
 
-        
-        
-        
+        w2 = (self._flat_tf - self.l1 * w_ten) / self.l2
+        w3 = (1 - w_ten - w2)
+
+        w2_out = np.nan * np.ones(self.shape[:3])
+        w3_out = np.nan * np.ones(self.shape[:3])
+
+        w2_out[self.mask] = w2
+        w3_out[self.mask] = w3
+
+        # Return tensor_idx, w1, w2, w3 
+        return tensor_params[...,0],tensor_params[...,1], w2_out, w3_out
+
+    
     @desc.auto_attr
     def fit(self):
         """
@@ -1707,19 +1805,25 @@ class TissueFractionModel(CanonicalTensorModel):
         if self.verbose:
             print("Predicting signal from TissueFractionModel")
 
-        out_flat = np.empty(self._flat_signal.shape)
-        flat_params = self.model_params[self.mask]
+        out_flat = np.empty((self._flat_signal.shape[0],
+                            self._flat_signal.shape[1] + 1))
+
+        flat_ten_idx = self.model_params[0][self.mask]
+        flat_w1 = self.model_params[1][self.mask]
+        flat_w2 = self.model_params[2][self.mask]
+        flat_w3 = self.model_params[3][self.mask]
 
         for vox in xrange(out_flat.shape[0]):
-            if ~np.any(np.isnan(flat_params[vox])):
-                out_flat[vox]=(
-        # recover the signal relative to the attenuation, which was used in
-        # fitting the weights.
-        
-        self.gray_D * flat_params[vox,1] * self.rotations[flat_params[vox,0]] +
-        self.gray_D * flat_params[vox,2] +
-        self.water_D * flat_params[vox,3]) * self._flat_S0[vox]
-                
+            if ~np.any(np.isnan([flat_w1[vox], flat_w2[vox], flat_w3[vox]])):
+                ten = (flat_w1[vox] *
+                       np.hstack([self.rotations[flat_ten_idx[vox]], self.l1]))
+                tissue_water = flat_w2[vox] * np.hstack(
+                [self.gray_D * np.ones(self._flat_signal.shape[-1]) , self.l2])
+                free_water = flat_w3[vox] * np.hstack(
+                [self.water_D * np.ones(self._flat_signal.shape[-1]) , 0])
+
+                # recover the signal attenuation:
+                out_flat[vox]=(ten + tissue_water + free_water) 
             else:
                 out_flat[vox] = np.nan
                 

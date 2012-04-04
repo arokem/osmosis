@@ -97,7 +97,11 @@ def test_TensorModel():
     npt.assert_equal(TM.evecs.shape, TM.data.shape[:3] + (3,3))
     # Call the fit function to make sure it runs through smoothly:
     npt.assert_equal(TM.fit.shape, TM.signal.shape)
-    
+
+    # The Westin Geometrical measures should sum to 1: 
+    npt.assert_almost_equal(TM.planarity +
+                     TM.linearity +
+                     TM.sphericity, np.ones(TM.planarity.shape))
 
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
