@@ -370,7 +370,10 @@ class DWI(desc.ResetMixin):
         of the non b-weighted volumes
         """
         # Need to broadcast for this to work:
-        return self.signal/np.reshape(self.S0, (self.S0.shape + (1,)))
+        signal_att = self.signal/np.reshape(self.S0, (self.S0.shape + (1,)))
+        # Convert infs to nans:
+        signal_att[np.isinf(signal_att)] = np.nan
+        return signal_att
 
     @desc.auto_attr
     def _flat_signal_attenuation(self):
