@@ -56,9 +56,9 @@ import dipy.core.geometry as geo
 import nibabel as ni
 
 import osmosis.descriptors as desc
-import osmosis.fibers as mtf
-import osmosis.tensor as mtt
-import osmosis.utils as mtu
+import osmosis.fibers as ozf
+import osmosis.tensor as ozt
+import osmosis.utils as ozu
 import osmosis.boot as boot
 
 
@@ -496,7 +496,7 @@ class BaseModel(DWI):
         http://en.wikipedia.org/wiki/Coefficient_of_determination
         
         """
-        return self._correlator(mtu.coeff_of_determination,
+        return self._correlator(ozu.coeff_of_determination,
                                 r_idx=-1,
                                 square=False)
 
@@ -738,7 +738,7 @@ class TensorModel(BaseModel):
         lambda_2 = self.evals[..., 1][self.mask]
         lambda_3 = self.evals[..., 2][self.mask]
 
-        out[self.mask] = mtu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
+        out[self.mask] = ozu.fractional_anisotropy(lambda_1, lambda_2, lambda_3)
 
         return out
 
@@ -754,7 +754,7 @@ class TensorModel(BaseModel):
     @desc.auto_attr
     def linearity(self):
         out = np.nan * np.ones(self.data.shape[:3])
-        out[self.mask] = mtu.tensor_linearity(self.evals[..., 0][self.mask],
+        out[self.mask] = ozu.tensor_linearity(self.evals[..., 0][self.mask],
                                               self.evals[..., 1][self.mask],
                                               self.evals[..., 2][self.mask])
         return out
@@ -762,7 +762,7 @@ class TensorModel(BaseModel):
     @desc.auto_attr
     def planarity(self):
         out = np.nan * np.ones(self.data.shape[:3])
-        out[self.mask] = mtu.tensor_planarity(self.evals[..., 0][self.mask],
+        out[self.mask] = ozu.tensor_planarity(self.evals[..., 0][self.mask],
                                               self.evals[..., 1][self.mask],
                                               self.evals[..., 2][self.mask])
         return out
@@ -770,7 +770,7 @@ class TensorModel(BaseModel):
     @desc.auto_attr
     def sphericity(self):
         out = np.nan * np.ones(self.data.shape[:3])
-        out[self.mask] = mtu.tensor_sphericity(self.evals[..., 0][self.mask],
+        out[self.mask] = ozu.tensor_sphericity(self.evals[..., 0][self.mask],
                                                self.evals[..., 1][self.mask],
                                                self.evals[..., 2][self.mask])
         return out
@@ -797,7 +797,7 @@ class TensorModel(BaseModel):
         adc_flat = np.empty(self.signal[self.mask].shape)
 
         for ii in xrange(len(adc_flat)):
-            adc_flat[ii] = mtt.apparent_diffusion_coef(
+            adc_flat[ii] = ozt.apparent_diffusion_coef(
                                         self.bvecs[:,self.b_idx],
                                         tensors_flat[ii])
 
@@ -813,7 +813,7 @@ class TensorModel(BaseModel):
         out = np.empty(self.signal.shape)
 
         for ii in xrange(len(fit_flat)):
-            fit_flat[ii] = mtt.stejskal_tanner(self._flat_S0[ii],
+            fit_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
                                                self.bvals[:, self.b_idx],
                                                adc_flat[ii])
 
@@ -1023,7 +1023,7 @@ class SphericalHarmonicsModel(BaseModel):
         A canonical tensor that describes the presumed response of a single
         fiber 
         """
-        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+        return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
                           self.bvecs[:,self.b_idx],
                           self.bvals[self.b_idx])
         
@@ -1165,7 +1165,7 @@ class CanonicalTensorModel(BaseModel):
         A canonical tensor that describes the presumed response of a single
         fiber 
         """
-        return mtt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+        return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
                               self.bvecs[:,self.b_idx],
                               self.bvals[self.b_idx])
 
@@ -1176,9 +1176,14 @@ class CanonicalTensorModel(BaseModel):
         These are the canonical tensors pointing in the direction of each of
         the bvecs in the sampling scheme
         """
-        # assume S0==1, the fit weight should soak that up:
-        return np.array([this.predicted_signal(1) 
-                         for this in self.response_function._rotations])
+        out = np.empty((self.b_idx.shape[0], self.b_idx.shape[0]))
+        for idx, this in enumerate(self.response_function._rotations):
+            # Normalize, so that the max is 1 for each rotation:
+            pred_sig = this.predicted_signal(1)
+            out[idx] = pred_sig/np.max(pred_sig)
+
+        return out
+
     
     @desc.auto_attr
     def ols(self):
@@ -1193,7 +1198,7 @@ class CanonicalTensorModel(BaseModel):
             d = np.vstack([self.rotations[idx],
                            np.ones(self.rotations.shape[-1])]).T
             # This is $(X' X)^{-1} X':
-            ols_mat = mtu.ols_matrix(d)
+            ols_mat = ozu.ols_matrix(d)
             # Multiply to find the OLS solution (fitting to the signal
             # attenuation in each voxel):
             ols_weights[idx] = np.array(np.dot(ols_mat,
@@ -1254,7 +1259,7 @@ class CanonicalTensorModel(BaseModel):
                 # Find the predicted signal that best matches the original
                 # signal attenuation. That will choose the direction for the
                 # tensor we use:
-                corrs = mtu.seed_corrcoef(self._flat_signal_attenuation[vox],
+                corrs = ozu.seed_corrcoef(self._flat_signal[vox],
                                           vox_fits)
                 idx = np.where(corrs==np.nanmax(corrs))[0]
 
@@ -1291,7 +1296,7 @@ class CanonicalTensorModel(BaseModel):
     @desc.auto_attr
     def fit(self):
         """
-        Predict the signal attenuation from the fit of the CanonicalTensorModel
+        Predict the signal from the fit of the CanonicalTensorModel
         """
         if self.verbose:
             print("Predicting signal from CanonicalTensorModel")
@@ -1320,8 +1325,8 @@ def err_func_CanonicalTensorModelOpt(x, object, signal):
     x,y,z = geo.sphere2cart(1, theta, phi)
     bvec = [x,y,z]
     evals, evecs = object.response_function.decompose
-    rot_tensor = mtt.tensor_from_eigs(
-        evecs * mtu.calculate_rotation(bvec, evecs[0]),
+    rot_tensor = ozt.tensor_from_eigs(
+        evecs * ozu.calculate_rotation(bvec, evecs[0]),
                evals, object.bvecs[:,object.b_idx], object.bvals[:,object.b_idx])
 
     # Relative to an S0=1:
@@ -1441,9 +1446,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     where_are_we += 1
             # The 'design matrix':
             d = np.vstack([[self.rotations[i] for i in idx],
-                                np.ones(self.b_idx.shape[0])]).T
+                           np.ones(self.b_idx.shape[0])]).T
             # This is $(X' X)^{-1} X':
-            ols_mat = mtu.ols_matrix(d)
+            ols_mat = ozu.ols_matrix(d)
             # Multiply to find the OLS solution (fit to signal attenuation):
             ols_weights[row] = np.array(
                 np.dot(ols_mat, self._flat_signal_attenuation.T)).squeeze()
@@ -1510,7 +1515,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 # Find the predicted signal that best matches the original
                 # signal attenuation. That will choose the direction for the
                 # tensor we use:
-                corrs = mtu.seed_corrcoef(self._flat_signal_attenuation[vox],
+                corrs = ozu.seed_corrcoef(self._flat_signal_attenuation[vox],
                                           vox_fits)
                 
                 idx = np.where(corrs==np.nanmax(corrs))[0]
@@ -1552,7 +1557,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
     def fit(self):
         """
         Predict the signal attenuation from the fit of the
-     MultiCanonicalTensorModel 
+        MultiCanonicalTensorModel 
         """
         if self.verbose:
             print("Predicting signal from MultiCanonicalTensorModel")
@@ -1571,7 +1576,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
                 out_flat[vox]=(np.dot(b_w,
                                np.array([self.rotations[i] for i in rot_idx])) +
-                               i_w)
+                               i_w) * self._flat_S0[vox]
             else:
                 out_flat[vox] = np.nan  # This gets broadcast to the right
                                         # length on assigment?
@@ -1845,7 +1850,7 @@ class FiberModel(BaseModel):
         ----------
         
         FG: a osmosis.fibers.FiberGroup object, or the name of a pdb file
-            containing the fibers to be read in using mtf.fg_from_pdb
+            containing the fibers to be read in using ozf.fg_from_pdb
 
         axial_diffusivity: The axial diffusivity of a single fiber population.
 
@@ -1888,7 +1893,7 @@ class FiberModel(BaseModel):
         """
         The *unique* voxel indices
         """
-        return mtu.unique_rows(self.fg_idx.T).T
+        return ozu.unique_rows(self.fg_idx.T).T
 
     @desc.auto_attr
     def voxel2fiber(self):
