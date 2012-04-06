@@ -1,0 +1,140 @@
+Equations related to diffusion and dwi:
+
+The basic signal equation:
+
+S = S_0 e^{-b ADC}
+
+Where:
+
+ADC = \vec{b}^t Q \vec{b}
+
+And:
+
+Q = \begin{pmatrix} D_{xx} & D_{xy} & D_{xz} \\
+                                 D_{yx} & D_{yy} & D_{yz}  \\
+				 D_{zx} & D_{zy} & D_{zz}  \\
+				 \end{pmatrix} 
+
+Such that: 
+
+S = S_0 e^{-b \vec{b}^t Q \vec{b}}
+
+
+DTI:
+
+\begin{pmatrix} log(S_1) \\  log(S_2) \\ \vdots \\ log(S_n)\end{pmatrix} = -b \begin{pmatrix} g_{1x}^2 & g_{1y}^2 g_{1z}^2 & 2g_{1x1y} & 2g_{1x1z} & 2g_{1y1z} & log(S_n) & 1 \\ \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \vdots \\
+g_{nx}^2 & g_{ny}^2 g_{nz}^2 & 2g_{nxny} & 2g_{nxnz} & 2g_{nynz} & log(S_n) & 1
+\end{pmatrix} \begin{pmatrix} D_{xx} \\  D_{yy} \\ D_{xy}\\ D_{xz} \\ D_{yz} \\ log(S_0) \end{pmatrix}
+
+And: 
+\hat{\beta}_\mathrm{WLS} = (X^T W X)^{-1} X^T W y \\
+
+Where:
+
+W = \mathrm{diag}((X \hat{\beta}_\mathrm{OLS})^2)
+
+And:
+
+\hat{\beta}_\mathrm{OLS} = (X^T X)^{-1} X^T y
+
+We can rewrite that as:
+
+\frac{S}{S_0} = e^{-b \vec{b} Q \vec{b}^t}
+
+Behrens (2003) "ball and stick" model:
+
+S(g, b) = S_0 (f \exp[-b d (-g^T v)^2] + [1-f] \exp[-b d])
+
+Where:
+
+0<= f <=1
+
+Is a "mixing parameter"
+
+
+CanonicalTensorModel:
+
+ \begin{pmatrix} \frac{S_1}{S_0} \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0}
+ \end{pmatrix} = \begin{pmatrix} \frac{T_1}{T_{max}} & 1 \\ \frac{T_2}{T_{max}} & 1 \\ \vdots &  \vdots \\ \frac{T_n}{T_{max}} & 1 \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \end{pmatrix}
+
+ 
+MultiCanonicalTensor model:
+
+ \begin{pmatrix} \frac{S_1}{S_0} \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0}
+ \end{pmatrix} = \begin{pmatrix} \frac{T^1_1}{T^1_{max}} &
+ \frac{T^2_1}{T^2_{max}}  & 1 \\ \frac{T^1_2}{T^1_{max}} &
+ \frac{T^1_2}{T^1_{max}} & 1 \\ \vdots &  \vdots & \vdots \\
+ \frac{T^1_n}{T^1_{max}} &  \frac{T^2_n}{T^2_{max}} & 1 \end{pmatrix}
+ \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix}
+
+
+SparseDeconvolutionModel:
+
+\begin{pmatrix} \frac{S_1}{S_0} - \langle\frac{S}{S_0}\rangle \\ \frac{S_2}{S_0} -
+\langle\frac{S}{S_0}\rangle \\ \vdots \\ \frac{S_n}{S_0} - \langle\frac{S}{S_0}\rangle
+ \end{pmatrix} = \begin{pmatrix}
+ \frac{T^1_1}{T^1_{max}} - \langle\frac{T^1}{T^1_{max}}\rangle &
+ \frac{T^2_1}{T^2_{max}} - \langle\frac{T^2}{T^2_{max}}\rangle &
+ \cdots &
+ \frac{T^n_1}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
+\\
+ \frac{T^1_2}{T^1_{max}} - \langle\frac{T^1}{T^1_{max}}\rangle &
+ \frac{T^2_1}{T^2_{max}} - \langle\frac{T^2}{T^2_{max}}\rangle &
+ \cdots &
+ \frac{T^n_2}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
+\\ \vdots & \vdots & \cdots & \vdots \\
+ \frac{T^n_2}{T^1_{max}} - \langle\frac{T^n}{T^1_{max}}\rangle &
+ \frac{T^n_1}{T^2_{max}} - \langle\frac{T^n}{T^2_{max}}\rangle &
+ \cdots &
+ \frac{T^n_n}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
+\end{pmatrix}
+ \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_n \end{pmatrix}
+
+
+ Lasso:
+
+ Minimize:
+ 
+ || y - X\hat{\beta} ||^2
+
+ subject to:
+
+ \sum_i{|\hat{\beta_i}|} \leq t
+
+ TissueFractionModel:
+
+1 \frac{S}{S_0} = w_1 e^{-bADC} + C_{iso}
+2 w_1 \lambda_1 + w_2 \lambda_2 = TF
+3 w_1 + w_2 + w_3 = 1
+
+Where w_i are the fractions of different tissue types (fiber, intracellular
+water, free water) and \lambda_{i} are the "g ratio" for gray and white
+matter (\lambda_1 \approx 0.15 and \lambda_2 \approx=0.6)
+
+And the following should be approximately true: 
+
+C_{iso} = w_2 D_g + w_3 D_{csf}
+
+Where D_g\approx1 and D_{csf}\approx 3 are the diffusivities of gray and white
+matter, respectively.
+
+\begin{pmatrix} \frac{S_1}{S_0}  \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0} 
+ \\ TF \end{pmatrix} = \begin{pmatrix} \frac{T_1}{T_{max}} & D_g & D_{iso} \\ \frac{T_2}{T_{max}} & D_g & D_{iso} \\
+    \frac{T_n}{T_{max}} & D_g & D_{iso} \\ \vdots & \vdots & \vdots \\ \lambda_1 & \lambda_2 & 0
+    \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix} 
+
+
+
+Geometrical diffusion measures from MRI for Tensor Basis Analysis (Westin et
+al. ISMRM: 
+
+Linearity:
+\frac{\lambda_1 - \lambda_2}{\lambda_1 + \lambda_2 + \lambda_3}
+
+Planarity:
+
+\frac{2 (\lambda_2-\lambda_3)}{\lambda_1 + \lambda_2 + \lambda_3}
+
+Sphericity:
+
+\frac{3 (\lambda_3)}{\lambda_1 + \lambda_2 + \lambda_3}
