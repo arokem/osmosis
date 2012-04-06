@@ -805,6 +805,25 @@ class TensorModel(BaseModel):
         return out
 
     @desc.auto_attr
+    def fiber_volume_fraction(self):
+        """
+        Fiber volume fraction estimated using equation 2 in:
+
+        Stikov, N, Perry, LM, Mezer, A, Rykhlevskaia, E, Wandell, BA, Pauly,
+        JM, Dougherty, RF (2011) Bound pool fractions complement diffusion
+        measures to describe white matter micro and macrostructure. Neuroimage
+        54: 1112. 
+        """
+        flat_fvf = ozu.fiber_volume_fraction(
+            self.fractional_anisotropy[self.mask])
+
+        out = np.empty(self.fractional_anisotropy.shape)
+        out[self.mask] = flat_fvf
+
+        return out
+
+
+    @desc.auto_attr
     def fit(self):
         if self.verbose:
             print("Predicting signal from TensorModel")

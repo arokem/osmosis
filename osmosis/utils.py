@@ -547,3 +547,31 @@ def tensor_sphericity(l1, l2, l3):
     return (3 * l3) / (l1 + l2 + l3)
 
 
+def fiber_volume_fraction(fa):
+    """
+    Estimate the fiber volume fraction, based on fractional anisotropy. 
+
+    Parameters
+    ----------
+    fa: float array
+       Fractional anisotropy.
+    
+
+    Returns
+    -------
+    fvf: An estimate of the fiber volume fraction
+    
+    Notes
+    -----
+
+    This is equation 2 in:
+
+    Stikov, N, Perry, LM, Mezer, A, Rykhlevskaia, E, Wandell, BA, Pauly, JM,
+    Dougherty, RF (2011) Bound pool fractions complement diffusion measures to
+    describe white matter micro and macrostructure. Neuroimage 54: 1112. 
+    
+    """
+
+    fvf = 0.883 * fa**2 - 0.082 * fa + 0.074
+
+    return fvf
