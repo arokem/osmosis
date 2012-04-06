@@ -446,7 +446,13 @@ def rescale(arr):
         
     return arr/np.nanmax(arr)
 
+def rms(arr,axis=-1):
+    """
+    Calculate the root mean square of an array
+    """
+    return np.sqrt(np.mean(np.asarray(arr)**2,axis=axis))
 
+    
 def rmse(arr1, arr2, axis=-1):
     """
     Calculate the root of the mean square error (difference) between two arrays
