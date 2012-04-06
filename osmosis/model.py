@@ -1576,7 +1576,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
                 out_flat[vox]=(np.dot(b_w,
                                np.array([self.rotations[i] for i in rot_idx])) +
-                               i_w) * self._flat_signal[vox]
+                               i_w) * self._flat_S0[vox]
             else:
                 out_flat[vox] = np.nan  # This gets broadcast to the right
                                         # length on assigment?
@@ -2180,17 +2180,17 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # This will be passed as kwarg to the solver initialization:
         self.solver_params = solver_params
 
-    @desc.auto_attr
-    def _solver(self):
-        """
-        Choose the sklearn solver to be used:
-        """
-        chosen_solver = sklearn_solvers[self.solver]
+    ## @desc.auto_attr
+    ## def _solver(self):
+    ##     """
+    ##     Choose the sklearn solver to be used:
+    ##     """
+    ##     chosen_solver = sklearn_solvers[self.solver]
 
-        if self.solver_params is not None:
-            return chosen_solver(self.solver_params) 
-        else:
-            return chosen_solver(alpha=0.01)
+    ##     if self.solver_params is not None:
+    ##         return chosen_solver(self.solver_params) 
+    ##     else:
+    ##         return chosen_solver(alpha=0.01)
 
 
     @desc.auto_attr
@@ -2222,14 +2222,17 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 # Fit the deviations from the mean of the attenuated signal: 
                 sig = (self._flat_signal_attenuation[vox] -
                        np.mean(self._flat_signal_attenuation[vox]))
-                try:
-                    params_init = self._solver.fit(design_matrix, sig).coef_
-                    # Remove negative coefficients and really small ones:
-                    params_init[params_init<0.1] = 0
-                    params[vox] = params_init
-                except:
-                    print "could not fit here: %s"%vox
-                    params[vox] = np.nan * np.ones(design_matrix.shape[-1])
+                #try:
+                choose_solver = sklearn_solvers[self.solver]
+                solver = Lasso(alpha=ozu.rms(sig))
+                params[vox] = solver.fit(design_matrix, sig).coef_
+                #params_init = self._solver.fit(design_matrix, sig).coef_
+                # Remove negative coefficients and really small ones:
+                #params_init[params_init<0.1] = 0
+                #params[vox] = params_init
+                ## except:
+                ## print "could not fit here: %s"%vox
+                ## params[vox] = np.nan * np.ones(design_matrix.shape[-1])
 
                 if self.verbose and np.mod(vox,1000)==0:
                     print("Fit %s percent"%(100*float(vox)/
