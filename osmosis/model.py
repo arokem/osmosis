@@ -1576,7 +1576,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
                 out_flat[vox]=(np.dot(b_w,
                                np.array([self.rotations[i] for i in rot_idx])) +
-                               i_w) * self._flat_S0[vox]
+                               i_w) * self._flat_signal[vox]
             else:
                 out_flat[vox] = np.nan  # This gets broadcast to the right
                                         # length on assigment?
@@ -1623,8 +1623,8 @@ class TissueFractionModel(CanonicalTensorModel):
                  bvals,
                  l1=0.32,
                  l2=0.15,
-                 water_D=0.75,
-                 gray_D=0.25,
+                 water_D=0.3,
+                 gray_D=0.1,
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
@@ -1815,9 +1815,10 @@ class TissueFractionModel(CanonicalTensorModel):
                 [self.gray_D * np.ones(self._flat_signal.shape[-1]) , self.l2])
                 free_water = flat_w3[vox] * np.hstack(
                 [self.water_D * np.ones(self._flat_signal.shape[-1]) , 0])
-
-                # recover the signal attenuation:
-                out_flat[vox]=(ten + tissue_water + free_water) 
+                
+                # recover the signal:
+                out_flat[vox]= ((ten + tissue_water + free_water) *
+                                self._flat_S0[vox])
             else:
                 out_flat[vox] = np.nan
                 
@@ -2189,7 +2190,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         if self.solver_params is not None:
             return chosen_solver(self.solver_params) 
         else:
-            return chosen_solver()
+            return chosen_solver(alpha=0.01)
 
 
     @desc.auto_attr
@@ -2202,28 +2203,30 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         if os.path.isfile(self.params_file):
             if self.verbose:
                 print("Loading params from file: %s"%self.params_file)
-
             # Get the cached values and be done with it:
             return ni.load(self.params_file).get_data()
 
         else:
-
             # One weight for each rotation
             params = np.empty((self._flat_signal.shape[0],
                                self.rotations.shape[0]))
 
             # We fit the deviations from the mean signal, which is why we also
             # demean each of the basis functions:
-            design_matrix = self.rotations - np.mean(self.rotations,0)
+            design_matrix = self.rotations - np.mean(self.rotations, 0)
 
             # One basis function per column (instead of rows):
             design_matrix = design_matrix.T
             
             for vox in xrange(self._flat_signal.shape[0]):
-                # Fit the deviations from the mean: 
-                sig = self._flat_signal[vox] - np.mean(self._flat_signal[vox])
+                # Fit the deviations from the mean of the attenuated signal: 
+                sig = (self._flat_signal_attenuation[vox] -
+                       np.mean(self._flat_signal_attenuation[vox]))
                 try:
-                    params[vox] = self._solver.fit(design_matrix, sig).coef_
+                    params_init = self._solver.fit(design_matrix, sig).coef_
+                    # Remove negative coefficients and really small ones:
+                    params_init[params_init<0.1] = 0
+                    params[vox] = params_init
                 except:
                     print "could not fit here: %s"%vox
                     params[vox] = np.nan * np.ones(design_matrix.shape[-1])
@@ -2260,9 +2263,14 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            # Add back the mean signal:
-            out_flat[vox] = (np.dot(flat_params[vox], self.rotations) +
-                             np.mean(self._flat_signal[vox]))
+            out_flat[vox] = (
+                # Multiply back by the design matrix you used to fit: 
+                (np.dot(flat_params[vox],
+                self.rotations - np.mean(self.rotations, 0)) + 
+                # Add back the mean signal attenuation in that voxel
+                np.mean(self._flat_signal_attenuation[vox])) *
+                #and recover the signal from S0:
+                self._flat_S0[vox])  
             
         out = np.nan * np.ones(self.signal.shape)
         out[self.mask] = out_flat
