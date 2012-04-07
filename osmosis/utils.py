@@ -436,6 +436,8 @@ def rescale(arr):
    rescale an array into [0,1]
 
     """
+    arr = np.asarray(arr)
+
     # Start by moving the minimum to 0:
     min_arr = np.nanmin(arr)
 
