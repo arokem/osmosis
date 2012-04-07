@@ -1199,7 +1199,7 @@ class CanonicalTensorModel(BaseModel):
         for idx, this in enumerate(self.response_function._rotations):
             # Normalize, so that the max is 1 for each rotation:
             pred_sig = this.predicted_signal(1)
-            out[idx] = pred_sig/np.max(pred_sig)
+            out[idx] = pred_sig#/np.max(pred_sig)
 
         return out
 
@@ -1838,6 +1838,10 @@ class TissueFractionModel(CanonicalTensorModel):
                 # recover the signal:
                 out_flat[vox]= ((ten + tissue_water + free_water) *
                                 self._flat_S0[vox])
+
+                # But not for the last item, which doesn't need to be
+                # multiplied by S0: 
+                out_flat[vox][-1]/=self._flat_S0[vox]
             else:
                 out_flat[vox] = np.nan
                 
@@ -1846,7 +1850,22 @@ class TissueFractionModel(CanonicalTensorModel):
 
         return out
 
-    
+
+    @desc.auto_attr
+    def RMSE(self):
+        """
+        We need to overload this to make the shapes to broadcast into make
+        sense. XXX Need to consider whether it makes sense to take out our
+        overloaded signal and signal_attenuation above, so we might not need this
+        either... 
+        """
+        out = np.nan * np.ones(self.signal.shape[:3])
+        flat_fit = self.fit[self.mask][:,:self.fit.shape[-1]-1]
+        flat_rmse = ozu.rmse(self._flat_signal, flat_fit)                
+        out[self.mask] = flat_rmse
+        return out
+
+
 class FiberModel(BaseModel):
     """
     
@@ -2298,3 +2317,5 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
 
         return out
+
+    
