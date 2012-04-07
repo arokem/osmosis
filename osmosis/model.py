@@ -1199,7 +1199,7 @@ class CanonicalTensorModel(BaseModel):
         for idx, this in enumerate(self.response_function._rotations):
             # Normalize, so that the max is 1 for each rotation:
             pred_sig = this.predicted_signal(1)
-            out[idx] = pred_sig#/np.max(pred_sig)
+            out[idx] = pred_sig/np.max(pred_sig)
 
         return out
 
