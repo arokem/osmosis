@@ -1607,7 +1607,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
 class TissueFractionModel(CanonicalTensorModel):
     """
-    This is an extension of the CanonicalTensorModel, based on Mazer et al.'s
+    This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
     measurement of the tissue fraction in different parts of the brain. The
     model posits that tissue fraction accounts for non-free water, restriced or
     hindered by tissue components, which can be represented by a canonical
@@ -1640,10 +1640,10 @@ class TissueFractionModel(CanonicalTensorModel):
                  data,
                  bvecs,
                  bvals,
-                 l1=0.32,
-                 l2=0.15,
-                 water_D=0.3,
-                 gray_D=0.1,
+                 l1,
+                 l2,
+                 water_D=3,
+                 gray_D=1,
                  params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
@@ -1674,9 +1674,9 @@ class TissueFractionModel(CanonicalTensorModel):
                                                 'TissueFractionModel',
                                                 params_file)
 
-        # Set the diffusivity constants:
-        self.gray_D = gray_D
-        self.water_D = water_D
+        # Convert the diffusivity constants to signal attenuation:
+        self.gray_D = np.exp(-self.bvals[self.b_idx][0] * gray_D)
+        self.water_D = np.exp(-self.bvals[self.b_idx][0] * water_D)
 
         # We're going to grid-search over these:
         self.l1 = l1
@@ -1776,7 +1776,7 @@ class TissueFractionModel(CanonicalTensorModel):
 
         2. From the first equation above, we can then solve for \w_3:
 
-            \w_3 = \w_{iso} - \w_2
+            \w_3 = 1 - \w_{iso} - \w_2
             
         3. We go back to the expanded model and predict the diffusion and the
         TF data for these values of     
