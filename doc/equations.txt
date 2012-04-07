@@ -119,12 +119,14 @@ Where D_g\approx1 and D_{csf}\approx 3 are the diffusivities of gray and white
 matter, respectively.
 
 \begin{pmatrix} \frac{S_1}{S_0}  \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0} 
- \\ TF \end{pmatrix} = \begin{pmatrix} \frac{T_1}{T_{max}} & D_g & D_{iso} \\ \frac{T_2}{T_{max}} & D_g & D_{iso} \\
-    \frac{T_n}{T_{max}} & D_g & D_{iso} \\ \vdots & \vdots & \vdots \\ \lambda_1 & \lambda_2 & 0
+ \\ TF \end{pmatrix} = \begin{pmatrix} \frac{T_1}{T_{max}} & S_g & S_{iso} \\ \frac{T_2}{T_{max}} & S_g & S_{iso} \\
+    \frac{T_n}{T_{max}} & S_g & S_{iso} \\ \vdots & \vdots & \vdots \\ \alpha_1 & \alpha_2 & 0
     \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix} 
 
 
+TF = \alpha_1 w_1 + \alpha_2 w_2 \Rightarrow w_2 = \frac{TF - \alpha_1 w_1}{\alpha_2}
 
+    
 Geometrical diffusion measures from MRI for Tensor Basis Analysis (Westin et
 al. ISMRM: 
 
