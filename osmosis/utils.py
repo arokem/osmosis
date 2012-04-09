@@ -168,7 +168,7 @@ def fractional_anisotropy(lambda_1, lambda_2, lambda_3):
     .. math::
 
             FA = \sqrt{\frac{1}{2}\frac{(\lambda_1-\lambda_2)^2+(\lambda_1-
-                        \lambda_3)^2+(\lambda_2-lambda_3)^2}{\lambda_1^2+
+                        \lambda_3)^2+(\lambda_2-\lambda_3)^2}{\lambda_1^2+
                         \lambda_2^2+\lambda_3^2} }
 
     """ 
