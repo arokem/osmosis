@@ -1605,6 +1605,34 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
         return out
 
+    @desc.auto_attr
+    def fit_angle(self):
+        """
+        """
+        out_flat = np.empty(self._flat_signal.shape[0])
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox][0]):
+                idx = [i for i in self.rot_idx[int(flat_params[vox][0])]]
+                ang = np.rad2deg(ozu.vector_angle(
+                    self.bvecs[:,self.b_idx].T[idx[0]],
+                    self.bvecs[:,self.b_idx].T[idx[1]]))
+
+                ang = np.min([ang, 180-ang])
+                
+                out_flat[vox] = ang
+                
+        else:
+            out_flat[vox] = np.nan
+        
+        out = np.nan * np.ones(self.signal.shape[:3])
+        out[self.mask] = out_flat
+
+        return out
+            
+
+            
+            
 class TissueFractionModel(CanonicalTensorModel):
     """
     This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
