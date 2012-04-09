@@ -308,6 +308,9 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     
     """
 
+    x = np.copy(x)
+    y = np.copy(y)
+    
     max_x = np.nanmax(x)
     max_y = np.nanmax(y)
     min_x = np.nanmin(x)
