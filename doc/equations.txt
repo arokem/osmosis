@@ -126,7 +126,14 @@ matter, respectively.
 
 TF = \alpha_1 w_1 + \alpha_2 w_2 \Rightarrow w_2 = \frac{TF - \alpha_1 w_1}{\alpha_2}
 
-    
+TF = w_1 + w_2 \Rightarrow w_2 = \frac{TF - w_1}{
+
+
+g_f = \sqrt{1-\frac{MVF}{FVF}}\\
+\Rightarrow MVF = (1-g_f^2) FVF
+
+
+
 Geometrical diffusion measures from MRI for Tensor Basis Analysis (Westin et
 al. ISMRM: 
 

@@ -1668,8 +1668,8 @@ class TissueFractionModel(CanonicalTensorModel):
                  data,
                  bvecs,
                  bvals,
-                 l1,
-                 l2,
+                 alpha1,
+                 alpha2,
                  water_D=3,
                  gray_D=1,
                  params_file=None,
@@ -1707,8 +1707,8 @@ class TissueFractionModel(CanonicalTensorModel):
         self.water_D = np.exp(-self.bvals[self.b_idx][0] * water_D)
 
         # We're going to grid-search over these:
-        self.l1 = l1
-        self.l2 = l2
+        self.alpha1 = alpha1
+        self.alpha2 = alpha2
         
     @desc.auto_attr
     def _flat_tf(self):
@@ -1825,7 +1825,7 @@ class TissueFractionModel(CanonicalTensorModel):
         # And the isotropic weight is the third:
         w_iso = tensor_params[self.mask, 2]
 
-        w2 = (self._flat_tf - self.l1 * w_ten) / self.l2
+        w2 = (self._flat_tf - self.alpha1 * w_ten) / self.alpha2
         w3 = (1 - w_ten - w2)
 
         w2_out = np.nan * np.ones(self.shape[:3])
@@ -1857,9 +1857,9 @@ class TissueFractionModel(CanonicalTensorModel):
         for vox in xrange(out_flat.shape[0]):
             if ~np.any(np.isnan([flat_w1[vox], flat_w2[vox], flat_w3[vox]])):
                 ten = (flat_w1[vox] *
-                       np.hstack([self.rotations[flat_ten_idx[vox]], self.l1]))
+                    np.hstack([self.rotations[flat_ten_idx[vox]], self.alpha1]))
                 tissue_water = flat_w2[vox] * np.hstack(
-                [self.gray_D * np.ones(self._flat_signal.shape[-1]) , self.l2])
+                [self.gray_D * np.ones(self._flat_signal.shape[-1]) , self.alpha2])
                 free_water = flat_w3[vox] * np.hstack(
                 [self.water_D * np.ones(self._flat_signal.shape[-1]) , 0])
                 
