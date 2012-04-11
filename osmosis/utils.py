@@ -127,8 +127,12 @@ def vector_angle(a,b):
     norm_b = unit_vector(b)
 
     # If the vectors are identical, the anlge is 0 per definition: 
-    if np.all(norm_a==norm_b):
+    if np.allclose(norm_a, norm_b):
         return 0
+    # If they are negative relative to each other, they are pointing in exactly
+    # opposite directions (180 deg = pi)
+    elif np.allclose(-norm_a, norm_b):
+        return np.pi
     else: 
         return np.arccos(np.dot(norm_a,norm_b))
 
@@ -320,23 +324,6 @@ def tensor_from_eigs(evals, evecs):
     return np.dot((evals*evecs.T), evecs)
     
     
-def fit_tensor(bvecs, data): 
-    """
-    This is some potentially useful code (as in, no clear use for now) that
-    fits a tensor to any arbitrary data. It undoes some of the DWI-specific
-    stuff that dipy does.
-    """ 
-
-    # Construct the same design matrix you normally would (except keep it
-    # positive (by setting the input bval to -1) and don't keep the last
-    # column (which corresponds to the S0):
-    design_matrix = dti.design_matrix(bvecs,
-                                      -1 * np.ones(bvecs.shape[-1]))[:,:6]
-
-    ols_matrix = ols_matrix(design_matrix)
-
-    return np.array(np.dot(ols_matrix, data))
-
 def euclidian_distance(x,y):
     """
     Compute the euclidian distances between all elements of the list x and all

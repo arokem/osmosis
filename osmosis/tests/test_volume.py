@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import numpy.testing as npt
 
 import nibabel as ni
@@ -34,16 +35,14 @@ def test_fg2volume():
 
 def test_resample_volume():
     """
-    Testing resampling of a t1 into a dwi space (and such...)
+    Testing resampling of one volume into another volumes space (a t1 into a
+    dwi space, for example) 
     """
-    
-    data_path = os.path.split(oz.__file__)[0] + '/data/'
-    source_file = data_path + 'FP_t1.nii.gz'
-    target_file = (data_path +
-                   '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin.nii.gz')
 
-    new_vol = ozv.resample_volume(source_file, target_file)
+    source = ni.Nifti1Image(np.random.randn(10,10,10), np.eye(4))
+    target = ni.Nifti1Image(np.random.randn(10,10,10), np.eye(4))
+    new_vol = ozv.resample_volume(source, target)
 
-    npt.assert_equal(new_vol.shape, ni.load(target_file).shape[:3])
+    npt.assert_equal(new_vol.shape, target.shape[:3])
     
     

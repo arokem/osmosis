@@ -227,7 +227,7 @@ def sig_on_sphere(bvecs, val, fig=None, sphere_dim=100, r_from_val=False,
 
     return fig
 
-def sig_in_points(bvecs, val, fig=None, r_from_val=False, **kwargs):
+def sig_in_points(bvecs, val=None, fig=None, r_from_val=False, **kwargs):
     """
     Display signal in points in 3d, based on the bvecs provided.
 
@@ -246,8 +246,6 @@ def sig_in_points(bvecs, val, fig=None, r_from_val=False, **kwargs):
     r_from_val: bool, optional.
         Whether to scale the distance from the center for each point by the
         value of that point. Defaults to False.
-
-    
     
     cmap: Specify a matplotlib colormap to use for coloring the data. 
     

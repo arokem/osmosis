@@ -7,15 +7,15 @@ import numpy.testing as npt
 
 import nibabel as ni
 
-import osmosis as mt
-import osmosis.model as mtm
-import osmosis.fibers as mtf
-import osmosis.tensor as mtt
+import osmosis as oz
+import osmosis.model as ozm
+import osmosis.fibers as ozf
+import osmosis.tensor as ozt
 import osmosis.io as mio
 
 # Initially, we want to check whether the data is available (would have to be
 # downloaded separately, because it's huge): 
-data_path = os.path.split(mt.__file__)[0] + '/data/'
+data_path = os.path.split(oz.__file__)[0] + '/data/'
 if 'dwi.nii.gz' in os.listdir(data_path):
     no_data = False
 else:
@@ -31,7 +31,7 @@ def test_DWI():
     """
     
     # Make one from strings: 
-    D1 = mtm.DWI(data_path + 'small_dwi.nii.gz',
+    D1 = ozm.DWI(data_path + 'small_dwi.nii.gz',
             data_path + 'dwi.bvecs',
             data_path + 'dwi.bvals')
 
@@ -47,7 +47,7 @@ def test_DWI():
     bvecs = np.loadtxt(data_path + 'dwi.bvecs')
     bvals = np.loadtxt(data_path + 'dwi.bvals')
 
-    D2 = mtm.DWI(data, bvecs, bvals)
+    D2 = ozm.DWI(data, bvecs, bvals)
 
     # It shouldn't matter:
     npt.assert_equal(D1.data, D2.data)
@@ -65,13 +65,18 @@ def test_DWI():
 
     npt.assert_equal(D2.shape, data.shape)
 
+    # If the data is neither an array, nor a file-name, that should raise an
+    # error: 
+    npt.assert_raises(ValueError, ozm.DWI, [1,2,3], bvecs, bvals)
+
+
 # This takes some time, because it requires reading large data files and of
 # course, needs to be skipped if the data is no where to be found:     
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
 def test_BaseModel():
     
-    BM = mtm.BaseModel(data_path + 'small_dwi.nii.gz',
+    BM = ozm.BaseModel(data_path + 'small_dwi.nii.gz',
                        data_path + 'dwi.bvecs',
                        data_path + 'dwi.bvals')
 
@@ -86,7 +91,7 @@ def test_TensorModel():
 
     tensor_file = os.path.join(tempfile.gettempdir() + 'DTI.nii.gz')
 
-    TM = mtm.TensorModel(data_path + 'small_dwi.nii.gz',
+    TM = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
                          data_path + 'dwi.bvecs',
                          data_path + 'dwi.bvals',
                          params_file=tempfile.NamedTemporaryFile().name)
@@ -116,7 +121,7 @@ def test_FiberModel():
     FG = mio.fg_from_pdb(data_path + 'FG_w_stats.pdb',
                      verbose=False)
 
-    M = mtm.FiberModel(data_path + 'dwi.nii.gz',
+    M = ozm.FiberModel(data_path + 'dwi.nii.gz',
                        data_path + 'dwi.bvecs',
                        data_path + 'dwi.bvals',
                        FG, ad, rd)
@@ -136,7 +141,7 @@ def test_SphericalHarmonicsModel():
     
     model_coeffs = ni.load(data_path + 'CSD10.nii.gz').get_data()
 
-    SHM = mtm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
+    SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
                                       data_path + 'dwi.bvecs',
                                       data_path + 'dwi.bvals',
                                       model_coeffs)
@@ -151,7 +156,7 @@ def test_CanonicalTensorModel():
     data = (np.random.rand(10 * 10 * 10).reshape(10 * 10 * 10, 1) +
             np.zeros((10 * 10 * 10, 160))).reshape(10,10,10,160)
 
-    CTM = mtm.CanonicalTensorModel(data,
+    CTM = ozm.CanonicalTensorModel(data,
                                    data_path + 'dwi.bvecs',
                                    data_path + 'dwi.bvals',
         params_file=tempfile.NamedTemporaryFile().name)
@@ -160,10 +165,10 @@ def test_CanonicalTensorModel():
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
     idx = (40,40,40)
-    mask_array = np.zeros(ni.load(data_path+'dwi.nii.gz').get_shape()[:3])
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
 
     # Fit this on some real dwi data
-    CTM = mtm.CanonicalTensorModel(data_path+'dwi.nii.gz',
+    CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                    data_path + 'dwi.bvecs',
                                    data_path + 'dwi.bvals',
                                    mask=mask_array,
