@@ -53,6 +53,7 @@ from scipy.optimize import leastsq
 
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
+import dipy.data as dpd
 import nibabel as ni
 
 import osmosis.descriptors as desc
@@ -812,7 +813,8 @@ class TensorModel(BaseModel):
         Stikov, N, Perry, LM, Mezer, A, Rykhlevskaia, E, Wandell, BA, Pauly,
         JM, Dougherty, RF (2011) Bound pool fractions complement diffusion
         measures to describe white matter micro and macrostructure. Neuroimage
-        54: 1112. 
+        54: 1112.
+        
         """
         flat_fvf = ozu.fiber_volume_fraction(
             self.fractional_anisotropy[self.mask])
@@ -1154,10 +1156,15 @@ class CanonicalTensorModel(BaseModel):
              full path to the name of the file in which to save the model
              parameters, once a model is fit. 
 
-        over_sample: Provide a finer resolution of directions (in the same
-        format that the bvecs come in?), to provide more resolution to the fit
-        of the direction of the canonical tensor XXX Still needs to be
-        implemented. 
+        over_sample: optional, int.
+           Sometimes you might want to probe the sphere at a higher resolution
+           than that provided by the measurement. You can do that using two
+           possible sources of information. The first is the camino points,
+           which ship together with osmosis and are used for the boot-strapping
+           (see osmosis.boot). These are used for integers smaller than 150,
+           for 246 and for 755. The other sources of information are the
+           symmetric spheres provided as part of dipy. These are used if 362 or
+           642 are provided. 
 
         """
         
@@ -1178,26 +1185,55 @@ class CanonicalTensorModel(BaseModel):
                                                 'CanonicalTensorModel',
                                                  params_file)
 
+        if over_sample is not None:
+            # Symmetric spheres from dipy: 
+            if over_sample in[362, 642]:
+                # We want to get these vertices:
+                verts, faces = dpd.get_sphere('symmetric%s'%over_sample)
+                # Their convention is transposed relative to ours:
+                self.rot_vecs = verts.T
+            elif over_sample<=150 or over_sample in [246,755]:
+                self.rot_vecs = ozu.get_camino_pts(over_sample)
+            else:
+                e_s = "You asked to sample the sphere in %s"%over_sample
+                e_s += " different directions. Can only do that for n<=150"
+                e_s += " or n in [246, 362, 642, 755]"
+                raise ValueError(e_s)
+        else:
+            self.rot_vecs = self.bvecs[:,self.b_idx]
+        
     @desc.auto_attr
     def response_function(self):
         """
         A canonical tensor that describes the presumed response of a single
         fiber 
         """
-        return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
-                              self.bvecs[:,self.b_idx],
-                              self.bvals[self.b_idx])
+        bvecs = self.bvecs[:,self.b_idx]
+        bvals = self.bvals[self.b_idx]
+        return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]), bvecs, bvals)
 
      
     @desc.auto_attr
     def rotations(self):
         """
         These are the canonical tensors pointing in the direction of each of
-        the bvecs in the sampling scheme
+        the bvecs in the sampling scheme. If an over sample number was
+        provided, we use the camino points to make canonical tensors pointing
+        in all these directions (over-sampling the sphere above the resolution
+        of the measurement). 
         """
-        out = np.empty((self.b_idx.shape[0], self.b_idx.shape[0]))
-        for idx, this in enumerate(self.response_function._rotations):
-            # Normalize, so that the max is 1 for each rotation:
+        out = np.empty((self.rot_vecs.shape[-1], self.b_idx.shape[0]))
+        
+        # We will use the eigen-value/vectors from the response function
+        # and rotate them around to each one of these vectors, calculating
+        # the predicted signal in the bvecs of the actual measurement (even
+        # when over-sampling):
+        evals, evecs = self.response_function.decompose
+        for idx, bvec in enumerate(self.rot_vecs.T):
+            this = ozt.rotate_to_vector(bvec, evals, evecs,
+                                          self.bvecs[:, self.b_idx],
+                                          self.bvals[self.b_idx])
+
             pred_sig = this.predicted_signal(1)
             out[idx] = pred_sig/np.max(pred_sig)
 
@@ -1210,9 +1246,10 @@ class CanonicalTensorModel(BaseModel):
         Compute the OLS solution. 
         """
         # Preallocate:
-        ols_weights = np.empty((len(self.b_idx), 2, self._flat_signal.shape[0]))
+        ols_weights = np.empty((self.rotations.shape[0], 2,
+                               self._flat_signal.shape[0]))
 
-        for idx in range(len(self.b_idx)):
+        for idx in range(ols_weights.shape[0]):
             # The 'design matrix':
             d = np.vstack([self.rotations[idx],
                            np.ones(self.rotations.shape[-1])]).T
@@ -1246,6 +1283,7 @@ class CanonicalTensorModel(BaseModel):
            and use that one to derive the fit for that voxel
 
         """
+
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
@@ -1319,7 +1357,7 @@ class CanonicalTensorModel(BaseModel):
         """
         if self.verbose:
             print("Predicting signal from CanonicalTensorModel")
-
+            
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):

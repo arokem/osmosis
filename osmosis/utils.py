@@ -16,6 +16,8 @@ except ImportError:
     has_numexpr = False
 
 
+import osmosis as oz
+
 def intersect(arr_list):
     """
     Return the values that are in all arrays.
@@ -105,8 +107,8 @@ def null_space(A, eps=1e-15):
     """ 
     u, s, vh = la.svd(A)
     null_mask = (s <= eps)
-    null_space = scipy.compress(null_mask, vh, axis=0)
-    return scipy.transpose(null_space)
+    null_space = np.compress(null_mask, vh, axis=0)
+    return np.transpose(null_space)
 
 def quat2rot(w,x,y,z):
     """
@@ -577,3 +579,29 @@ def fiber_volume_fraction(fa):
     fvf = 0.883 * fa**2 - 0.082 * fa + 0.074
 
     return fvf
+
+
+def get_camino_pts(n_dirs):
+    """
+
+    Get a set of points on the sphere calculated with an electro-static
+    repulsion algorithm (Taken from Camino).
+
+    
+
+    """
+    oz_path = oz.__path__[0]
+    e_points = np.loadtxt('%s/camino_pts/Elec%03d.txt'%(oz_path, n_dirs))
+
+    # The very first one is n and the rest need to be reshaped as thus: 
+    assert(e_points[0]==n_dirs)
+    xyz = e_points[1:].reshape(e_points[1:].shape[0]/3, 3)
+
+    # Since the camino points cover only a hemi-sphere, a random half of the
+    # points need to be inverted by 180 degrees to account for potential
+    # gradient asymmetries. Get indices to a random half of these xyz values
+    # and turn them 180 degrees:
+    xyz[np.random.permutation(xyz.shape[0])[::2]] *=-1
+
+
+    return xyz.T

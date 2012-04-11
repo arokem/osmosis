@@ -4,7 +4,7 @@ import numpy as np
 import scipy.linalg as la
 
 import osmosis.descriptors as desc
-import osmosis.utils as mtu
+import osmosis.utils as ozu
 
 class Tensor(object):
     """
@@ -159,7 +159,7 @@ class Tensor(object):
 
     @desc.auto_attr
     def decompose(self):
-        return mtu.decompose_tensor(self.Q)
+        return ozu.decompose_tensor(self.Q)
 
     
     def convolve_odf(self, odf, S0):
@@ -195,6 +195,8 @@ class Tensor(object):
         return signal
 
     
+
+
     @desc.auto_attr
     def _rotations(self):
         """
@@ -206,12 +208,40 @@ class Tensor(object):
         evals, evecs = self.decompose
         e1 = evecs[0]
         for idx, bvec in enumerate(self.bvecs.T):
-            rot_tensor_e = evecs * mtu.calculate_rotation(bvec, e1)
-            # Now create the same tensor, just with rotated eigen-vectors:
-            rot_tensors.append(tensor_from_eigs(rot_tensor_e,
-                                                evals, self.bvecs, self.bvals))
-            
+            rot_tensors.append(rotate_to_vector(bvec,
+                                                evals,
+                                                evecs,
+                                                self.bvecs,
+                                                self.bvals))            
         return rot_tensors
+
+
+def rotate_to_vector(vector, evals, evecs, bvecs, bvals):
+    """
+    Rotate the tensor to align with the input vector and return another
+    Tensor class instance with that rotation (and the original
+    bvecs/bvals).
+
+    Parameters
+    ----------
+    vector: A unit length 3-vector
+
+    evals: The eigen-values of the tensor to rotate
+
+    evecs: The corresponding eigen-vectors of the tensor to rotate.
+
+    bvecs, bvals: inputs to create the new Tensor (presumably these are taken
+    from the Tensor from which you got evals and evecs, but doesn't have to
+    be). 
+
+    Returns
+    -------
+    Tensor class instance rotated to the input vector.
+    
+    """
+    e1 = evecs[0]
+    rot_tensor_e = evecs * ozu.calculate_rotation(vector, e1)
+    return tensor_from_eigs(rot_tensor_e, evals, bvecs, bvals)
 
     
 def stejskal_tanner(S0, bvals, ADC):
@@ -262,4 +292,4 @@ def tensor_from_eigs(evecs, evals, bvecs, bvals):
     Parameters 
     """
 
-    return Tensor(mtu.tensor_from_eigs(evals, evecs), bvecs, bvals)
+    return Tensor(ozu.tensor_from_eigs(evals, evecs), bvecs, bvals)

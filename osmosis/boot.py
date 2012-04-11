@@ -7,8 +7,8 @@ Utilities for sub-sampling b vectors from dwi experiments
 import numpy as np
 import scipy.linalg as la
 
-import osmosis as mt
-import osmosis.utils as mtu
+import osmosis as oz
+import osmosis.utils as ozu
 
 def subsample(bvecs, n_dirs, elec_points=None):
     """
@@ -35,27 +35,17 @@ def subsample(bvecs, n_dirs, elec_points=None):
     points in the directory camino_pts.
 
     """
-    if elec_points is None: 
-        mt_path = mt.__path__[0]
-        e_points = np.loadtxt('%s/camino_pts/Elec%03d.txt'%(mt_path, n_dirs))
-
-    else:
-        e_points = elec_points.copy()
-        
-    # The very first one is n and the rest need to be reshaped as thus: 
-    assert(e_points[0]==n_dirs)
-    xyz = e_points[1:].reshape(e_points[1:].shape[0]/3, 3)
-
-    # Since the camino points cover only a hemi-sphere, a random half of the
-    # points need to be inverted by 180 degrees to account for potential
-    # gradient asymmetries. Get indices to a random half of these xyz values
-    # and turn them 180 degrees:
-    xyz[np.random.permutation(xyz.shape[0])[::2]] *=-1
     
+    if elec_points is None:
+        # We need a n by 3 here:
+        xyz = ozu.get_camino_pts(n_dirs).T
+    else:
+        xyz = elec_points.copy()
+            
     # Rotate all the points to align with the seed, the bvec relative to which
     # all the rest are chosen (lots going on in this one line):
     new_points = np.array(bvecs *
-                          mtu.calculate_rotation(
+                          ozu.calculate_rotation(
                               bvecs[np.ceil(np.random.rand() *
                                             xyz.shape[0]).astype(int)],
                               xyz[0]))
@@ -67,7 +57,7 @@ def subsample(bvecs, n_dirs, elec_points=None):
         this = new_points[vec]
         delta = np.zeros(bvecs.shape[0])
         for j in xrange(bvecs.shape[0]):
-            delta[j] = mtu.vector_angle(this, bvecs[j])
+            delta[j] = ozu.vector_angle(this, bvecs[j])
 
         this_idx = np.where(delta==np.min(delta))
         
