@@ -61,6 +61,7 @@ import osmosis.fibers as ozf
 import osmosis.tensor as ozt
 import osmosis.utils as ozu
 import osmosis.boot as boot
+import osmosis.viz as viz
 
 
 # Global constants for this module:
@@ -1293,7 +1294,6 @@ class CanonicalTensorModel(BaseModel):
             return ni.load(self.params_file).get_data()
         else:
             # Looks like we might need to do some fitting...
-            
             # Get the bvec weights and the isotropic weights
             b_w = self.ols[:,0,:].copy().squeeze()
             i_w = self.ols[:,1,:].copy().squeeze()
@@ -1303,6 +1303,9 @@ class CanonicalTensorModel(BaseModel):
             i_w[np.logical_or(b_w<0, i_w<0)] = np.nan
 
             params = np.empty((self._flat_signal.shape[0],3))
+            if self.verbose:
+                print("Fitting CanonicalTensorModel:")
+                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1334,10 +1337,8 @@ class CanonicalTensorModel(BaseModel):
                 else:
                     params[vox,:] = np.array([np.nan, np.nan, np.nan])
 
-                if self.verbose: 
-                    if np.mod(vox, 1000)==0:
-                        print ("Fit %s voxels, %s percent"%(vox,
-                                100*vox/float(self._flat_signal.shape[0])))
+                if self.verbose:
+                    prog_bar.animate(vox)
 
             # Save the params for future use: 
             out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
@@ -1403,6 +1404,11 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         """
 
         params = np.empty((self._flat_signal.shape[0],4))
+
+        if self.verbose:
+            print('Fitting CanonicalTensorModelOpt:')
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+
         for vox in range(self._flat_signal.shape[0]):
             # Starting conditions
             mean_sig = np.mean(self._flat_signal[vox])
@@ -1413,9 +1419,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             params[vox] = this_params
 
             if self.verbose: 
-                if np.mod(vox, 1000)==0:
-                    print ("Fit %s voxels, %s percent"%(vox,
-                            100*vox/float(self._flat_signal.shape[0])))
+                prog_bar.animate()
 
         out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
         out_params[self.mask] = np.array(params).squeeze()
@@ -1558,6 +1562,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             params = np.empty((self._flat_signal.shape[0],
                                self. n_canonicals + 2))
 
+            if self.verbose:
+                print("Fitting MultiCanonicalTensorModel:")
+                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1594,9 +1601,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                                np.nan])
 
                 if self.verbose: 
-                    if np.mod(vox, 1000)==0:
-                        print ("Fit %s voxels, %s percent"%(vox,
-                                100*vox/float(self._flat_signal.shape[0])))
+                    prog_bar.animate(vox)
 
             # Save the params for future use: 
             out_params = np.nan * np.ones(self.signal.shape[:3]+
