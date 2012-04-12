@@ -175,7 +175,7 @@ class DWI(desc.ResetMixin):
                 idx = sub_sample
             else:
                 idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
-
+            
             self.b_idx = self.b_idx[idx]
             # At this point, signal will be taken according to these
             # sub-sampled indices:
@@ -499,7 +499,7 @@ class BaseModel(DWI):
         
         """
         return self._correlator(ozu.coeff_of_determination,
-                                r_idx=-1,
+                                r_idx=np.nan,
                                 square=False)
 
     @desc.auto_attr
