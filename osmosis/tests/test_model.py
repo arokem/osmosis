@@ -931,6 +931,30 @@ def test_TensorModel():
                          TM.linearity +
                          TM.sphericity, np.ones(TM.planarity.shape))
 
+
+def test_tensor_stats():
+    """
+    Test tensor_coherence and tensor_dispersion
+    """
+    # Let's put in two identical TensorModel instances: 
+    
+    TM1 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
+                          data_path + 'dwi.bvecs',
+                          data_path + 'dwi.bvals')
+    
+    TM2 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
+                          data_path + 'dwi.bvecs',
+                          data_path + 'dwi.bvals')
+
+    c = ozm.tensor_coherence([TM1, TM2])
+    # Coherence should be 1 everywhere:
+    npt.assert_almost_equal(c,np.ones(c.shape))
+
+    # Dispersion should be 0 everywhere: 
+    d = ozm.tensor_dispersion([TM1, TM2])
+    npt.assert_almost_equal(d,np.zeros(d.shape))
+
+
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
 def test_FiberModel():

@@ -851,7 +851,7 @@ def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
         mask = np.ones(tensor_model_list[0].shape[:3])
         
     # flatten the eigenvectors:
-    tensor_model_flat=np.array([this.evecs[mask] for this in
+    tensor_model_flat=np.array([this.evecs[np.where(mask)] for this in
     tensor_model_list])
     out_flat = np.empty(tensor_model_flat[0].shape[0])
 
@@ -862,7 +862,7 @@ def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
         out_flat[idx] = dyad_stat(dyad)
 
     out = np.nan * np.ones(tensor_model_list[0].shape[:3])
-    out[mask] = out_flat
+    out[np.where(mask)] = out_flat
     return out        
     
 

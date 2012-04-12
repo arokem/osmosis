@@ -125,14 +125,25 @@ def dyad_dispersion(dyad):
     the full distribution of dyadic tensors (dyadic_tensor calculated with
     average=False) 
     """
-    mean_eigvals, mean_eigvecs  = la.eig(np.mean(dyad,0))
+    mean_principal_eigvec = np.mean(dyad,0)[0]
 
-    mean_principal_eigvec = mean_eigvecs[0]
-                 
     theta = []
     for this_d in dyad:
-        # Using equation 3 in Jones(2003):
-        theta.append(np.arccos(np.dot(this_d[0], mean_principal_eigvec)))
+        # Using a variation on equation 3 in Jones(2003), taking the arccos of
+        # the correlation between the two vectors (this should yield 90 degrees
+        # for orthogonal vectors and 0 degrees for identical vectors): 
+        corr = (np.dot(this_d[0],mean_principal_eigvec)/
+                        (np.sqrt(np.dot(this_d[0],this_d[0]) *
+                               np.dot(mean_principal_eigvec,
+                                      mean_principal_eigvec))))
+
+        # We sometimes get floating point error leading to larger-than-1
+        # correlation, we treat that as though it were equal to 1:
+        if corr>1.0:
+            corr=1.0
+        angle = np.arccos(corr)
+
+        theta.append(angle)
 
     # Average over all the tensors:
     return np.mean(theta)
