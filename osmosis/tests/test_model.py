@@ -988,10 +988,28 @@ def test_SphericalHarmonicsModel():
     
     model_coeffs = ni.load(data_path + 'CSD10.nii.gz').get_data()
 
+    mask = np.zeros(model_coeffs.shape[:3])
+    # Do this in only some small segment:
+    mask[40:44, 40:44, 40:44] = 1
+    
     SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
                                       data_path + 'dwi.bvecs',
                                       data_path + 'dwi.bvals',
-                                      model_coeffs)
+                                      model_coeffs,
+                                      mask=mask)
+
+    # Can also provide the input as a string:
+    model_coeffs = data_path + 'CSD10.nii.gz'
+
+    SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
+                                      data_path + 'dwi.bvecs',
+                                      data_path + 'dwi.bvals',
+                                      model_coeffs,
+                                      mask=mask)
+
+    # XXX Smoke testing only. Still need to make sure that this actually does
+    # what the original authors intended... 
+    SHM.fit
 
 def test_CanonicalTensorModel():
     """
@@ -1008,7 +1026,7 @@ def test_CanonicalTensorModel():
                                    data_path + 'dwi.bvals',
         params_file=tempfile.NamedTemporaryFile().name)
     
-    # Smoke testing
+    # XXX Smoke testing only
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
     idx = (40,40,40)
@@ -1021,8 +1039,10 @@ def test_CanonicalTensorModel():
                                    mask=mask_array,
         params_file=tempfile.NamedTemporaryFile().name)
 
-    # fit it!
+    # XXX Smoke testing only:
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+
     
 
     
