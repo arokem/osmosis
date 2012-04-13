@@ -1165,7 +1165,8 @@ class CanonicalTensorModel(BaseModel):
            (see osmosis.boot). These are used for integers smaller than 150,
            for 246 and for 755. The other sources of information are the
            symmetric spheres provided as part of dipy. These are used if 362 or
-           642 are provided. 
+           642 are provided. Note that these might be problematic, because they
+           contain polar opposite points, so use with caution.
 
         """
         
@@ -1396,6 +1397,42 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
     This one is supposed to do the same thing as CanonicalTensorModel, except
     here scipy.optimize is used to find the parameters, instead of OLS fitting.
     """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 params_file=None,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 verbose=True):
+        """
+        Initialize a CanonicalTensorModelOpt class instance.
+
+        Same inputs except we do not accept over-sampling, since it has no
+        meaning here.
+        """
+        CanonicalTensorModel.__init__(self,
+                                      data,
+                                      bvecs,
+                                      bvals,
+                                      params_file=params_file,
+                                      axial_diffusivity=axial_diffusivity,
+                                      radial_diffusivity=radial_diffusivity,
+                                      affine=affine,
+                                      mask=mask,
+                                      scaling_factor=scaling_factor,
+                                      sub_sample=sub_sample,
+                                      over_sample=None,  # Always None
+                                      verbose=verbose)
+
+        # Replace the name of the params file:
+        self.params_file = params_file_resolver(self,
+                                                'CanonicalTensorModelOpt',
+                                                 params_file)
 
     @desc.auto_attr
     def model_params(self):
@@ -1419,11 +1456,12 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             params[vox] = this_params
 
             if self.verbose: 
-                prog_bar.animate()
+                prog_bar.animate(vox)
 
-        out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
+        out_params = np.nan * np.ones(self.signal.shape[:3] + (4,))
         out_params[self.mask] = np.array(params).squeeze()
 
+        return out_params
             
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """

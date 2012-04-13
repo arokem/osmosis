@@ -990,7 +990,7 @@ def test_SphericalHarmonicsModel():
 
     mask = np.zeros(model_coeffs.shape[:3])
     # Do this in only some small segment:
-    mask[40:44, 40:44, 40:44] = 1
+    mask[40:42, 40:42, 40:42] = 1
     
     SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
                                       data_path + 'dwi.bvecs',
@@ -1029,20 +1029,79 @@ def test_CanonicalTensorModel():
     # XXX Smoke testing only
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
-    idx = (40,40,40)
     mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+    # Only two voxels:
+    mask_array[1:3, 1:3, 1:3] = 1
+    # Fit this on some real dwi data
+    for params_file in [None, tempfile.NamedTemporaryFile().name]:
+        CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+                                   mask=mask_array,
+        params_file=params_file)
+
+        # XXX Smoke testing only:
+        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+    # Test over-sampling:
+    for over_sample in [362, 246]: # Over-sample from dipy and from camino-points
+        CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
+                                       data_path + 'dwi.bvecs',
+                                       data_path + 'dwi.bvals',
+                                       mask=mask_array,
+        params_file=tempfile.NamedTemporaryFile().name, over_sample=over_sample)
+        
+        # XXX Smoke testing only:
+        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+    # This shouldn't be possible, because we don't have a sphere with 151
+    # samples handy:
+    npt.assert_raises(ValueError,
+                      ozm.CanonicalTensorModel,
+                      data_path+'small_dwi.nii.gz',
+                      data_path + 'dwi.bvecs',
+                      data_path + 'dwi.bvals',
+                      **dict(mask=mask_array,
+                           params_file=tempfile.NamedTemporaryFile().name,
+                           over_sample=151))
+        
+def test_CanonicalTensorModelOpt():
+    """
+    Test fitting of the CanonicalTensorModel by optimization
+    """
+    
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+    # Only two voxels:
+    mask_array[1:3, 1:3, 1:3] = 1
 
     # Fit this on some real dwi data
-    CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
+    CTM = ozm.CanonicalTensorModelOpt(data_path+'small_dwi.nii.gz',
+                                      data_path + 'dwi.bvecs',
+                                      data_path + 'dwi.bvals',
+                                      mask=mask_array,
+        params_file=tempfile.NamedTemporaryFile().name)
+
+    # XXX Smoke testing for now:
+    npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+
+def test_MultiCanonicalTensorModel():
+    """
+    Test fitting of the MultiCanonicalTensorModel
+    """
+    
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+
+    # Only two voxels:
+    mask_array[1:3, 1:3, 1:3] = 1
+    
+    # Fit this on some real dwi data
+    CTM = ozm.MultiCanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                    data_path + 'dwi.bvecs',
                                    data_path + 'dwi.bvals',
                                    mask=mask_array,
         params_file=tempfile.NamedTemporaryFile().name)
 
-    # XXX Smoke testing only:
+    # XXX Smoke testing for now:
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
-
-    
-
-    
