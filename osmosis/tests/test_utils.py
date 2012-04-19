@@ -210,3 +210,41 @@ def test_rms_rmse():
     npt.assert_equal(ozu.rms(data), ozu.rmse(data, np.zeros(data.shape)))
     
     
+def test_xform():
+    """
+    Testing affine transformation of coordinates
+    """
+
+    coords = np.array([[1,2],[1,2],[1,2]])
+
+    npt.assert_equal(ozu.xform(coords, np.eye(4)), coords)
+
+    # Scaling by a factor of 2:
+    aff = np.array([[2,0,0,0],
+                    [0,2,0,0],
+                    [0,0,2,0],
+                    [0,0,0,1]])
+
+    npt.assert_equal(ozu.xform(coords, aff), coords * 2) 
+
+    # Translation by 1: 
+    aff = np.array([[1,0,0,1],
+                    [0,1,0,1],
+                    [0,0,1,1],
+                    [0,0,0,1]])
+
+    npt.assert_equal(ozu.xform(coords, aff), coords + 1) 
+
+    # Test error handling:
+
+    coords = np.array([[1,2],[1,2]])
+
+    npt.assert_raises(ValueError, ozu.xform, coords, aff)
+
+    # Restore the sensible coordinates: 
+    coords =  np.array([[1,2],[1,2],[1,2]])
+
+    aff = np.eye(3)
+    
+    npt.assert_raises(ValueError, ozu.xform, coords, aff)
+    

@@ -1,0 +1,40 @@
+==============
+ reading list
+==============
+
+
+About failure of the DTI model in high b values:
+------------------------------------------------
+
+Mulkern, R.V., Gudbjartsson, H., Westin, C.F., Zengingonul, H.P., Gartner, W.,
+Guttmann, C.R., Robertson, R.L., Kyriakos, W., Schwartz, Holtzman, D., Jolesz,
+F.A., Maier, S.E., 1999. Multi-component apparent diffusion coefficients in
+human brain. NMR Biomed. 12, 51–62.
+
+
+Clark, C.A., Le Bihan, D., 2001. Water diffusion compartmentation and
+anisotropy at high b values in the human brain. Magn. Reson. Med. 44, 852–859.
+
+
+Van, AT, Granziera, C, Bammer, R 2010. An introduction to Model-Independent
+Diffusion MRI. Top Mag Res Imag 21: 339-354
+
+Page 4:  "It appears evident that attempts to fit 3D ellipsoids to such data would lead
+to inaccurate results with large fit errors." 
+
+
+
+
+About spherical deconvolution and the SH decomposition:
+-------------------------------------------------------
+
+Tournier, J-Donald, Calamante, Fernando, Connelly, Alan 2007, Robust
+determination of the fibre orientation distribution in diffusion MRI:
+non-negativity constrained super-resolved spherical deconvolution. NeuroImage
+35: 1459-1472
+
+Alexander DC, Barker GJ. Optimal imaging parameters for fiber-orientation estimation in diffusion MRI. Neuroimage. 2005; 27(2):357–367. [PubMed: 15921931]
+
+Anderson, A.W., 2005. Measurement of fiber orientation distributions using high angular resolution diffusion imaging. Magn. Reson. Med. 54, 1194–1206.
+
+

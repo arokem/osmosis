@@ -592,3 +592,48 @@ def get_camino_pts(n_dirs):
 
 
     return xyz.T
+
+def xform(coords, affine):
+    """
+    Use an affine transform to move from one 3d coordinate system to another
+
+    Parameters
+    ----------
+
+    coords: 3 by n float/int array
+        The xyz coordinates in the original coordinate system.
+
+    affine: 4 by 4 array/matrix
+        An affine transformation from the original to the new coordinate
+        system. 
+    
+    """
+    # Just to be sure: 
+    xyz_orig = np.asarray(coords)
+    orig_dtype = xyz_orig.dtype
+
+    if xyz_orig.shape[0] != 3:
+        e_s = "Coords input to xform should be a 3 by n array"        
+        raise ValueError(e_s)
+    if affine.shape != (4,4):
+        e_s = "Affine input to xform should be a 4 by 4 array or matrix"
+
+    # Matrixify it: 
+    affine = np.matrix(affine)
+    
+    # If this is a single point: 
+    if len(xyz_orig.shape) == 1:
+        xyz_orig1 = np.vstack([np.array([xyz_orig]).T, 1])
+    else:
+        xyz_orig1 = np.vstack([xyz_orig, np.ones(xyz_orig.shape[-1])])
+
+    # This applies the transformation:
+    xyz1 = np.dot(affine, xyz_orig1)
+
+    xyz_new = np.array([np.array(xyz1[0]).squeeze(),
+                        np.array(xyz1[1]).squeeze(),
+                        np.array(xyz1[2]).squeeze()])
+
+    # Get it back in the original dtype: 
+    return xyz_new.astype(orig_dtype)
+    
