@@ -64,7 +64,10 @@ import struct
 import os
 
 import numpy as np
-import osmosis.fibers as mtf
+import scipy.io as sio
+
+import osmosis as oz
+import osmosis.fibers as ozf
 
 
 # XXX The following functions are way too long. Break 'em up!
@@ -189,7 +192,7 @@ def fg_from_pdb(file_name, verbose=True):
         f_stat_v = [f_stats_dict[k][p_idx] for k in f_stat_k]
         n_stats_k = n_stats_dict.keys()
         n_stats_v = [n_stats_dict[k][p_idx] for k in n_stats_k]
-        fibers.append(mtf.Fiber(pts[p_idx],
+        fibers.append(ozf.Fiber(pts[p_idx],
                             xform,
                             fiber_stats=dict(zip(f_stat_k, f_stat_v)),
                             node_stats=dict(zip(n_stats_k, n_stats_v))))
@@ -197,7 +200,7 @@ def fg_from_pdb(file_name, verbose=True):
         print("Done reading from file")
         
     name = os.path.split(file_name)[-1].split('.')[0]
-    return mtf.FiberGroup(fibers, name=name)
+    return ozf.FiberGroup(fibers, name=name)
     
 # This one's a global used in both packing and unpacking the data 
     
@@ -392,3 +395,29 @@ def fg_from_trk():
 
     """
     raise NotImplementedError
+
+
+def freesurfer_labels():
+    """
+    Get the freesurfer labels for different parts of the brain from a file
+    stored with the data.
+
+    Parameters
+    ----------
+    None. 
+
+    Returns
+    -------
+    A dict with label-name key-value pairs.
+    
+    """
+    data_path = oz.__path__[0] + '/data/'
+    fslabel = sio.loadmat(data_path + 'fslabel.mat', squeeze_me=True)['fslabel']
+    num = fslabel['num'].item()
+    name = fslabel['name'].item()
+
+    label_dict = {}
+    for idx, this_num in enumerate(num):
+        label_dict[int(this_num.item())] = name[idx].item()
+
+    return label_dict

@@ -171,15 +171,15 @@ def resample_volume(source, target):
     new_idx = np.dot(combined_aff, source_idx)
     new_idx = np.array(new_idx[:3]).astype(int)
     new_idx.shape
-
+    source_data = source.get_data()
+    
     for c,i in enumerate(new_idx.T):
-        
         # This can only be done within the bounding box of the target:
         if (i[0]>=0 and i[0]<new_vol.shape[0] and i[1]>=0 and
             i[1]<new_vol.shape[1] and i[2]>=0 and i[2]<new_vol.shape[2]):
-            new_vol[i[0], i[1], i[2]] += source.get_data()[source_idx[0,c],
-                                                           source_idx[1,c],
-                                                           source_idx[2,c]]
+            new_vol[i[0], i[1], i[2]] += source_data[source_idx[0,c],
+                                                    source_idx[1,c],
+                                                    source_idx[2,c]]
             count_vol[i[0], i[1], i[2]] += 1
 
     # Average: 

@@ -1113,10 +1113,11 @@ class CanonicalTensorModel(BaseModel):
 
     .. math::
     
-       S = \beta_1 S0 e^{-bval \vec{b} q \vec{b}^t} + \beta_2 S0 
-
-    Where $\vec{b}$ is chosen to be one of the diffusion-weighting
-    directions used in the scan.
+       \frac{S}{S_0} = \beta_1 e^{-bval \vec{b} q \vec{b}^t} + \beta_2 e^{-b D_0} 
+ 
+    Where $\vec{b}$ can be chosen to be one of the diffusion-weighting
+    directions used in the scan, or taken from some other collection of unit
+    vectors.
 
     Consequently, for a particular choice of $\vec{b}$ we can write this as:
 
@@ -1124,10 +1125,10 @@ class CanonicalTensorModel(BaseModel):
 
        S = X \beta
 
-    Where: S is the nvoxels x ndirections signal from the entire volume, X is a
-    2 by ndirections matrix, with one column devoted to the anistropic
-    contribution from the canonical tensor and the other column containing a
-    constant term in all directions, representing the isotropic
+    Where: S is the nvoxels x ndirections $b_0$-attenuatedd signal from the
+    entire volume, X is a 2 by ndirections matrix, with one column devoted to
+    the anistropic contribution from the canonical tensor and the other column
+    containing a constant term in all directions, representing the isotropic
     component. We can solve this equation using OLS fitting and derive the RMSE
     for that choice of $\vec{b}$. For each voxel, we can then find the choice
     of $\vec{b}$ that best predicts the signal (in the least-squares
