@@ -8,8 +8,8 @@ import scipy.linalg as la
 
 # Import locally: 
 import osmosis.descriptors as desc
-import osmosis.tensor as mtt
-import osmosis.utils as mtu
+import osmosis.tensor as ozt
+import osmosis.utils as ozu
 
 class Fiber(desc.ResetMixin):
     """
@@ -100,14 +100,6 @@ class Fiber(desc.ResetMixin):
         you back what you had in the first place.
         
         """
-        xyz_orig = self.coords
-
-        # If this is a single point: 
-        if len(xyz_orig.shape) == 1:
-            xyz_orig1 = np.vstack([np.array([xyz_orig]).T, 1])
-        else:
-            xyz_orig1 = np.vstack([xyz_orig, np.ones(xyz_orig.shape[-1])])
-            
         # If the affine optional kwarg was provided use that:
         if affine is None:
             if self.affine is None:
@@ -123,13 +115,9 @@ class Fiber(desc.ResetMixin):
             # Use the affine provided on initialization:
             else:
                 affine = self.affine
-            
-        # Do it:
-        xyz1 = affine * xyz_orig1
 
-        xyz_new = np.array([np.array(xyz1[0]).squeeze(),
-                    np.array(xyz1[1]).squeeze(),
-                    np.array(xyz1[2]).squeeze()])
+        # Do it: 
+        xyz_new = ozu.xform(self.coords, affine)
 
         # Just put the new coords instead of the old ones:
         if inplace:
@@ -153,7 +141,7 @@ class Fiber(desc.ResetMixin):
         res: array-like with 3 items for the resolution in the x/y/z
         directions.
         """
-        return mtu.unique_rows(self.coords.T).T
+        return ozu.unique_rows(self.coords.T).T
     
     def tensors(self, bvecs, bvals, axial_diffusivity, radial_diffusivity):
         """
@@ -188,7 +176,7 @@ class Fiber(desc.ResetMixin):
         for grad_idx, this_grad in enumerate(grad.T):
             usv = la.svd(np.matrix(this_grad), overwrite_a=True)
             this_Q = (np.matrix(usv[2]) * d_matrix * np.matrix(usv[2]))
-            tensors[grad_idx]= mtt.Tensor(this_Q, bvecs, bvals)
+            tensors[grad_idx]= ozt.Tensor(this_Q, bvecs, bvals)
 
         return tensors
 
@@ -225,7 +213,7 @@ class Fiber(desc.ResetMixin):
         ADC = np.array([ten.ADC for ten in tens])
 
         # Call S/T with the ADC as input:
-        return mtt.stejskal_tanner(signal_unweighted, bvals, ADC)
+        return ozt.stejskal_tanner(signal_unweighted, bvals, ADC)
 
 class FiberGroup(desc.ResetMixin):
     """
@@ -398,4 +386,4 @@ class FiberGroup(desc.ResetMixin):
         The unique spatial coordinates of all the fibers in the FiberGroup.
 
         """
-        return mtu.unique_rows(self.coords.T).T 
+        return ozu.unique_rows(self.coords.T).T 

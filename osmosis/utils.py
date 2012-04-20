@@ -620,6 +620,11 @@ def xform(coords, affine):
 
     # Matrixify it: 
     affine = np.matrix(affine)
+
+    # If it's the identity matrix, don't need to do anything:
+    if np.all(affine == np.eye(4)):
+        # Just return the input
+        return xyz_orig
     
     # If this is a single point: 
     if len(xyz_orig.shape) == 1:
