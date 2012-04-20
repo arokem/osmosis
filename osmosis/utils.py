@@ -593,6 +593,7 @@ def get_camino_pts(n_dirs):
 
     return xyz.T
 
+
 def xform(coords, affine):
     """
     Use an affine transform to move from one 3d coordinate system to another
@@ -617,6 +618,7 @@ def xform(coords, affine):
         raise ValueError(e_s)
     if affine.shape != (4,4):
         e_s = "Affine input to xform should be a 4 by 4 array or matrix"
+        raise ValueError(e_s)
 
     # Matrixify it: 
     affine = np.matrix(affine)
@@ -625,20 +627,33 @@ def xform(coords, affine):
     if np.all(affine == np.eye(4)):
         # Just return the input
         return xyz_orig
-    
-    # If this is a single point: 
-    if len(xyz_orig.shape) == 1:
-        xyz_orig1 = np.vstack([np.array([xyz_orig]).T, 1])
+
+    # This is one way to go about it: 
+    ## # If this is a single point: 
+    ## if len(xyz_orig.shape) == 1:
+    ##     xyz_orig1 = np.vstack([np.array([xyz_orig]).T, 1])
+    ## else:
+    ##     xyz_orig1 = np.vstack([xyz_orig, np.ones(xyz_orig.shape[-1])])
+
+    ## # This applies the transformation:
+    ## xyz1 = np.dot(affine, xyz_orig1)
+    ## xyz_new = np.array([np.array(xyz1[0]).squeeze(),
+    ##                     np.array(xyz1[1]).squeeze(),
+    ##                     np.array(xyz1[2]).squeeze()])
+
+    ## # Get it back in the original dtype: 
+    ## return xyz_new.astype(orig_dtype)
+
+    # And this is another (more memory efficient => faster?):
+    xyz = np.array(np.dot(affine[:3,:3], xyz_orig)).squeeze()
+    if len(xyz.shape) == 1:
+        xyz += np.reshape(np.array(affine[:3, 3]).squeeze(), (3))
     else:
-        xyz_orig1 = np.vstack([xyz_orig, np.ones(xyz_orig.shape[-1])])
+        xyz += np.reshape(np.array(affine[:3, 3]).squeeze(), (3,1))  # Broadcast
+                                                                 # and add 
 
-    # This applies the transformation:
-    xyz1 = np.dot(affine, xyz_orig1)
-
-    xyz_new = np.array([np.array(xyz1[0]).squeeze(),
-                        np.array(xyz1[1]).squeeze(),
-                        np.array(xyz1[2]).squeeze()])
-
-    # Get it back in the original dtype: 
-    return xyz_new.astype(orig_dtype)
+    return xyz.astype(orig_dtype)
+ 
     
+
+
