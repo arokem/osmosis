@@ -1,5 +1,6 @@
 import os
 import nibabel as ni
+import numpy as np
 
 import osmosis as oz
 import osmosis.model as ozm
