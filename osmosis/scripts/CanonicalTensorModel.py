@@ -89,6 +89,8 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
     ax.legend()
     fig.savefig('/home/arokem/Dropbox/DWI_figures/CanonicalTensor_params_%s.png'%b)
 
+    idx = np.logical_and(to_hist1<1, to_hist2<1)
+
     # Compare the tensor weight to the FVF (calculated from the FA, using the
     # method outlined in Stikov et al. 2011):
     # Add [0,1] to force the axes to be [0,1]
