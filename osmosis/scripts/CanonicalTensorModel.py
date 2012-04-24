@@ -57,6 +57,7 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
         AD,
         RD):
 
+    
     Model1 = ozm.CanonicalTensorModel(data_path + dwi1,
                                      data_path + bvecs1,
                                      data_path + bvals1,
@@ -65,7 +66,7 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
                                      axial_diffusivity=AD,
                                      over_sample=246)
     
-    Model1 = ozm.CanonicalTensorModel(data_path + dwi2,
+    Model2 = ozm.CanonicalTensorModel(data_path + dwi2,
                                      data_path + bvecs2,
                                      data_path + bvals2,
                                      mask=data_path + 'brainMask.nii.gz',
@@ -73,6 +74,11 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
                                      axial_diffusivity=AD,
                                      over_sample=246)
 
+    TM1 = ozm.TensorModel(data_path + dwi1,
+                          data_path + bvecs1,
+                          data_path + bvals1,
+                          mask=data_path + 'brainMask.nii.gz')
+    
     # Plot the parameter values:
     ax = viz.quick_ax()
     to_hist1 = Model1.model_params[Model1.mask,1]
@@ -91,7 +97,8 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
 
     idx = np.logical_and(to_hist1<1, to_hist2<1)
 
-    # Compare the tensor weight to the FVF (calculated from the FA, using the
+    # Compare the tensor weight to the FVF (calculated from the FA of the
+    # equivalent TensorModel, using the
     # method outlined in Stikov et al. 2011):
     # Add [0,1] to force the axes to be [0,1]
     fig = viz.scatter_density(np.hstack([to_hist1[idx],[0,1]]),
