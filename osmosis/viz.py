@@ -152,14 +152,14 @@ def color_from_val(val, min_val=0, max_val=255,
     if np.iterable(val):
         rgb = np.zeros((val.shape + (lut.shape[-1],)))
         idx = np.where(~np.isnan(val))
-        rgb[idx] = lut[(((float(val[idx])-min_val)/(max_val-min_val))*(n-1)).astype(int)]
+        rgb[idx] = lut[((((val[idx]).astype(float)-min_val)/(max_val-min_val))*(n-1)).astype(int)]
         return [tuple(this) for this in rgb]
     else:
         rgb = lut[(((float(val)-min_val)/(max_val-min_val))*(n-1)).astype(int)]        
         return tuple(rgb)
 
 
-def sig_on_sphere(bvecs, val, fig=None, sphere_dim=100, r_from_val=False,
+def sig_on_sphere(bvecs, val, fig=None, sphere_dim=1000, r_from_val=False,
                   **kwargs):
     """
     Presente values on a sphere.
@@ -186,7 +186,7 @@ def sig_on_sphere(bvecs, val, fig=None, sphere_dim=100, r_from_val=False,
     """
 
     # We don't need the r output
-    _, phi, theta = geo.cart2sphere(bvecs[0], bvecs[1], bvecs[2])
+    _, theta, phi = geo.cart2sphere(bvecs[0], bvecs[1], bvecs[2])
 
     if fig is None:
         fig = plt.figure()
@@ -194,7 +194,7 @@ def sig_on_sphere(bvecs, val, fig=None, sphere_dim=100, r_from_val=False,
 
     # Get the cmap argument out of your kwargs, or use the default:
     cmap = kwargs.pop('cmap', matplotlib.cm.RdBu)
-
+    
     u = np.linspace(0, 2 * np.pi, sphere_dim)
     v = np.linspace(0, np.pi, sphere_dim)
 

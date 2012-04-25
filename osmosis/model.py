@@ -544,7 +544,7 @@ class BaseModel(DWI):
 # it in one general function that everyone can use (DRY!):
 def params_file_resolver(object, file_name_root, params_file=None):
     """
-    Helper fiunction for resolving what the params file name should be for
+    Helper function for resolving what the params file name should be for
     several of the model functions for which the params are cached to file
 
     Parameters
@@ -1376,23 +1376,6 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
-def err_func_CanonicalTensorModelOpt(x, object, signal):
-    """
-    The error function for the fit:
-    """
-    theta,phi,tensor_w,iso_w = x
-    # Convert to cartesian coordinates:
-    x,y,z = geo.sphere2cart(1, theta, phi)
-    bvec = [x,y,z]
-    evals, evecs = object.response_function.decompose
-    rot_tensor = ozt.tensor_from_eigs(
-        evecs * ozu.calculate_rotation(bvec, evecs[0]),
-               evals, object.bvecs[:,object.b_idx], object.bvals[:,object.b_idx])
-
-    # Relative to an S0=1:
-    pred_sig = tensor_w * rot_tensor.predicted_signal(1) + iso_w
-    return pred_sig - signal
-
 class CanonicalTensorModelOpt(CanonicalTensorModel):
     """
     This one is supposed to do the same thing as CanonicalTensorModel, except
@@ -1448,12 +1431,14 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
 
         for vox in range(self._flat_signal.shape[0]):
+            # Need to set this one in each voxel, so that the optimizer
+            # becomes aware of it:
+            self._vox_sig = self._flat_signal[vox]
             # Starting conditions
             mean_sig = np.mean(self._flat_signal[vox])
-            x0 = 0,0,mean_sig,mean_sig 
-            this_params, status = leastsq(err_func_CanonicalTensorModelOpt,
-                                          x0,
-                                         (self, self._flat_signal[vox]))
+            start_params = 0,0,mean_sig,mean_sig
+            # Do the least-squares fitting:
+            this_params, status = leastsq(self.err_func, start_params)
             params[vox] = this_params
 
             if self.verbose: 
@@ -1463,6 +1448,22 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         out_params[self.mask] = np.array(params).squeeze()
 
         return out_params
+    def err_func(self, params):
+        """
+        The error function for the fit:
+        """
+        theta,phi,tensor_w,iso_w = params
+        # Convert to cartesian coordinates:
+        x,y,z = geo.sphere2cart(1, theta, phi)
+        bvec = [x,y,z]
+        evals, evecs = self.response_function.decompose
+        rot_tensor = ozt.tensor_from_eigs(
+            evecs * ozu.calculate_rotation(bvec, evecs[0]),
+                   evals, self.bvecs[:,self.b_idx], self.bvals[:,self.b_idx])
+
+        # Relative to an S0=1:
+        pred_sig = tensor_w * rot_tensor.predicted_signal(1) + iso_w
+        return pred_sig - self._vox_sig
             
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
@@ -1712,17 +1713,184 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
         return out
             
+class CalibratedCanonicalTensorModel(CanonicalTensorModel):
+    """
 
+    This is another extension of the CanonicalTensorModel, which extends the
+    interpertation of the different weights, by calibrating the weights to a
+    particular ROI.
+
+    Classically, we will use Corpus Callosum, or some part of it as our
+    'calibration target'. In CC, we assume that the axial diffusivity of the
+    canonical tensor used is the same as the diffusivity (uniform in all
+    directions) of the cellular component in that part of the brain. This
+    assumption is based on the idea that diffusion along the axis of the axon
+    is hindered by the same kind of things that hinder diffusion inside cells:
+    membranes of sub-cellular organelles, macro-molecules, etc. 
+
+    Making this assumption we can write our non-linear model for this part of
+    the brain as: 
+
+    .. math ::
+
+    \frac{S}{S_0} = \beta e^{-b \lambda_1} + (1-\beta)e^{-b \vec{b}Q\vect{b}^t}
+
+    Where:
+
+    .. math :: 
+
+    $Q = \begin{pmatrix} \lambda_1 & 0 & 0 \\ 0 &\lambda_2 & 0 \\ 0 & 0 &
+\lambda_2 \end{pmatrix}$
+
+    is the quadratic form of the canonical tensor. Once we fit \lambda_1,
+    \lambda_2 and \beta to the data from the 'calibration target', we 
+    can apply these \lambda_i everywhere.
+
+    To do that, we also need to fit the direction of the canonical tensor in
+    that location, which adds two parameters to the fit. Importantly, if we
+    choose a part of the brain where the direction of the principal diffusion
+    direction is known (such as CC), we can reduce the optimization
+    substantially, by starting things off with the canonical tensor oriented in
+    the L/R direction. 
+    
+    """
+
+    
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 calibration_roi,
+                 params_file=None,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None,
+                 over_sample=None,
+                 verbose=True):
+        """
+        Initialize a CalibratedCanonicalTensorModel instance.
+
+        Parameters
+        ----------
+
+        calibration_roi: full path to a nifti file containing zeros everywhere,
+        except ones where the calibration ROI is defined. Should be already
+        registered and xformed to the DWI data resolution/alignment. 
+
+        """
+        # Initialize the super-class, we set AD and RD to None, to prevent
+        # things from going forward before calibration has occurred. This will
+        # probably cause an error to be thrown, if calibration doesn't
+        # happen. We might want to catch that error and explain it to the
+        # user... 
+        CanonicalTensorModel.__init__(self,
+                                      data,
+                                      bvecs,
+                                      bvals,
+                                      params_file=params_file,
+                                      axial_diffusivity=None,
+                                      radial_diffusivity=None,
+                                      affine=affine,
+                                      mask=mask,
+                                      scaling_factor=scaling_factor,
+                                      sub_sample=sub_sample,
+                                      over_sample=over_sample,
+                                      verbose=verbose)
+
+        self.params_file = params_file_resolver(self,
+                                            'CalibratedCanonicalTensorModel',
+                                             params_file)
+
+        # This is used to initialize the optimization in each voxel 
+        self.start_params = np.pi, np.pi, 0.5, 1, 0.5
+                            #theta, phi, beta, lambda1, lambda2
+        self.calibration_roi = calibration_roi
+        
+    def _err_func(self, params):
+        """
+        Error function for the non-linear optimization 
+        """
+        # The fit parameters: 
+        theta,phi,beta,lambda1,lambda2 = params
+
+        response_function = ozt.Tensor([[lambda1, 0, 0],
+                                        [0, lambda2, 0],
+                                        [0, 0, lambda2]],
+                                        self.bvecs[:,self.b_idx],
+                                        self.bvals[:,self.b_idx])
+                                        
+        # Convert theta and phi to cartesian coordinates:
+        x,y,z = geo.sphere2cart(1, theta, phi)
+        bvec = [x,y,z]
+        evals, evecs = response_function.decompose
+
+        rot_tensor = ozt.tensor_from_eigs(
+            evecs * ozu.calculate_rotation(bvec, evecs[0]),
+            evals, self.bvecs[:,self.b_idx], self.bvals[:,self.b_idx])
+
+        iso_sig = np.exp(-self.bvals[self.b_idx][0] * lambda1)
+        tensor_sig =  rot_tensor.predicted_signal(1)
+
+        pred_sig = beta * iso_sig + (1-beta) * tensor_sig
+
+        return pred_sig - self._vox_sig
+
+
+    @desc.auto_attr
+    def _calibration_signal(self):
+        """
+        The attenuated signal (relative to S0), extracted from the calibration
+        target ROI and flattened (n_voxels by n_directions)
+
+        """
+        roi_mask = ni.load(self.calibration_roi).get_data()
+        return np.reshape(self.signal_attenuation[np.where(roi_mask)],
+                          (-1, self.b_idx.shape[0]))
+        
+    @desc.auto_attr
+    def calibration(self):
+
+        """"
+        This is the function to perform the calibration optimization on. When
+        this is done, self.AD and self.RD will be set and parameter estimation
+        can proceed as in the super-class
+
+        """
+
+        out = np.empty((self._calibration_signal.shape[0], 5))
+        if self.verbose:
+            print('Calibrating for AD/RD')
+            prog_bar = viz.ProgressBar(self._calibration_signal.shape[0])
+        
+        for vox in range(self._calibration_signal.shape[0]):
+            # Need to reassign this with each iteration, so the err-function
+            # can become aware of it:
+            self._vox_sig = self._calibration_signal[vox] 
+
+            # These 'internal' settings of the optimizer could in principle be
+            # put in another, more accesible place: 
+            optim_kwds = dict(ftol=1e-5, full_output=True)
+
+            # Perform the fitting itself:
+            out[vox], cov_x, infodict, mesg, ier = \
+            leastsq(self._err_func, self.start_params, **optim_kwds)
             
+            if self.verbose: 
+                prog_bar.animate(vox)
+
+        return out
             
+
+    
 class TissueFractionModel(CanonicalTensorModel):
     """
     This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
-    measurement of the tissue fraction in different parts of the brain. The
-    model posits that tissue fraction accounts for non-free water, restriced or
-    hindered by tissue components, which can be represented by a canonical
-    tensor and a sphere. The rest (1-tf) is free water, which is represented by
-    a second sphere (free water).
+    measurement of the tissue fraction in different parts of the brain
+    [REF?]. The model posits that tissue fraction accounts for non-free water,
+    restriced or hindered by tissue components, which can be represented by a
+    canonical tensor and a sphere. The rest (1-tf) is free water, which is
+    represented by a second sphere (free water).
 
     Thus, the model is as follows: 
 

@@ -640,17 +640,18 @@ def xform(coords, affine):
     ## xyz_new = np.array([np.array(xyz1[0]).squeeze(),
     ##                     np.array(xyz1[1]).squeeze(),
     ##                     np.array(xyz1[2]).squeeze()])
-
+    
     ## # Get it back in the original dtype: 
     ## return xyz_new.astype(orig_dtype)
 
     # And this is another (more memory efficient => faster?):
     xyz = np.array(np.dot(affine[:3,:3], xyz_orig)).squeeze()
+    # Deal with the special case where the coordinate is shape==(3,)
     if len(xyz.shape) == 1:
         xyz += np.reshape(np.array(affine[:3, 3]).squeeze(), (3))
     else:
         xyz += np.reshape(np.array(affine[:3, 3]).squeeze(), (3,1))  # Broadcast
-                                                                 # and add 
+                                                                     # and add 
 
     return xyz.astype(orig_dtype)
  
