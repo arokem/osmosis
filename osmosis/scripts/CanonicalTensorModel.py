@@ -109,7 +109,8 @@ for dwi1, bvecs1, bvals1, dwi2, bvecs2, bvals2, b, AD, RD, in zip(
     fig.axes[0].set_ylabel('FVF')
     fig.set_size_inches([10,10])
     fig.axes[0].plot([100,0],[0,100],'--k')
-
+    fig.savefig('/home/arokem/Dropbox/DWI_figures/CanonicalTensor_fvf%s.png'%b)
+    
 
     T1 = ni.load(data_path + 'FP_t1_resampled_to_dwi.nii.gz').get_data()
 
