@@ -50,7 +50,6 @@ import scipy.stats as stats
 from scipy.special import sph_harm
 from scipy.optimize import leastsq
 
-
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
@@ -1165,6 +1164,8 @@ class CanonicalTensorModel(BaseModel):
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
                  over_sample=None,
+                 mode='relative_signal',
+                 iso_diffusivity=3.0,
                  verbose=True):
 
         """
@@ -1188,6 +1189,42 @@ class CanonicalTensorModel(BaseModel):
            642 are provided. Note that these might be problematic, because they
            contain polar opposite points, so use with caution.
 
+        mode: string, optional
+        This can take one of several values, determining the form of the
+        regressors and the form of the signal to fit to.
+
+        'relative_signal': The fit is to $\frac{S}{S_0}$ and the regressors
+        are the relative signal predicted for a canonical tensor and the
+        relative signal predicted for a isotropic diffusivity compartment:
+
+        .. math::
+
+           \frac{S}{S_0} = \beta_1 e^{-bD} + \beta_2 e^{-b\vec{b}Q\vec{b}^t}
+
+    
+        'signal_attenuation': The fit is to $1-\frac{S}{S_0}$ and the
+        regressors are the signal attenuation for the canonical tensor and the
+        signal attenuation due to isotropic diffusion:
+
+        .. math::
+
+             1-\frac{S}{S_0} = \beta_1 (1-e^{-bD}) + \beta_2 (1-e^{-b\vec{b} Q \vec{b}^t})
+
+        'normalize': in this case, we fit to $\frac{S}{S_0}$, but our regressor
+        set is normalized to maximum of 1 in each columns. This affects the
+        values of the weights, but not the goodness-of-fit. The equation in
+        this case is: 
+
+        .. math::
+
+             \frac{S}{S_0} = \beta_1 + \beta_2 \frac{e^{-b\vec{b} Q \vec{b}^t}}{max(e^{-b\vec{b} Q \vec{b}^t})}
+
+
+        iso_diffusivity: optional, float
+            What the diffusivity of the isotropic component should be set
+            to. This is only relevant for 'signal_attenuation' and for
+            'relative_signal' modes. Defaults to 3
+              
         """
         
         # Initialize the super-class:
@@ -1223,6 +1260,14 @@ class CanonicalTensorModel(BaseModel):
                 raise ValueError(e_s)
         else:
             self.rot_vecs = self.bvecs[:,self.b_idx]
+
+        if mode not in ['relative_signal',
+                             'signal_attenuation',
+                             'normalize']:
+            raise ValueError("Not a recognized mode of CanonicalTensorModel")
+
+        self.mode = mode
+        self.iso_diffusivity = iso_diffusivity
         
     @desc.auto_attr
     def response_function(self):
@@ -1252,14 +1297,48 @@ class CanonicalTensorModel(BaseModel):
         # when over-sampling):
         evals, evecs = self.response_function.decompose
         for idx, bvec in enumerate(self.rot_vecs.T):
-            this = ozt.rotate_to_vector(bvec, evals, evecs,
-                                          self.bvecs[:, self.b_idx],
-                                          self.bvals[self.b_idx])
+            pred_sig = ozt.rotate_to_vector(bvec, evals, evecs,
+                        self.bvecs[:, self.b_idx],
+                        self.bvals[self.b_idx]).predicted_signal(1)
 
-            pred_sig = this.predicted_signal(1)
-            out[idx] = pred_sig/np.max(pred_sig)
-
+            if self.mode == 'signal_attenuation':
+                # Fit to 1 - S/S0 
+                out[idx] = 1 - pred_sig
+            elif self.mode == 'relative_signal':
+                # Fit to S/S0 using the predicted diffusion attenuated signal:
+                out[idx] = pred_sig
+            elif self.mode == 'normalize':
+                # Normalize your regressors to have a maximum of 1:
+                out[idx] = pred_sig / np.max(pred_sig)
+            
         return out
+
+    @desc.auto_attr
+    def regressors(self):
+        """
+        Compute the regressors and the signal to fit to, depending on the mode
+        you are using  
+        """
+        
+        iso_pred_sig = np.exp(-self.bvals[self.b_idx][0] * self.iso_diffusivity)
+
+        if self.mode == 'signal_attenuation':
+            iso_regressor = 1 - iso_pred_sig * np.ones(self.rotations.shape[-1])
+            tensor_regressor = self.rotations
+            fit_to = self._flat_signal_attenuation.T
+        elif self.mode == 'relative_signal':
+            iso_regressor = iso_pred_sig * np.ones(self.rotations.shape[-1])
+            tensor_regressor = self.rotations
+            fit_to = self._flat_relative_signal.T
+        elif self.mode == 'normalize':
+            # The only difference between this and the above is that the
+            # iso_regressor is here set to all 1's, which can affect the
+            # weights... 
+            iso_regressor = np.ones(self.rotations.shape[-1])
+            tensor_regressor = self.rotations
+            fit_to = self._flat_relative_signal.T
+
+        return iso_regressor, tensor_regressor, fit_to
 
     
     @desc.auto_attr
@@ -1271,16 +1350,16 @@ class CanonicalTensorModel(BaseModel):
         ols_weights = np.empty((self.rotations.shape[0], 2,
                                self._flat_signal.shape[0]))
 
+        iso_regressor, tensor_regressor, fit_to = self.regressors
+        
         for idx in range(ols_weights.shape[0]):
             # The 'design matrix':
-            d = np.vstack([self.rotations[idx],
-                           np.ones(self.rotations.shape[-1])]).T
+            d = np.vstack([tensor_regressor[idx], iso_regressor]).T
             # This is $(X' X)^{-1} X':
             ols_mat = ozu.ols_matrix(d)
-            # Multiply to find the OLS solution (fitting to the signal
-            # attenuation in each voxel):
-            ols_weights[idx] = np.array(np.dot(ols_mat,
-                                        self._flat_relative_signal.T))
+            # Multiply to find the OLS solution (fitting to all the voxels in
+            # one fell swoop):
+            ols_weights[idx] = np.dot(ols_mat, fit_to)
         return ols_weights
 
 
@@ -1333,10 +1412,13 @@ class CanonicalTensorModel(BaseModel):
                 # possible...) to not blow up the memory:
                 vox_fits = np.empty(self.rotations.shape)
                 for rot_i, rot in enumerate(self.rotations):
-                    vox_fits[rot_i] = ((b_w[rot_i,vox] * rot +
-                                        i_w[rot_i,vox]) *
+                    this_relative = ((b_w[rot_i,vox] * rot + i_w[rot_i,vox]) *
                                        self._flat_S0[vox])
-
+                    if self.mode == 'relative_signal' or self.mode=='normalize':
+                        vox_fits[rot_i] = this_relative
+                    elif self.mode == 'signal_attenuation':
+                        vox_fits[rot_i] = 1 - this_relative
+                        
                 # Find the predicted signal that best matches the original
                 # relative signal. That will choose the direction for the
                 # tensor we use:
@@ -1384,9 +1466,14 @@ class CanonicalTensorModel(BaseModel):
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
             if ~np.isnan(flat_params[vox, 1]):
-                out_flat[vox]=(
-                    flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                    flat_params[vox,2]) * self._flat_S0[vox]
+                this_fit = (flat_params[vox,1] *
+                            self.rotations[flat_params[vox,0]]+
+                            flat_params[vox,2]) * self._flat_S0[vox]
+                
+                if self.mode == 'signal_attenuation':
+                    this_fit = 1 - this_fit  
+
+                out_flat[vox]= this_fit
             else:
                 out_flat[vox] = np.nan
                 
@@ -1411,6 +1498,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
+                 mode='relative_signal',
                  verbose=True):
         """
         Initialize a CanonicalTensorModelOpt class instance.
@@ -1430,6 +1518,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                                       scaling_factor=scaling_factor,
                                       sub_sample=sub_sample,
                                       over_sample=None,  # Always None
+                                      mode=mode,
                                       verbose=verbose)
 
         # Replace the name of the params file:
@@ -1455,7 +1544,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             self._vox_sig = self._flat_signal[vox]
             # Starting conditions
             mean_sig = np.mean(self._flat_signal[vox])
-            start_params = 0,0,mean_sig,mean_sig
+            start_params = 0, 0, mean_sig,mean_sig
             
             # Do the least-squares fitting (setting tolerance to a rather
             # lenient value?):
@@ -1490,212 +1579,6 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         return pred_sig - self._vox_sig
 
 
-class SignalAttenuationModel(CanonicalTensorModel):
-    r"""
-    In this model, we look at the signal attenuation, instead of looking at the
-    relative signal ($\frac{S}{S_0}$) that is, the model is:
-
-    .. math::
-
-        1-\frac{S}{S_0} = \beta_1 (1-e^{-bD}) + \beta_2 (1-e^{-b\vec{b} Q \vec{b}^t})
-
-    Where this time, we do not normalize the predicted signal from each
-    component to a maximum of 1, but instead let it be as it is, from the
-    theoretical considerations  
-
-    """
-    def __init__(self,
-                 data,
-                 bvecs,
-                 bvals,
-                 params_file=None,
-                 axial_diffusivity=AD,
-                 radial_diffusivity=RD,
-                 affine=None,
-                 mask=None,
-                 scaling_factor=SCALE_FACTOR,
-                 sub_sample=None,
-                 over_sample=None,
-                 verbose=True):
-        """
-        Initialize SignalAttenuationModel class instance.
-
-        Same inputs as the CanonicalTensorModel
-        """
-        CanonicalTensorModel.__init__(self,
-                                      data,
-                                      bvecs,
-                                      bvals,
-                                      params_file=params_file,
-                                      axial_diffusivity=axial_diffusivity,
-                                      radial_diffusivity=radial_diffusivity,
-                                      affine=affine,
-                                      mask=mask,
-                                      scaling_factor=scaling_factor,
-                                      sub_sample=sub_sample,
-                                      over_sample=over_sample,
-                                      verbose=verbose)
-
-        # The only thing we need to do here is to Replace the name of the
-        # params file: 
-        self.params_file = params_file_resolver(self,
-                                                'SignalAttenuationModel',
-                                                 params_file)
-
-    
-
-    @desc.auto_attr
-    def rotations(self):
-        """
-        Here, instead of looking at the predicted signal from rotating the
-        canonical tensor in the direction of each bvec, we calculate the
-        predicted signalattenuation, relative to an S0 of 1. That is (1 -
-        predicted relative signal) 
-        """
-        out = np.empty((self.rot_vecs.shape[-1], self.b_idx.shape[0]))
-        
-        # We will use the eigen-value/vectors from the response function
-        # and rotate them around to each one of these vectors, calculating
-        # the predicted signal in the bvecs of the actual measurement (even
-        # when over-sampling):
-        evals, evecs = self.response_function.decompose
-        for idx, bvec in enumerate(self.rot_vecs.T):
-            this = ozt.rotate_to_vector(bvec, evals, evecs,
-                                          self.bvecs[:, self.b_idx],
-                                          self.bvals[self.b_idx])
-
-            pred_sig = 1 - this.predicted_signal(1)
-            out[idx] = pred_sig
-            
-        return out
-
-    
-    @desc.auto_attr
-    def ols(self):
-        """
-        Compute the OLS solution. This is *very* similar to the equivalent
-        function in CanonicalTensorModel, except we set the isotropic component
-        to be the predicted signal attenuation of a CSF voxel (D=3)
-        """
-        # Preallocate:
-        ols_weights = np.empty((self.rotations.shape[0], 2,
-                               self._flat_signal.shape[0]))
-
-        # The diffusivity of water should be 3:
-        water_pred_sig = np.exp(-self.bvals[self.b_idx][0] * 3)
-        iso_regressor = (1 - water_pred_sig) * np.ones(self.rotations.shape[-1])
-        for idx in range(ols_weights.shape[0]):
-            # The 'design matrix':
-            d = np.vstack([self.rotations[idx],
-                           iso_regressor]).T
-            # This is $(X' X)^{-1} X':
-            ols_mat = ozu.ols_matrix(d)
-            # Multiply to find the OLS solution (fitting to the signal
-            # attenuation in each voxel):
-            ols_weights[idx] = np.array(np.dot(ols_mat,
-                                        self._flat_signal_attenuation.T))
-        return ols_weights
-
-
-    @desc.auto_attr
-    def model_params(self):
-        """
-        The model parameters. Again, this is very similar to
-        CanonicalTensorMode, with the difference that we are here fitting to the
-        signal attenuation, so in order to recover the signal, we need to look
-        at: $1 - (\beta_1 tensor + \beta_2 iso)$
-         
-        """
-
-        # The file already exists: 
-        if os.path.isfile(self.params_file):
-            if self.verbose:
-                print("Loading params from file: %s"%self.params_file)
-
-            # Get the cached values and be done with it:
-            return ni.load(self.params_file).get_data()
-        else:
-            # Looks like we might need to do some fitting...
-            # Get the bvec weights and the isotropic weights
-            b_w = self.ols[:,0,:].copy().squeeze()
-            i_w = self.ols[:,1,:].copy().squeeze()
-
-            # nan out the places where weights are negative: 
-            b_w[np.logical_or(b_w<0, i_w<0)] = np.nan
-            i_w[np.logical_or(b_w<0, i_w<0)] = np.nan
-
-            params = np.empty((self._flat_signal.shape[0],3))
-            if self.verbose:
-                print("Fitting SignalAttenuationModel:")
-                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-            # Find the best OLS solution in each voxel:
-            for vox in xrange(self._flat_signal.shape[0]):
-                # We do this in each voxel (instead of all at once, which is
-                # possible...) to not blow up the memory:
-                vox_fits = np.empty(self.rotations.shape)
-                for rot_i, rot in enumerate(self.rotations):
-                    vox_fits[rot_i] = (1 - (b_w[rot_i,vox] * rot +
-                                            i_w[rot_i,vox]) *
-                                       self._flat_S0[vox])
-
-                # Find the predicted signal that best matches the original
-                # signal attenuation. That will choose the direction for the
-                # tensor we use:
-                corrs = ozu.seed_corrcoef(self._flat_signal[vox],
-                                          vox_fits)
-                idx = np.where(corrs==np.nanmax(corrs))[0]
-
-                # Sometimes there is no good solution (maybe we need to fit
-                # just an isotropic to all of these?):
-                if len(idx):
-                    # In case more than one fits the bill, just choose the
-                    # first one:
-                    if len(idx)>1:
-                        idx = idx[0]
-                    
-                    params[vox,:] = np.array([idx,
-                                              b_w[idx, vox],
-                                              i_w[idx, vox]]).squeeze()
-                else:
-                    params[vox,:] = np.array([np.nan, np.nan, np.nan])
-
-                if self.verbose:
-                    prog_bar.animate(vox)
-
-            # Save the params for future use: 
-            out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
-            out_params[self.mask] = np.array(params).squeeze()
-            params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
-
-            # And return the params for current use:
-            return out_params
-
-    @desc.auto_attr
-    def fit(self):
-        """
-        Predict the signal from the fit of the SignalAttenuationModel
-        """
-        if self.verbose:
-            print("Predicting signal from SignalAttenuationModel")
-            
-        out_flat = np.empty(self._flat_signal.shape)
-        flat_params = self.model_params[self.mask]
-        for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(flat_params[vox, 1]):
-                out_flat[vox]=(
-                    1 - (flat_params[vox,1] * self.rotations[flat_params[vox,0]]+
-                    flat_params[vox,2])) * self._flat_S0[vox]
-            else:
-                out_flat[vox] = np.nan
-                
-        out = np.nan * np.ones(self.signal.shape)
-        out[self.mask] = out_flat
-        return out
-    
-
 
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
@@ -1718,6 +1601,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                  sub_sample=None,
                  over_sample=None,
                  verbose=True,
+                 mode='relative_signal',
                  n_canonicals=2):
         """
         Initialize a MultiCanonicalTensorModel class instance.
@@ -1735,6 +1619,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                       scaling_factor=scaling_factor,
                                       sub_sample=sub_sample,
                                       over_sample=over_sample,
+                                      mode=mode,
                                       verbose=verbose)
         
         self.n_canonicals = n_canonicals
@@ -1768,6 +1653,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         ols_weights = np.empty((len(self.rot_idx),
                                 self.n_canonicals + 1,
                                 self._flat_signal.shape[0]))
+
+        iso_regressor, tensor_regressor, fit_to = self.regressors
+
         where_are_we = 0
         for row, idx in enumerate(self.rot_idx):                
         # 'row' refers to where we are in ols_weights
@@ -1778,13 +1666,12 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     print (s)
                     where_are_we += 1
             # The 'design matrix':
-            d = np.vstack([[self.rotations[i] for i in idx],
-                           np.ones(self.b_idx.shape[0])]).T
+            d = np.vstack([[tensor_regressor[i] for i in idx],
+                           iso_regressor]).T
             # This is $(X' X)^{-1} X':
             ols_mat = ozu.ols_matrix(d)
-            # Multiply to find the OLS solution (fit to signal attenuation):
-            ols_weights[row] = np.array(
-                np.dot(ols_mat, self._flat_relative_signal.T)).squeeze()
+            # Multiply to find the OLS solution:
+            ols_weights[row] = np.array(np.dot(ols_mat, fit_to)).squeeze()
 
         return ols_weights
 
@@ -1844,9 +1731,17 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 vox_fits = np.empty((len(self.rot_idx), len(self.b_idx)))
                 
                 for idx, rot_idx in enumerate(self.rot_idx):
-                    vox_fits[idx] = i_w[idx,vox]
-                    vox_fits[idx] += (np.dot(b_w[idx,:,vox],
-                                np.array([self.rotations[x] for x in rot_idx])))
+                    this_relative = i_w[idx,vox]
+                    this_relative += (np.dot(b_w[idx,:,vox],
+                    # The tensor regressors are different in cases where we
+                    # are fitting to relative/attenuation signal, so grab that
+                    # from the regressors attr:
+                    np.array([self.regressors[1][x] for x in rot_idx])))
+
+                    if self.mode == 'relative_signal' or self.mode=='normalize':
+                        vox_fits[idx] = this_relative
+                    elif self.mode == 'signal_attenuation':
+                        vox_fits[idx] = 1 - this_relative
 
                 # Find the predicted signal that best matches the original
                 # signal attenuation. That will choose the direction for the
@@ -1923,6 +1818,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
     @desc.auto_attr
     def fit_angle(self):
         """
+        The angle between the tensors that were fitted
         """
         out_flat = np.empty(self._flat_signal.shape[0])
         flat_params = self.model_params[self.mask]
@@ -1944,6 +1840,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         out[self.mask] = out_flat
 
         return out
+
             
 class CalibratedCanonicalTensorModel(CanonicalTensorModel):
     """

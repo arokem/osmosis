@@ -1033,26 +1033,31 @@ def test_CanonicalTensorModel():
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1
     # Fit this on some real dwi data
-    for params_file in [None, tempfile.NamedTemporaryFile().name]:
-        CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
-                                   data_path + 'dwi.bvecs',
-                                   data_path + 'dwi.bvals',
-                                   mask=mask_array,
-        params_file=params_file)
-
-        # XXX Smoke testing only:
-        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
-
-    # Test over-sampling:
-    for over_sample in [362, 246]: # Over-sample from dipy and from camino-points
-        CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
+    for mode in ['signal_attenuation', 'relative_signal', 'normalize']:
+        for params_file in [None, tempfile.NamedTemporaryFile().name]:
+            CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                        data_path + 'dwi.bvecs',
                                        data_path + 'dwi.bvals',
                                        mask=mask_array,
-        params_file=tempfile.NamedTemporaryFile().name, over_sample=over_sample)
-        
-        # XXX Smoke testing only:
-        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+                                       params_file=params_file,
+                                       mode=mode)
+
+            # XXX Smoke testing only:
+            npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+        # Test over-sampling:
+        for over_sample in [362, 246]: # Over-sample from dipy and from
+                                       # camino-points
+            CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
+                                           data_path + 'dwi.bvecs',
+                                           data_path + 'dwi.bvals',
+                                           mask=mask_array,
+            params_file=tempfile.NamedTemporaryFile().name,
+            over_sample=over_sample,
+                mode=mode)
+
+            # XXX Smoke testing only:
+            npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
     # This shouldn't be possible, because we don't have a sphere with 151
     # samples handy:
@@ -1064,7 +1069,18 @@ def test_CanonicalTensorModel():
                       **dict(mask=mask_array,
                            params_file=tempfile.NamedTemporaryFile().name,
                            over_sample=151))
-        
+
+    # If you provide an unrecognized mode, you get an error:
+    npt.assert_raises(ValueError,
+                      ozm.CanonicalTensorModel,
+                      data_path+'small_dwi.nii.gz',
+                      data_path + 'dwi.bvecs',
+                      data_path + 'dwi.bvals',
+                      **dict(mask=mask_array,
+                             mode='crazy_mode',
+                             params_file=tempfile.NamedTemporaryFile().name))
+
+                      
 def test_CanonicalTensorModelOpt():
     """
     Test fitting of the CanonicalTensorModel by optimization
@@ -1094,14 +1110,15 @@ def test_MultiCanonicalTensorModel():
 
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1
-    
-    # Fit this on some real dwi data
-    CTM = ozm.MultiCanonicalTensorModel(data_path+'small_dwi.nii.gz',
-                                   data_path + 'dwi.bvecs',
-                                   data_path + 'dwi.bvals',
-                                   mask=mask_array,
-        params_file=tempfile.NamedTemporaryFile().name)
 
-    # XXX Smoke testing for now:
-    npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+    for mode in ['signal_attenuation', 'relative_signal', 'normalize']:
+        # Fit this on some real dwi data
+        CTM = ozm.MultiCanonicalTensorModel(data_path+'small_dwi.nii.gz',
+                                       data_path + 'dwi.bvecs',
+                                       data_path + 'dwi.bvals',
+                                       mask=mask_array,
+            params_file=tempfile.NamedTemporaryFile().name)
+
+        # XXX Smoke testing for now:
+        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
