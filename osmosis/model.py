@@ -3,6 +3,7 @@
 This module is used to construct and solve models of diffusion data 
 
 """
+import inspect
 import os
 import warnings
 import itertools
@@ -1407,6 +1408,7 @@ class CanonicalTensorModel(BaseModel):
             if self.verbose:
                 print("Fitting CanonicalTensorModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                f_name = inspect.stack()[0][3]
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1442,7 +1444,7 @@ class CanonicalTensorModel(BaseModel):
                     params[vox,:] = np.array([np.nan, np.nan, np.nan])
 
                 if self.verbose:
-                    prog_bar.animate(vox)
+                    prog_bar.animate(vox, f_name=f_name)
 
             # Save the params for future use: 
             out_params = ozu.nans(self.signal.shape[:3] + (3,))
@@ -1538,7 +1540,8 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-
+            f_name = inspect.stack()[0][3]
+            
         for vox in range(self._flat_signal.shape[0]):
             # Need to set this one in each voxel, so that the optimizer
             # becomes aware of it:
@@ -1556,7 +1559,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             params[vox] = this_params
 
             if self.verbose: 
-                prog_bar.animate(vox)
+                prog_bar.animate(vox, f_name=f_name)
 
         out_params = ozu.nans(self.signal.shape[:3] + (4,))
         out_params[self.mask] = np.array(params).squeeze()
@@ -1725,6 +1728,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             if self.verbose:
                 print("Fitting MultiCanonicalTensorModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                f_name = inspect.stack()[0][3]
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1769,7 +1773,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                                np.nan])
 
                 if self.verbose: 
-                    prog_bar.animate(vox)
+                    prog_bar.animate(vox, f_name=f_name)
 
             # Save the params for future use: 
             out_params = ozu.nans(self.signal.shape[:3]+
@@ -2007,7 +2011,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         if self.verbose:
             print('Calibrating for AD/RD')
             prog_bar = viz.ProgressBar(self._calibration_signal.shape[0])
-        
+            f_name = inspect.stack()[0][3]
         for vox in range(self._calibration_signal.shape[0]):
             # Need to reassign this with each iteration, so the err-function
             # can become aware of it:
@@ -2022,7 +2026,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
             leastsq(self._err_func, self.start_params, **optim_kwds)
             
             if self.verbose: 
-                prog_bar.animate(vox)
+                prog_bar.animate(vox, f_name=f_name)
 
         return out
             
@@ -2381,6 +2385,9 @@ class FiberModel(BaseModel):
         v2fn = ozu.nans((len(self.FG.fibers),
                          np.max([f.coords.shape[-1] for f in self.FG])))
 
+        if self.verbose:
+            prog_bar = viz.ProgressBar(self.FG.n_fibers)
+            f_name = inspect.stack()[0][3]
         # In each fiber:
         for f_idx, f in enumerate(self.FG.fibers):
             # In each voxel present in there:
@@ -2396,9 +2403,8 @@ class FiberModel(BaseModel):
                                      (f.coords.astype(int)[1]==vv[1]) *
                                      (f.coords.astype(int)[2]==vv[2]))]=voxel_id
             
-            if self.verbose and np.mod(f_idx, 100)==0:
-                print("V2F: Done with: %s percent"%(100*
-                                (float(f_idx)/len(self.FG.fibers))))
+            if self.verbose:
+                prog_bar.animate(f_idx, f_name=f_name)
 
         return v2f,v2fn
 
@@ -2409,6 +2415,10 @@ class FiberModel(BaseModel):
         The tensors for each fiber along it's length
         """
         ten = np.empty(len(self.FG.fibers), dtype='object')
+
+        if self.verbose:
+            prog_bar = viz.ProgressBar(self.FG.n_fibers)
+            f_name=inspect.stack()[0][3]
         # In each fiber:
         for f_idx, f in enumerate(self.FG):
             ten[f_idx] = f.tensors(self.bvecs[:, self.b_idx],
@@ -2416,10 +2426,9 @@ class FiberModel(BaseModel):
                                  self.axial_diffusivity,
                                  self.radial_diffusivity)
 
-            if self.verbose and np.mod(f_idx, 100)==0:
-                print("fiber_tensors: Done with: %s percent"%(100*
-                                (float(f_idx)/len(self.FG.fibers))))
-
+            if self.verbose:
+                prog_bar.animate(f_idx, f_name=f_name)
+                
         return ten
         
     @desc.auto_attr
@@ -2433,9 +2442,6 @@ class FiberModel(BaseModel):
         n_bvecs = self.b_idx.shape[0]
         n_fibers = self.FG.n_fibers
         v2f,v2fn = self.voxel2fiber
-
-        if self.verbose:
-            print "Done with voxel2fiber"
 
         # How many fibers in each voxel (this will determine how many
         # components are in the fiber part of the matrix):
@@ -2458,6 +2464,9 @@ class FiberModel(BaseModel):
         keep_ct1 = 0
         keep_ct2 = 0
 
+        if self.verbose:
+            prog_bar = viz.ProgressBar(len(vox_coords))
+            f_name = inspect.stack()[0][3]
         # In each voxel:
         for v_idx, vox in enumerate(vox_coords):
             # For each fiber:
@@ -2486,8 +2495,8 @@ class FiberModel(BaseModel):
             i_matrix_col[keep_ct2:keep_ct2+n_bvecs]= v_idx * np.ones(n_bvecs)
             i_matrix_sig[keep_ct2:keep_ct2+n_bvecs] = 1
             keep_ct2 += n_bvecs
-            if self.verbose and np.mod(v_idx,100)==0:
-                print("Built %s percent"%(100 * float(v_idx)/len(vox_coords)))
+            if self.verbose:
+                prog_bar.animate(v_idx, f_name=f_name)
         
         # Allocate the sparse matrices, using the more memory-efficient 'csr'
         # format: 
@@ -2665,6 +2674,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             if self.verbose:
                 print("Fitting SparseDeconvolutionModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                f_name = inspect.stack()[0][3]
 
             iso_regressor, tensor_regressor, fit_to = self.regressors
 
@@ -2685,7 +2695,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 solver = Lasso(0.01)
                 params[vox] = solver.fit(design_matrix, sig).coef_
                 if self.verbose:
-                    prog_bar.animate(vox)
+                    prog_bar.animate(vox, f_name=f_name)
 
             out_params = ozu.nans((self.signal.shape[:3] + 
                                           (design_matrix.shape[-1],)))

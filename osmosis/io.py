@@ -62,13 +62,14 @@ completely ignored.
 # Import from standard lib: 
 import struct 
 import os
+import inspect
 
 import numpy as np
 import scipy.io as sio
 
 import osmosis as oz
 import osmosis.fibers as ozf
-
+from .viz import ProgressBar
 
 # XXX The following functions are way too long. Break 'em up!
 def fg_from_pdb(file_name, verbose=True):
@@ -152,14 +153,18 @@ def fg_from_pdb(file_name, verbose=True):
     # We extract the information on a fiber-by-fiber basis
     pts_read = 0 
     pts = []
+
+    if verbose:
+        prog_bar = ProgressBar(numpaths)
+        f_name = inspect.stack()[0][3]
     for p_idx in range(numpaths):
         n_nodes = pts_per_fiber[p_idx]
         pts.append(np.reshape(
                    fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
                    (n_nodes, 3)).T)
         pts_read += n_nodes
-        if verbose and np.mod(p_idx, 10000)==0:
-            print("Loaded %s of %s paths"%(p_idx, numpaths[0]))            
+        if verbose:
+            prog_bar.animate(p_idx, f_name=f_name)            
 
     f_stats_dict = {}
     for stat_idx in range(numstats):

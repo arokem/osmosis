@@ -415,13 +415,13 @@ class ProgressBar:
             e_s = "No progress bar implementation without IPython" 
             raise NotImplementedError(e_s)
 
-    def animate_ipython(self, iter):
+    def animate_ipython(self, iter, f_name=None):
         try:
             clear_output()
         except Exception:
             # terminal IPython has no clear_output
             pass
-        print '\r', self,
+        print '\r', f_name, self, 
         sys.stdout.flush()
         self.update_iteration(iter + 1)
 
