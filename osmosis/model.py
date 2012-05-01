@@ -9,6 +9,7 @@ import warnings
 import itertools
 
 import numpy as np
+import numpy.linalg as npla
 
 # We want to try importing numexpr for some array computations, but we can do
 # without:
@@ -49,7 +50,8 @@ except ImportError:
 import scipy.linalg as la
 import scipy.stats as stats
 from scipy.special import sph_harm
-from scipy.optimize import leastsq
+import scipy.optimize as opt
+
 
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
@@ -416,6 +418,7 @@ class BaseModel(DWI):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
+                 params_file=None,
                  verbose=True):
         """
         A base-class for models based on DWI data.
@@ -437,8 +440,14 @@ class BaseModel(DWI):
                          mask=mask,
                          scaling_factor=scaling_factor,
                          sub_sample=sub_sample,
-                         verbose=verbose) 
+                         verbose=verbose)
 
+        # Introspect to figure out what name the current class has:
+        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+        self.params_file = params_file_resolver(self,
+                                                this_class,
+                                                params_file=params_file)
+         
     @desc.auto_attr
     def fit(self):
         """
@@ -664,11 +673,8 @@ class TensorModel(BaseModel):
                            mask=mask,
                            scaling_factor=scaling_factor,
                            sub_sample=sub_sample,
+                           params_file=params_file,
                            verbose=verbose) 
-
-        self.params_file = params_file_resolver(self,
-                                                'TensorModel',
-                                                 params_file=params_file)
         
     @desc.auto_attr
     def model_params(self):
@@ -951,6 +957,7 @@ class SphericalHarmonicsModel(BaseModel):
                            mask=mask,
                            scaling_factor=scaling_factor,
                            sub_sample=sub_sample,
+                           params_file=params_file,
                            verbose=verbose) 
 
         # If it's a string, assume it's a full path to a nifti file: 
@@ -1238,13 +1245,11 @@ class CanonicalTensorModel(BaseModel):
                             mask=mask,
                             scaling_factor=scaling_factor,
                             sub_sample=sub_sample,
+                            params_file=params_file,
                             verbose=verbose)
         
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
-        self.params_file = params_file_resolver(self,
-                                                'CanonicalTensorModel',
-                                                 params_file)
 
         if over_sample is not None:
             # Symmetric spheres from dipy: 
@@ -1362,6 +1367,7 @@ class CanonicalTensorModel(BaseModel):
             # Multiply to find the OLS solution (fitting to all the voxels in
             # one fell swoop):
             ols_weights[idx] = np.dot(ols_mat, fit_to)
+            # ols_weights[idx] = npla.lstsq(d, fit_to)[0]
         return ols_weights
 
 
@@ -1524,10 +1530,6 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                                       mode=mode,
                                       verbose=verbose)
 
-        # Replace the name of the params file:
-        self.params_file = params_file_resolver(self,
-                                                'CanonicalTensorModelOpt',
-                                                 params_file)
 
     @desc.auto_attr
     def model_params(self):
@@ -1552,7 +1554,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             
             # Do the least-squares fitting (setting tolerance to a rather
             # lenient value?):
-            this_params, status = leastsq(self.err_func,
+            this_params, status = opt.leastsq(self.err_func,
                                           start_params,
                                           ftol=10e-5)
             
@@ -1627,9 +1629,6 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                       verbose=verbose)
         
         self.n_canonicals = n_canonicals
-        self.params_file = params_file_resolver(self,
-                                                'MultiCanonicalTensorModel',
-                                                params_file)
 
     @desc.auto_attr
     def rot_idx(self):
@@ -1932,9 +1931,6 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                                       over_sample=over_sample,
                                       verbose=verbose)
 
-        self.params_file = params_file_resolver(self,
-                                            'CalibratedCanonicalTensorModel',
-                                             params_file)
 
         # This is used to initialize the optimization in each voxel 
         self.start_params = np.pi/2, np.pi/2, 0.5, 1, 0.5
@@ -2023,7 +2019,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
 
             # Perform the fitting itself:
             out[vox], cov_x, infodict, mesg, ier = \
-            leastsq(self._err_func, self.start_params, **optim_kwds)
+            opt.leastsq(self._err_func, self.start_params, **optim_kwds)
             
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
@@ -2097,9 +2093,6 @@ class TissueFractionModel(CanonicalTensorModel):
                                       verbose=verbose)
 
         self.tissue_fraction = ni.load(tissue_fraction).get_data()
-        self.params_file = params_file_resolver(self,
-                                                'TissueFractionModel',
-                                                params_file)
 
         # Convert the diffusivity constants to signal attenuation:
         self.gray_D = np.exp(-self.bvals[self.b_idx][0] * gray_D)
@@ -2335,6 +2328,7 @@ class FiberModel(BaseModel):
                             affine=affine,
                             mask=mask,
                             scaling_factor=scaling_factor,
+                            params_file=params_file,
                             sub_sample=sub_sample)
 
         self.axial_diffusivity = axial_diffusivity
