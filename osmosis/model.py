@@ -27,7 +27,7 @@ try:
     # Get both the sparse version of the Lasso: 
     from sklearn.linear_model.sparse import Lasso as spLasso
     # And the dense version:
-    from sklearn.linear_model import Lasso
+    from sklearn.linear_model import Lasso, LassoCV
     # Get other stuff from sklearn.linear_model:
     from sklearn.linear_model import ElasticNet, Lars, Ridge
     # Get OMP:
@@ -327,7 +327,7 @@ class DWI(desc.ResetMixin):
             r_squared = val
         
         # Re-package it into a volume:
-        out = np.nan*np.ones(self.shape[:3])
+        out = ozu.nans(self.shape[:3])
         out[self.mask] = r_squared
 
         out[out<-1]=-1.0
@@ -484,7 +484,7 @@ class BaseModel(DWI):
             r_squared = val
         
         # Re-package it into a volume:
-        out = np.nan*np.ones(self.shape[:3])
+        out = ozu.nans(self.shape[:3])
         out[self.mask] = r_squared
 
         out[out<-1]=-1.0
@@ -525,9 +525,9 @@ class BaseModel(DWI):
         The square-root of the mean of the squared residuals
         """
 
-        # Preallocate the output: 
-        out = np.nan*np.ones(self.data.shape[:3])
+        # Preallocate the output:
 
+        out = ozu.nans(self.data.shape[:3])
         res = self.residuals[self.mask]
         
         if has_numexpr:
@@ -544,7 +544,7 @@ class BaseModel(DWI):
         """
         The prediction-subtracted residual in each voxel
         """
-        out = np.nan*np.ones(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         sig = self._flat_signal
         fit = self._flat_fit
         
@@ -688,7 +688,7 @@ class TensorModel(BaseModel):
         else:
             if self.verbose:
                 print("Fitting TensorModel params using dipy")
-            block = np.nan * np.ones(self.shape[:3] + (12,))
+            block = ozu.nans(self.shape[:3] + (12,))
             mp = dti.Tensor(self.data,
                             self.bvals,
                             self.bvecs.T,
@@ -728,7 +728,8 @@ class TensorModel(BaseModel):
             ADC = -log \frac{S}{S0}
 
         """
-        out = np.nan * np.ones(self.signal.shape)        
+        out = ozu.nans(self.signal.shape)
+        
         out[self.mask] = ((-1/self.bvals[self.b_idx][0]) *
                         np.log(self._flat_relative_signal))
 
@@ -751,7 +752,7 @@ class TensorModel(BaseModel):
                         \lambda_2^2+\lambda_3^2} }
 
         """
-        out = np.nan * np.ones(self.data.shape[:3])
+        out = ozu.nans(self.data.shape[:3])
         
         lambda_1 = self.evals[..., 0][self.mask]
         lambda_2 = self.evals[..., 1][self.mask]
@@ -772,7 +773,7 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def linearity(self):
-        out = np.nan * np.ones(self.data.shape[:3])
+        out = ozu.nans(self.data.shape[:3])
         out[self.mask] = ozu.tensor_linearity(self.evals[..., 0][self.mask],
                                               self.evals[..., 1][self.mask],
                                               self.evals[..., 2][self.mask])
@@ -780,7 +781,7 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def planarity(self):
-        out = np.nan * np.ones(self.data.shape[:3])
+        out = ozu.nans(self.data.shape[:3])
         out[self.mask] = ozu.tensor_planarity(self.evals[..., 0][self.mask],
                                               self.evals[..., 1][self.mask],
                                               self.evals[..., 2][self.mask])
@@ -788,7 +789,7 @@ class TensorModel(BaseModel):
 
     @desc.auto_attr
     def sphericity(self):
-        out = np.nan * np.ones(self.data.shape[:3])
+        out = ozu.nans(self.data.shape[:3])
         out[self.mask] = ozu.tensor_sphericity(self.evals[..., 0][self.mask],
                                                self.evals[..., 1][self.mask],
                                                self.evals[..., 2][self.mask])
@@ -797,7 +798,7 @@ class TensorModel(BaseModel):
     # Self Diffusion Tensor, taken from dipy.reconst.dti:
     @desc.auto_attr
     def tensors(self):
-        out = np.nan * np.ones(self.evecs.shape)
+        out = ozu.nans(self.evecs.shape)
         evals = self.evals[self.mask]
         evecs = self.evecs[self.mask]
         D_flat = np.empty(evecs.shape)
@@ -878,7 +879,7 @@ def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
                                   average=average)
         out_flat[idx] = dyad_stat(dyad)
 
-    out = np.nan * np.ones(tensor_model_list[0].shape[:3])
+    out = ozu.nans(tensor_model_list[0].shape[:3])
     out[np.where(mask)] = out_flat
     return out        
     
@@ -1085,7 +1086,7 @@ class SphericalHarmonicsModel(BaseModel):
                                                     self._flat_S0[vox])
 
         # Pack it back into a volume shaped thing: 
-        out = np.ones(self.signal.shape) * np.nan
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = pred_sig  
         return out
         
@@ -1444,7 +1445,7 @@ class CanonicalTensorModel(BaseModel):
                     prog_bar.animate(vox)
 
             # Save the params for future use: 
-            out_params = np.nan * np.ones(self.signal.shape[:3] + (3,))
+            out_params = ozu.nans(self.signal.shape[:3] + (3,))
             out_params[self.mask] = np.array(params).squeeze()
             params_ni = ni.Nifti1Image(out_params, self.affine)
             if self.verbose:
@@ -1477,7 +1478,7 @@ class CanonicalTensorModel(BaseModel):
             else:
                 out_flat[vox] = np.nan
                 
-        out = np.nan * np.ones(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
@@ -1557,7 +1558,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             if self.verbose: 
                 prog_bar.animate(vox)
 
-        out_params = np.nan * np.ones(self.signal.shape[:3] + (4,))
+        out_params = ozu.nans(self.signal.shape[:3] + (4,))
         out_params[self.mask] = np.array(params).squeeze()
 
         return out_params
@@ -1771,7 +1772,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     prog_bar.animate(vox)
 
             # Save the params for future use: 
-            out_params = np.nan * np.ones(self.signal.shape[:3]+
+            out_params = ozu.nans(self.signal.shape[:3]+
                                         (params.shape[-1],))
             out_params[self.mask] = np.array(params).squeeze()
             params_ni = ni.Nifti1Image(out_params, self.affine)
@@ -1810,7 +1811,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 out_flat[vox] = np.nan  # This gets broadcast to the right
                                         # length on assigment?
         
-        out = np.nan * np.ones(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
@@ -1836,7 +1837,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         else:
             out_flat[vox] = np.nan
         
-        out = np.nan * np.ones(self.signal.shape[:3])
+        out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = out_flat
 
         return out
@@ -1932,7 +1933,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                                              params_file)
 
         # This is used to initialize the optimization in each voxel 
-        self.start_params = np.pi, np.pi, 0.5, 1, 0.5
+        self.start_params = np.pi/2, np.pi/2, 0.5, 1, 0.5
                             #theta, phi, beta, lambda1, lambda2
         self.calibration_roi = calibration_roi
         
@@ -1944,8 +1945,20 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         # The fit parameters: 
         theta,phi,beta,lambda1,lambda2 = params
 
-        # XXX Need to set constraints here, to stabilize the fit
-
+        # Constraints to stabilize the fit
+        # Angles are 0=<theta<=pi 
+        if theta>np.pi or theta<0:
+            return np.inf
+        # ... and -pi<=phi<= pi:
+        if phi>np.pi or phi<-np.pi:
+            return np.inf
+        # No negative diffusivities: 
+        if lambda1<0 or lambda2<0:
+            return np.inf
+        # Weights between 0 and 1:
+        if beta>1 or beta<0:
+            return np.inf
+            
         response_function = ozt.Tensor([[lambda1, 0, 0],
                                         [0, lambda2, 0],
                                         [0, 0, lambda2]],
@@ -1981,7 +1994,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                           (-1, self.b_idx.shape[0]))
         
     @desc.auto_attr
-    def calibration(self):
+    def calibrate(self):
 
         """"
         This is the function to perform the calibration optimization on. When
@@ -2210,8 +2223,8 @@ class TissueFractionModel(CanonicalTensorModel):
         w2 = (self._flat_tf - self.alpha1 * w_ten) / self.alpha2
         w3 = (1 - w_ten - w2)
 
-        w2_out = np.nan * np.ones(self.shape[:3])
-        w3_out = np.nan * np.ones(self.shape[:3])
+        w2_out = ozu.nans(self.shape[:3])
+        w3_out = ozu.nans(self.shape[:3])
 
         w2_out[self.mask] = w2
         w3_out[self.mask] = w3
@@ -2238,10 +2251,14 @@ class TissueFractionModel(CanonicalTensorModel):
 
         for vox in xrange(out_flat.shape[0]):
             if ~np.any(np.isnan([flat_w1[vox], flat_w2[vox], flat_w3[vox]])):
+
                 ten = (flat_w1[vox] *
                     np.hstack([self.rotations[flat_ten_idx[vox]], self.alpha1]))
+
                 tissue_water = flat_w2[vox] * np.hstack(
-                [self.gray_D * np.ones(self._flat_signal.shape[-1]) , self.alpha2])
+                [self.gray_D * np.ones(self._flat_signal.shape[-1]) ,
+                                                      self.alpha2])
+
                 free_water = flat_w3[vox] * np.hstack(
                 [self.water_D * np.ones(self._flat_signal.shape[-1]) , 0])
                 
@@ -2255,7 +2272,7 @@ class TissueFractionModel(CanonicalTensorModel):
             else:
                 out_flat[vox] = np.nan
                 
-        out = np.nan * np.ones(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
         return out
@@ -2269,7 +2286,7 @@ class TissueFractionModel(CanonicalTensorModel):
         overloaded signal and relative_signal above, so we might not need this
         either... 
         """
-        out = np.nan * np.ones(self.signal.shape[:3])
+        out = ozu.nans(self.signal.shape[:3])
         flat_fit = self.fit[self.mask][:,:self.fit.shape[-1]-1]
         flat_rmse = ozu.rmse(self._flat_signal, flat_fit)                
         out[self.mask] = flat_rmse
@@ -2361,7 +2378,7 @@ class FiberModel(BaseModel):
 
         # This is a grid of size (fibers, maximal length of a fiber), so that
         # we can capture put in the voxel number in each fiber/node combination:
-        v2fn = np.nan * np.ones((len(self.FG.fibers),
+        v2fn = ozu.nans((len(self.FG.fibers),
                          np.max([f.coords.shape[-1] for f in self.FG])))
 
         # In each fiber:
@@ -2595,6 +2612,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
                  over_sample=None,
+                 mode='relative_signal',
                  verbose=True):
         """
         Initialize SparseDeconvolutionModel class instance.
@@ -2612,6 +2630,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                                       scaling_factor=scaling_factor,
                                       sub_sample=sub_sample,
                                       over_sample=over_sample,
+                                      mode=mode,
                                       verbose=verbose)
         
         # For now, the default is Lasso:
@@ -2628,19 +2647,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # This will be passed as kwarg to the solver initialization:
         self.solver_params = solver_params
 
-    ## @desc.auto_attr
-    ## def _solver(self):
-    ##     """
-    ##     Choose the sklearn solver to be used:
-    ##     """
-    ##     chosen_solver = sklearn_solvers[self.solver]
-
-    ##     if self.solver_params is not None:
-    ##         return chosen_solver(self.solver_params) 
-    ##     else:
-    ##         return chosen_solver(alpha=0.01)
-
-
     @desc.auto_attr
     def model_params(self):
         """
@@ -2655,39 +2661,33 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             return ni.load(self.params_file).get_data()
 
         else:
+
+            if self.verbose:
+                print("Fitting SparseDeconvolutionModel:")
+                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+
+            iso_regressor, tensor_regressor, fit_to = self.regressors
+
             # One weight for each rotation
             params = np.empty((self._flat_signal.shape[0],
                                self.rotations.shape[0]))
 
             # We fit the deviations from the mean signal, which is why we also
             # demean each of the basis functions:
-            design_matrix = self.rotations - np.mean(self.rotations, 0)
+            design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
 
             # One basis function per column (instead of rows):
             design_matrix = design_matrix.T
             
             for vox in xrange(self._flat_signal.shape[0]):
-                # Fit the deviations from the mean of the attenuated signal: 
-                sig = (self._flat_relative_signal[vox] -
-                       np.mean(self._flat_relative_signal[vox]))
-                #try:
-                choose_solver = sklearn_solvers[self.solver]
-                solver = Lasso(alpha=ozu.rms(sig))
+                # Fit the deviations from the mean of the fitted signal: 
+                sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
+                solver = Lasso(0.01)
                 params[vox] = solver.fit(design_matrix, sig).coef_
-                #params_init = self._solver.fit(design_matrix, sig).coef_
-                # Remove negative coefficients and really small ones:
-                #params_init[params_init<0.1] = 0
-                #params[vox] = params_init
-                ## except:
-                ## print "could not fit here: %s"%vox
-                ## params[vox] = np.nan * np.ones(design_matrix.shape[-1])
+                if self.verbose:
+                    prog_bar.animate(vox)
 
-                if self.verbose and np.mod(vox,1000)==0:
-                    print("Fit %s percent"%(100*float(vox)/
-                                            self._flat_signal.shape[0]))
-
-
-            out_params = np.nan * np.ones((self.signal.shape[:3] + 
+            out_params = ozu.nans((self.signal.shape[:3] + 
                                           (design_matrix.shape[-1],)))
 
             out_params[self.mask] = params
@@ -2708,22 +2708,24 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         if self.verbose:
             msg = "Predicting signal from SparseDeconvolutionModel"
-            msg += "with %s"%self.solver
+            msg += " with %s"%self.solver
             print(msg)
+        
+        iso_regressor, tensor_regressor, fit_to = self.regressors
 
+        design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
+        design_matrix = design_matrix.T
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = (
-                # Multiply back by the design matrix you used to fit: 
-                (np.dot(flat_params[vox],
-                self.rotations - np.mean(self.rotations, 0)) + 
-                # Add back the mean signal attenuation in that voxel
-                np.mean(self._flat_relative_signal[vox])) *
-                #and recover the signal from S0:
-                self._flat_S0[vox])  
+            this_relative = (np.dot(flat_params[vox], design_matrix) + 
+                            np.mean(fit_to.T[vox]))
+            if self.mode == 'relative_signal' or self.mode=='normalize':
+                out_flat[vox] = this_relative * self._flat_S0[vox]
+            elif self.mode == 'signal_attenuation':
+                out_flat[vox] =  (1 - this_relative) * self._flat_S0[vox]
             
-        out = np.nan * np.ones(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
         return out

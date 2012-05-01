@@ -655,6 +655,12 @@ def xform(coords, affine):
 
     return xyz.astype(orig_dtype)
  
+def nans(shape):
+    """
+    Like np.ones or np.zeros, but returns an array with nans instead
+    """
+    out = np.empty(shape)
+    out.fill(np.nan)
+    return out
     
-
 
