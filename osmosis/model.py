@@ -929,6 +929,7 @@ class SphericalHarmonicsModel(BaseModel):
                  bvecs,
                  bvals,
                  model_coeffs,
+                 params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
                  affine=None,
