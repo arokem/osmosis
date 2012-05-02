@@ -2302,10 +2302,12 @@ class FiberModel(BaseModel):
                  bvecs,
                  bvals,
                  FG,
+                 params_file=None,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD,
                  affine=None,
                  mask=None,
+                 mode='relative_signal',
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None):
         """
@@ -2333,7 +2335,7 @@ class FiberModel(BaseModel):
 
         self.axial_diffusivity = axial_diffusivity
         self.radial_diffusivity = radial_diffusivity
-
+        self.mode = mode
         # This one also has a fiber group, which is xformed to match the
         # coordinates of the DWI: 
         self.FG = FG.xform(self.affine.getI(), inplace=False)
@@ -2467,13 +2469,17 @@ class FiberModel(BaseModel):
             for f_idx in np.where(v2f[v_idx])[0]:
                 # Sum the signal from each node of the fiber in that voxel: 
                 pred_sig = np.zeros(n_bvecs)
-                for n_idx in np.where(v2fn[f_idx]==v_idx)[0]: 
-                    # Predict the signal and demean it, so that the isotropic
-                    # part can carry that:
-                    pred_sig +=\
-                        (self.fiber_tensors[f_idx][n_idx].predicted_signal(
-                        self.S0[vox[0],vox[1],vox[2]]) -
-                        np.mean(self.signal[vox[0],vox[1],vox[2]]))
+                for n_idx in np.where(v2fn[f_idx]==v_idx)[0]:
+                    relative_signal =\
+                        self.fiber_tensors[f_idx][n_idx].predicted_signal(1)
+                    if self.mode == 'relative_signal':
+                        # Predict the signal and demean it, so that the isotropic
+                        # part can carry that:
+                        pred_sig += (relative_signal -
+                            np.mean(self.relative_signal[vox[0],vox[1],vox[2]]))
+                    elif self.mode == 'signal_attenuation':
+                        pred_sig += ((1 - relative_signal) -
+                        np.mean(1 - self.relative_signal[vox[0],vox[1],vox[2]]))
                     
             # For each fiber-voxel combination, we now store the row/column
             # indices and the signal in the pre-allocated linear arrays
@@ -2503,16 +2509,22 @@ class FiberModel(BaseModel):
             print("Generated model matrices")
 
         return (fiber_matrix, iso_matrix)
-                
+
         
     @desc.auto_attr
     def voxel_signal(self):
         """        
         The signal in the voxels corresponding to where the fibers pass through.
-        """ 
-        return self.signal[self.fg_idx_unique[0],
-                           self.fg_idx_unique[1],
-                           self.fg_idx_unique[2]].ravel()
+        """
+        if self.mode == 'relative_signal':
+            return self.relative_signal[self.fg_idx_unique[0],
+                                        self.fg_idx_unique[1],
+                                        self.fg_idx_unique[2]]
+
+        elif self.mode == 'signal_attenuation':
+            return self.signal_attenuation[self.fg_idx_unique[0],
+                                           self.fg_idx_unique[1],
+                                           self.fg_idx_unique[2]]
 
     @desc.auto_attr
     def voxel_signal_demeaned(self):
@@ -2520,16 +2532,12 @@ class FiberModel(BaseModel):
         The signal in the voxels corresponding to where the fibers pass
         through, with mean removed
         """
-        # First get the signal
-        a = self.signal[self.fg_idx_unique[0],
-                        self.fg_idx_unique[1],
-                        self.fg_idx_unique[2]] 
+        # Get the average, broadcast it back to the original shape and demean,
+        # finally ravel again: 
+        return(self.voxel_signal.ravel() -
+               (np.mean(self.voxel_signal,-1)[np.newaxis,...] +
+        np.zeros((len(self.b_idx),self.voxel_signal.shape[0]))).T.ravel())
 
-        # Get the average, broadcast it back to the original shape and ravel
-        # and finally remove:
-        return(a.ravel() -
-               (np.mean(a,-1)[np.newaxis,...] +
-                np.zeros((len(self.b_idx),a.shape[0]))).T.ravel())
     
     @desc.auto_attr
     def iso_weights(self):
@@ -2543,7 +2551,7 @@ class FiberModel(BaseModel):
             show=False
 
         iso_w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
-        sla.lsqr(self.matrix[1], self.voxel_signal, show=show,
+        sla.lsqr(self.matrix[1], self.voxel_signal.ravel(), show=show,
                  iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
 
         if istop not in [1,2]:
@@ -2556,25 +2564,28 @@ class FiberModel(BaseModel):
         """
         Get the weights for the fiber part of the matrix
         """
-        fiber_w =  self._Lasso.coef_
+
+        fiber_w = opt.nnls(self.matrix[0].todense(),
+                           self.voxel_signal_demeaned)[0]
+        # fiber_w =  self._Lasso.coef_
         return fiber_w
 
 
-    @desc.auto_attr
-    def _Lasso(self):
-        """
-        This is the sklearn spLasso object. XXX Maybe needs some more
-        param-settin options...   
-        """
-        return spLasso().fit(self.matrix[0], self.voxel_signal_demeaned)
+    ## @desc.auto_attr
+    ## def _Lasso(self):
+    ##     """
+    ##     This is the sklearn spLasso object. XXX Maybe needs some more
+    ##     param-settin options...   
+    ##     """
+    ##     return spLasso().fit(self.matrix[0], self.voxel_signal_demeaned)
     
     @desc.auto_attr
     def _fiber_fit(self):
         """
         This is the fit for the non-isotropic part of the signal:
         """
-        return self._Lasso.predict(self.matrix[0])
-
+        # return self._Lasso.predict(self.matrix[0])
+        return np.dot(self.matrix[0].todense(), self.fiber_weights)
 
     @desc.auto_attr
     def _iso_fit(self):
@@ -2593,7 +2604,7 @@ class FiberModel(BaseModel):
         # offset, according to the isotropic part of the signal, which was
         # removed prior to fitting:
         
-        return self._fiber_fit + self._iso_fit
+        return np.array(self._fiber_fit + self._iso_fit).squeeze()
                
                 
 class SparseDeconvolutionModel(CanonicalTensorModel):
