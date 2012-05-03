@@ -137,10 +137,10 @@ def fg_from_pdb(file_name, verbose=True):
     # number, which is one int length before the fibers:  
     idx = offset - 4
     version, idx = _unpacker(f_read, idx, 1)
-    if version != 3:
-        raise ValueError("Can only read PDB version 3 files")
+    if version < 2:
+        raise ValueError("Can only read PDB version 2 or version 3 files")
     elif verbose:
-        print("Loading a PDB version 3 file from: %s"%file_name)
+        print("Loading a PDB version %s file from: %s"%(version, file_name))
 
     # How many fibers?
     numpaths, idx = _unpacker(f_read, idx, 1)
@@ -155,7 +155,7 @@ def fg_from_pdb(file_name, verbose=True):
     pts = []
 
     if verbose:
-        prog_bar = ProgressBar(numpaths)
+        prog_bar = ProgressBar(numpaths[0])
         f_name = inspect.stack()[0][3]
     for p_idx in range(numpaths):
         n_nodes = pts_per_fiber[p_idx]
