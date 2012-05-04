@@ -11,6 +11,9 @@ import itertools
 import numpy as np
 import numpy.linalg as npla
 
+# Get parallel computing stuff from IPython:
+from IPython import parallel
+
 # We want to try importing numexpr for some array computations, but we can do
 # without:
 try:
@@ -1415,7 +1418,8 @@ class CanonicalTensorModel(BaseModel):
             if self.verbose:
                 print("Fitting CanonicalTensorModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-                f_name = inspect.stack()[0][3]
+                this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+                f_name = this_class + '.' + inspect.stack()[0][3]
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1543,7 +1547,8 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-            f_name = inspect.stack()[0][3]
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
             
         for vox in range(self._flat_signal.shape[0]):
             # Need to set this one in each voxel, so that the optimizer
@@ -1728,7 +1733,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             if self.verbose:
                 print("Fitting MultiCanonicalTensorModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-                f_name = inspect.stack()[0][3]
+                this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+                f_name = this_class + '.' + inspect.stack()[0][3]
+
             # Find the best OLS solution in each voxel:
             for vox in xrange(self._flat_signal.shape[0]):
                 # We do this in each voxel (instead of all at once, which is
@@ -1849,7 +1856,6 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             
 class CalibratedCanonicalTensorModel(CanonicalTensorModel):
     """
-
     This is another extension of the CanonicalTensorModel, which extends the
     interpertation of the different weights, by calibrating the weights to a
     particular ROI.
@@ -1944,9 +1950,10 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         """
 
         # The fit parameters: 
-        theta,phi,beta,lambda1,lambda2 = params
+        theta, phi, beta, lambda1, lambda2 = params
 
-        # Constraints to stabilize the fit
+        # Constraints to stabilize the fit (need to use fmin_slsqp and set
+        # these as ub and lb inputs)
         # Angles are 0=<theta<=pi 
         if theta>np.pi or theta<0:
             return np.inf
@@ -1956,10 +1963,21 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         # No negative diffusivities: 
         if lambda1<0 or lambda2<0:
             return np.inf
+        # Some more constraints on diffusivities:
+        if lambda1<0.5 or lambda1>1.5:
+            return np.inf
+        if lambda2 > lambda1:
+            return np.inf
         # Weights between 0 and 1:
         if beta>1 or beta<0:
             return np.inf
             
+        return self._pred_sig(theta, phi, beta, lambda1, lambda2) - self._vox_sig
+
+    def _pred_sig(self, theta, phi, beta, lambda1, lambda2):
+        """
+        The predicted signal for a particular setting of the parameters
+        """
         response_function = ozt.Tensor([[lambda1, 0, 0],
                                         [0, lambda2, 0],
                                         [0, 0, lambda2]],
@@ -1979,9 +1997,6 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         tensor_sig =  rot_tensor.predicted_signal(1)
 
         pred_sig = beta * iso_sig + (1-beta) * tensor_sig
-
-        return pred_sig - self._vox_sig
-
 
     @desc.auto_attr
     def _calibration_signal(self):
@@ -2008,15 +2023,18 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         if self.verbose:
             print('Calibrating for AD/RD')
             prog_bar = viz.ProgressBar(self._calibration_signal.shape[0])
-            f_name = inspect.stack()[0][3]
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+        # These 'internal' settings of the optimizer could in principle be
+        # put in another, more accesible place:
+        optim_kwds = dict(ftol=1e-5, full_output=True)
+
         for vox in range(self._calibration_signal.shape[0]):
             # Need to reassign this with each iteration, so the err-function
             # can become aware of it:
             self._vox_sig = self._calibration_signal[vox] 
 
-            # These 'internal' settings of the optimizer could in principle be
-            # put in another, more accesible place: 
-            optim_kwds = dict(ftol=1e-5, full_output=True)
 
             # Perform the fitting itself:
             out[vox], cov_x, infodict, mesg, ier = \
@@ -2291,6 +2309,12 @@ class TissueFractionModel(CanonicalTensorModel):
         return out
 
 
+def _tensors_from_fiber(f, bvecs, bvals, ad, rd):
+        """
+        Helper function to get the tensors for each fiber
+        """
+        return f.tensors(bvecs, bvals, ad, rd)
+
 class FiberModel(BaseModel):
     """
     
@@ -2384,7 +2408,9 @@ class FiberModel(BaseModel):
 
         if self.verbose:
             prog_bar = viz.ProgressBar(self.FG.n_fibers)
-            f_name = inspect.stack()[0][3]
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
         # In each fiber:
         for f_idx, f in enumerate(self.FG.fibers):
             # In each voxel present in there:
@@ -2406,26 +2432,46 @@ class FiberModel(BaseModel):
         return v2f,v2fn
 
 
+
     @desc.auto_attr
     def fiber_tensors(self):
         """
         The tensors for each fiber along it's length
         """
         ten = np.empty(len(self.FG.fibers), dtype='object')
-
+        #rc = parallel.Client()
+        #lview = rc.load_balanced_view()
         if self.verbose:
             prog_bar = viz.ProgressBar(self.FG.n_fibers)
-            f_name=inspect.stack()[0][3]
-        # In each fiber:
-        for f_idx, f in enumerate(self.FG):
-            ten[f_idx] = f.tensors(self.bvecs[:, self.b_idx],
-                                 self.bvals[:, self.b_idx],
-                                 self.axial_diffusivity,
-                                 self.radial_diffusivity)
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
 
+
+            #ten = lview.map(_tensors_from_fiber, self.FG.fibers,
+            #            len(self.FG.fibers) * [self.bvecs[:, self.b_idx]],
+            #            len(self.FG.fibers) * [self.bvals[:, self.b_idx]],
+            #            len(self.FG.fibers) * [self.axial_diffusivity],
+            #            len(self.FG.fibers) * [self.radial_diffusivity],
+            #            block=True)
+
+        # In each fiber:
+        ## for f_idx, f in enumerate(self.FG):
+        ##     ten[f_idx] = _tensors_from_fiber(f,
+        ##                                      self.bvecs[:, self.b_idx],
+        ##                                      self.bvals[:, self.b_idx],
+        ##                                      self.axial_diffusivity,
+        ##                                      self.radial_diffusivity
+        ##                                      )
+        ##     if self.verbose:
+        ##         prog_bar.animate(f_idx, f_name=f_name)
+
+        for f_idx, f in enumerate(self.FG):
+            ten[f_idx ] = f.tensors(self.bvecs[:, self.b_idx],
+                                    self.bvals[:, self.b_idx],
+                                    self.axial_diffusivity,
+                          self.radial_diffusivity)       
             if self.verbose:
                 prog_bar.animate(f_idx, f_name=f_name)
-                
         return ten
         
     @desc.auto_attr
@@ -2463,7 +2509,9 @@ class FiberModel(BaseModel):
 
         if self.verbose:
             prog_bar = viz.ProgressBar(len(vox_coords))
-            f_name = inspect.stack()[0][3]
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
         # In each voxel:
         for v_idx, vox in enumerate(vox_coords):
             # For each fiber:
@@ -2680,7 +2728,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             if self.verbose:
                 print("Fitting SparseDeconvolutionModel:")
                 prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
-                f_name = inspect.stack()[0][3]
+                this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+                f_name = this_class + '.' + inspect.stack()[0][3]
 
             iso_regressor, tensor_regressor, fit_to = self.regressors
 
