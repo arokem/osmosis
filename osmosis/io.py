@@ -137,70 +137,131 @@ def fg_from_pdb(file_name, verbose=True):
     # number, which is one int length before the fibers:  
     idx = offset - 4
     version, idx = _unpacker(f_read, idx, 1)
-    if version < 2:
+    if int(version) < 2:
         raise ValueError("Can only read PDB version 2 or version 3 files")
     elif verbose:
-        print("Loading a PDB version %s file from: %s"%(version, file_name))
+        print("Loading a PDB version %s file from: %s"%(int(version), file_name))
 
+    if int(version) == 2:
+        idx = offset
+        
     # How many fibers?
     numpaths, idx = _unpacker(f_read, idx, 1)
-    # The next few bytes encode the number of points in each fiber:
-    pts_per_fiber, idx = _unpacker(f_read, idx, numpaths)
-    total_pts = np.sum(pts_per_fiber)
-    # Next we have the xyz coords of the nodes in all fibers: 
-    fiber_pts, idx = _unpacker(f_read, idx, total_pts * 3, 'double')
-
-    # We extract the information on a fiber-by-fiber basis
-    pts_read = 0 
-    pts = []
-
-    if verbose:
-        prog_bar = ProgressBar(numpaths[0])
-        f_name = inspect.stack()[0][3]
-    for p_idx in range(numpaths):
-        n_nodes = pts_per_fiber[p_idx]
-        pts.append(np.reshape(
-                   fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
-                   (n_nodes, 3)).T)
-        pts_read += n_nodes
+    
+    if int(version) == 2:
+        pts = []
         if verbose:
-            prog_bar.animate(p_idx, f_name=f_name)            
+                prog_bar = ProgressBar(numpaths[0])
+                f_name = inspect.stack()[0][3]
 
-    f_stats_dict = {}
-    for stat_idx in range(numstats):
-        per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
-        # This is a fiber-stat only if it's not computed per point:
-        if not stats_header["computed_per_point"][stat_idx]: 
-            f_stats_dict[stats_header["local_name"][stat_idx]] = per_fiber_stat
+        f_stats = []
+        n_stats = []
+        for p_idx in range(numpaths):
+            f_stats_dict = {}
+            n_stats_dict = {}
 
-    per_point_stat = []
-    n_stats_dict = {}
-    for stat_idx in range(numstats):
-        pts_read = 0
-        # If it is computer per point, it's a node-stat:
-        if stats_header["computed_per_point"][stat_idx]:
-            name = stats_header["local_name"][stat_idx]
-            n_stats_dict[name] = []
-            per_point_stat, idx = _unpacker(f_read, idx, total_pts, 'double')
-            for p_idx in range(numpaths):
-                n_stats_dict[name].append(
-                    per_point_stat[pts_read : pts_read + pts_per_fiber[p_idx]])
-                
-                pts_read += pts_per_fiber[p_idx]
-        else:
-            per_point_stat.append([])
+            # Keep track of where you are right now
+            ppos = idx
+            path_offset, idx = _unpacker(f_read, idx, 1)
+            n_nodes, idx = _unpacker(f_read, idx, 1)
+            # As far as I can tell the following two don't matter much:
+            algo_type, idx = _unpacker(f_read, idx, 1)
+            seed_pt_idx, idx = _unpacker(f_read, idx, 1)
+            # Read out the per-path stats:
+            for stat_idx in range(numstats):
+                per_fiber_stat, idx = _unpacker(f_read, idx, 1, 'double')
+                f_stats_dict[stats_header["local_name"][stat_idx]] = \
+                    per_fiber_stat
+            f_stats.append(f_stats_dict)
+            # Skip forward to where the paths themselves are:
+            idx = ppos
+            # Read the nodes:
+            pathways, idx = _unpacker(f_read, idx, n_nodes*3, 'double')
+            
+            pts.append(np.reshape(pathways, (n_nodes, 3)).T)
+            for stat_idx in range(numstats):
+                if stats_header["computed_per_point"][stat_idx]:
+                    name = stats_header["local_name"][stat_idx]
+                    n_stats_dict[name], idx = _unpacker(f_read, idx, n_nodes,
+                                                    'double')
 
-    fibers = []
-    # Initialize all the fibers:
-    for p_idx in range(numpaths):
-        f_stat_k = f_stats_dict.keys()
-        f_stat_v = [f_stats_dict[k][p_idx] for k in f_stat_k]
-        n_stats_k = n_stats_dict.keys()
-        n_stats_v = [n_stats_dict[k][p_idx] for k in n_stats_k]
-        fibers.append(ozf.Fiber(pts[p_idx],
-                            xform,
-                            fiber_stats=dict(zip(f_stat_k, f_stat_v)),
-                            node_stats=dict(zip(n_stats_k, n_stats_v))))
+            n_stats.append(n_stats_dict)
+            
+        fibers = []
+            
+        # Initialize all the fibers:
+        for p_idx in range(numpaths):
+            this_fstats_dict = f_stats[p_idx]
+            f_stat_k = this_fstats_dict.keys()
+            f_stat_v = [this_fstats_dict[k] for k in f_stat_k]
+            this_nstats_dict = n_stats[p_idx]
+            n_stats_k = this_nstats_dict.keys()
+            n_stats_v = [this_nstats_dict[k] for k in n_stats_k]
+            fibers.append(ozf.Fiber(pts[p_idx],
+                                xform,
+                                fiber_stats=dict(zip(f_stat_k, f_stat_v)),
+                                node_stats=dict(zip(n_stats_k, n_stats_v))))
+            
+            
+    elif int(version) == 3: 
+        # The next few bytes encode the number of points in each fiber:
+        pts_per_fiber, idx = _unpacker(f_read, idx, numpaths)
+        total_pts = np.sum(pts_per_fiber)
+        # Next we have the xyz coords of the nodes in all fibers: 
+        fiber_pts, idx = _unpacker(f_read, idx, total_pts * 3, 'double')
+
+        # We extract the information on a fiber-by-fiber basis
+        pts_read = 0 
+        pts = []
+
+        if verbose:
+            prog_bar = ProgressBar(numpaths[0])
+            f_name = inspect.stack()[0][3]
+        for p_idx in range(numpaths):
+            n_nodes = pts_per_fiber[p_idx]
+            pts.append(np.reshape(
+                       fiber_pts[pts_read * 3:(pts_read + n_nodes) * 3],
+                       (n_nodes, 3)).T)
+            pts_read += n_nodes
+            if verbose:
+                prog_bar.animate(p_idx, f_name=f_name)            
+
+        f_stats_dict = {}
+        for stat_idx in range(numstats):
+            per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
+            # This is a fiber-stat only if it's not computed per point:
+            if not stats_header["computed_per_point"][stat_idx]: 
+                f_stats_dict[stats_header["local_name"][stat_idx]] =\
+                    per_fiber_stat
+
+        per_point_stat = []
+        n_stats_dict = {}
+        for stat_idx in range(numstats):
+            pts_read = 0
+            # If it is computer per point, it's a node-stat:
+            if stats_header["computed_per_point"][stat_idx]:
+                name = stats_header["local_name"][stat_idx]
+                n_stats_dict[name] = []
+                per_point_stat, idx = _unpacker(f_read, idx, total_pts, 'double')
+                for p_idx in range(numpaths):
+                    n_stats_dict[name].append(
+                        per_point_stat[pts_read:pts_read + pts_per_fiber[p_idx]])
+
+                    pts_read += pts_per_fiber[p_idx]
+            else:
+                per_point_stat.append([])
+
+        fibers = []
+        # Initialize all the fibers:
+        for p_idx in range(numpaths):
+            f_stat_k = f_stats_dict.keys()
+            f_stat_v = [f_stats_dict[k][p_idx] for k in f_stat_k]
+            n_stats_k = n_stats_dict.keys()
+            n_stats_v = [n_stats_dict[k][p_idx] for k in n_stats_k]
+            fibers.append(ozf.Fiber(pts[p_idx],
+                                xform,
+                                fiber_stats=dict(zip(f_stat_k, f_stat_v)),
+                                node_stats=dict(zip(n_stats_k, n_stats_v))))
     if verbose:
         print("Done reading from file")
         
