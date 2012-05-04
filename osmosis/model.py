@@ -2615,7 +2615,7 @@ class FiberModel(BaseModel):
         """
         #fiber_w = opt.nnls(self.matrix[0].todense(),
         #                   self.voxel_signal_demeaned)[0]
-        # fiber_w =  self._Lasso.coef_
+        #fiber_w =  self._Lasso.coef_
 
         if self.verbose:
             show=True
@@ -2623,7 +2623,7 @@ class FiberModel(BaseModel):
             show=False
 
         fiber_w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
-        sla.lsqr(self.matrix[0], self.voxel_signal.ravel(), show=show,
+        sla.lsqr(self.matrix[0], self.voxel_signal_demeaned, show=show,
                  iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
 
         if istop not in [1,2]:
