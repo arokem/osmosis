@@ -11,8 +11,22 @@ import itertools
 import numpy as np
 import numpy.linalg as npla
 
-# Get parallel computing stuff from IPython:
-from IPython import parallel
+
+try:
+    # Get parallel computing stuff from IPython:
+    from IPython import parallel
+    try_para = parallel.Client()
+    has_para = True
+except ImportError:
+    warnings.warn("Could not import IPython.parallel")
+    has_para = False
+except AssertionError:
+    # If you get here, that probably means that you didn't turn on your
+    # cluster...
+    e_s = "Could not get an IPython connection file."
+    e_s += "Did you remember to start your cluster?"
+    warnings.warn(e_s)
+    has_para = False
 
 # We want to try importing numexpr for some array computations, but we can do
 # without:
@@ -20,7 +34,8 @@ try:
     import numexpr
     has_numexpr = True
 except ImportError:
-    warnings.warn("Could not import numexpr")
+    e_s = "Could not import numexpr. Download and install from: XXX "
+    warnings.warn(e_s)
     has_numexpr = False
     
 # Import stuff for sparse matrices:
@@ -47,7 +62,8 @@ try:
                            Lars=Lars)
 
 except ImportError:
-    warnings.warn("Could not import sklearn")
+    e_s = "Could not import sklearn. Download and install from XXX"
+    warnings.warn(e_s)
     has_sklearn = False    
 
 import scipy.linalg as la
@@ -2432,47 +2448,75 @@ class FiberModel(BaseModel):
         return v2f,v2fn
 
 
-
     @desc.auto_attr
-    def fiber_tensors(self):
+    def fiber_signal(self):
+
         """
-        The tensors for each fiber along it's length
+        The relative signal predicted along each fiber. 
         """
-        ten = np.empty(len(self.FG.fibers), dtype='object')
-        #rc = parallel.Client()
-        #lview = rc.load_balanced_view()
+
         if self.verbose:
             prog_bar = viz.ProgressBar(self.FG.n_fibers)
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
-
-            #ten = lview.map(_tensors_from_fiber, self.FG.fibers,
-            #            len(self.FG.fibers) * [self.bvecs[:, self.b_idx]],
-            #            len(self.FG.fibers) * [self.bvals[:, self.b_idx]],
-            #            len(self.FG.fibers) * [self.axial_diffusivity],
-            #            len(self.FG.fibers) * [self.radial_diffusivity],
-            #            block=True)
-
-        # In each fiber:
-        ## for f_idx, f in enumerate(self.FG):
-        ##     ten[f_idx] = _tensors_from_fiber(f,
-        ##                                      self.bvecs[:, self.b_idx],
-        ##                                      self.bvals[:, self.b_idx],
-        ##                                      self.axial_diffusivity,
-        ##                                      self.radial_diffusivity
-        ##                                      )
-        ##     if self.verbose:
-        ##         prog_bar.animate(f_idx, f_name=f_name)
-
+        sig = []
         for f_idx, f in enumerate(self.FG):
-            ten[f_idx ] = f.tensors(self.bvecs[:, self.b_idx],
-                                    self.bvals[:, self.b_idx],
-                                    self.axial_diffusivity,
-                          self.radial_diffusivity)       
+            sig.append(f.predicted_signal(self.bvecs[:, self.b_idx],
+                                          self.bvals[self.b_idx],
+                                          self.axial_diffusivity,
+                                          self.radial_diffusivity))
+
             if self.verbose:
                 prog_bar.animate(f_idx, f_name=f_name)
-        return ten
+
+        return sig
+
+    # Maybe we don't need to get the fiber-tensors at all? 
+
+    ## @desc.auto_attr
+    ## def fiber_tensors(self):
+    ##     """
+    ##     The tensors for each fiber along it's length
+    ##     """
+    ##     ten = np.empty((len(self.FG.fibers.coords), 9)) #dtype='object')
+    ##     if self.verbose:
+    ##         prog_bar = viz.ProgressBar(self.FG.n_fibers)
+    ##         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+    ##         f_name = this_class + '.' + inspect.stack()[0][3]
+
+
+    ##     ## Some code attempting to parallelize this problem. This still doesn't
+    ##     #work... 
+    ##     #rc = parallel.Client()
+    ##     #lview = rc.load_balanced_view()
+    ##         #ten = lview.map(_tensors_from_fiber, self.FG.fibers,
+    ##         #            len(self.FG.fibers) * [self.bvecs[:, self.b_idx]],
+    ##         #            len(self.FG.fibers) * [self.bvals[:, self.b_idx]],
+    ##         #            len(self.FG.fibers) * [self.axial_diffusivity],
+    ##         #            len(self.FG.fibers) * [self.radial_diffusivity],
+    ##         #            block=True)
+
+    ##     # In each fiber:
+    ##     ## for f_idx, f in enumerate(self.FG):
+    ##     ##     ten[f_idx] = _tensors_from_fiber(f,
+    ##     ##                                      self.bvecs[:, self.b_idx],
+    ##     ##                                      self.bvals[:, self.b_idx],
+    ##     ##                                      self.axial_diffusivity,
+    ##     ##                                      self.radial_diffusivity
+    ##     ##                                      )
+    ##     ##     if self.verbose:
+    ##     ##         prog_bar.animate(f_idx, f_name=f_name)
+
+    ##     for f_idx, f in enumerate(self.FG):
+    ##         ten[f_idx] = f.tensors(self.bvecs[:, self.b_idx],
+    ##                                self.bvals[:, self.b_idx],
+    ##                                self.axial_diffusivity,
+    ##                                self.radial_diffusivity)       
+    ##         if self.verbose:
+    ##             prog_bar.animate(f_idx, f_name=f_name)
+
+    ##     return ten
         
     @desc.auto_attr
     def matrix(self):
@@ -2519,8 +2563,7 @@ class FiberModel(BaseModel):
                 # Sum the signal from each node of the fiber in that voxel: 
                 pred_sig = np.zeros(n_bvecs)
                 for n_idx in np.where(v2fn[f_idx]==v_idx)[0]:
-                    relative_signal =\
-                        self.fiber_tensors[f_idx][n_idx].predicted_signal(1)
+                    relative_signal = self.fiber_signal[f_idx][n_idx]
                     if self.mode == 'relative_signal':
                         # Predict the signal and demean it, so that the isotropic
                         # part can carry that:
