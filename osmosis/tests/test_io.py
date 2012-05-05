@@ -9,6 +9,7 @@ import osmosis.io as mio
 import osmosis.fibers as mtf
 import osmosis as mt
 
+data_path = os.path.split(mt.__file__)[0] + '/data/'
 
 def test_fg_from_pdb():
     """
@@ -23,7 +24,6 @@ def test_fg_from_pdb():
     pdb_files = ['FG_w_stats.pdb', 'pdb_version2.pdb']
     mat_files = ['fg_from_matlab.mat', 'pdb_version2.mat']
     for ii in range(len(pdb_files)):
-        data_path = os.path.split(mt.__file__)[0] + '/data/'
         file_name = data_path + pdb_files[ii]
         fg = mio.fg_from_pdb(file_name)
         # Get the same fiber group as saved in matlab:
@@ -73,4 +73,19 @@ def test_pdb_from_fg():
     npt.assert_equal(fg2[1].node_stats, fg[1].node_stats)
     
     npt.assert_equal(fg2.fiber_stats, fg.fiber_stats)
+
+def test_fg_from_trk():
+    """
+    Test reading of trk files into a FiberGroup
+    """
+    # This is a trk file taken from the dipy distro: 
+    trk_file = data_path + 'tracks300.trk'
+    fg = mio.fg_from_trk(trk_file)
+    # It has 300 fibers in it:
+    npt.assert_equal(len(fg.fibers), 300)
+    # It has a bogus affine (singular), so we should get np.eye(4)
+    npt.assert_equal(fg.affine, np.eye(4))
+    
+    
+
 

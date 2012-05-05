@@ -63,9 +63,11 @@ completely ignored.
 import struct 
 import os
 import inspect
+import warnings
 
 import numpy as np
 import scipy.io as sio
+import nibabel.trackvis as tv
 
 import osmosis as oz
 import osmosis.fibers as ozf
@@ -454,12 +456,52 @@ def _stat_hdr_set(fwrite, stat, uid):
                          # dict keys come in no particular order...
 
 
-def fg_from_trk():
+def fg_from_trk(trk_file, affine=None):
     """
     Read data from a trackvis .trk file and create a FiberGroup object
-    according to it.    
-
+    according to the information in it.
     """
+
+    # Generate right away, since we're going to do it anyway:
+    read_trk = tv.read(trk_file, as_generator=False)
+    fibers_trk = read_trk[0]
+
+    # Per default read from the affine from the file header:
+    if affine is not None:
+        aff = affine
+    else: 
+        hdr = read_trk[1]
+        aff= tv.aff_from_hdr(hdr)
+        # If the header contains a bogus affine, we revert to np.eye(4), so we
+        # don't get into trouble later:
+        try:
+            np.matrix(aff).getI()
+        except np.linalg.LinAlgError:
+            e_s = "trk file contains bogus header, reverting to np.eye(4)" 
+            warnings.warn(e_s)
+            aff = np.eye(4)
+
+    fibers = []
+    for f in fibers_trk:
+        fibers.append(ozf.Fiber(np.array(f[0]).T,affine=aff))
+
+    return ozf.FiberGroup(fibers, affine=aff)
+
+def trk_from_fg(fg, trk_file, affine=None):
+    """
+    Save a trk file from a FiberGroup class instance
+
+    Note
+    ----
+    Stats?
+    
+    """
+
+    # XXX Something to consider when implementing this: We might want to stick
+    # the stats into the header somehow. That would also imply making changes
+    # to fg_from_trk to allow reading out these stats, if they exist (if osmosis
+    # created this file...).  
+
     raise NotImplementedError
 
 
@@ -487,3 +529,24 @@ def freesurfer_labels():
         label_dict[int(this_num.item())] = name[idx].item()
 
     return label_dict
+
+def nii_from_volume(vol, file_name=None, affine=None):
+    """
+    Create a nifti file from some volume
+
+    Parameters
+    ----------
+    vol: ndarray
+       The data to put in the file
+
+    file_name: str
+        Full path
+
+    affine: 4 by 4 array/matrix
+       The affine transformation to world/acpc coordinates.
+    
+
+    Returns
+    -------
+    """
+    raise NotImplementedError
