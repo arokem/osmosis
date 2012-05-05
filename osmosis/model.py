@@ -586,6 +586,50 @@ class BaseModel(DWI):
         return out
 
 
+def relative_rmse(model1, model2):
+    """
+    Given two model objects, compare the model fits to signal-to-signal
+    reliability 
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    relative_RMSE: A measure of goodness of fit, relative to measurement
+    reliability. The measure is larger than 1 when the model is better than 
+
+    Notes
+    -----
+    More specificially, we calculate the rmse from the fit in model1 to the
+    signal in model2 and then vice-versa. We average between the two
+    results. Then, we calculate the rmse from the signal in model1 to the
+    signal in model2. We normalize the average model-to-signal rmse to the
+    signal-to-signal rmse as a measure of goodness of fit of the model. 
+
+    """
+    # Assume that the last dimension is the signal dimension, so the dimension
+    # across which the 
+    out = ozu.nans(model1.shape[:-1])
+    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    signal_rmse = ozu.rmse(sig1, sig2)
+    fit1_rmse = ozu.rmse(fit1, sig2)
+    fit2_rmse = ozu.rmse(fit2, sig1)
+
+    # Average in each element:
+    fit_rmse = fit1_rmse + fit2_rmse / 2.
+
+    rel_rmse = signal_rmse/fit_rmse
+
+    out[model1.mask] = rel_rmse
+
+    return out
+
 # The following is a pattern used by many different classes, so we encapsulate
 # it in one general function that everyone can use (DRY!):
 def params_file_resolver(object, file_name_root, params_file=None):
@@ -2851,3 +2895,38 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return out
 
     
+
+class SphereModel(BaseModel):
+    """
+    This is a very simple model, where for each direction we predict the
+    average signal across directions in that voxel
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 params_file=None,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
+
+        # Initialize the super-class:
+        BaseModel.__init__(self,
+                            data,
+                            bvecs,
+                            bvals,
+                            affine=affine,
+                            mask=mask,
+                            scaling_factor=scaling_factor,
+                            params_file=params_file,
+                            sub_sample=sub_sample)
+
+    @desc.auto_attr
+    def fit(self):
+        """
+        Just calculate the mean and broadcast it to all directions 
+        """
+        mean_sig = np.mean(self.signal, -1)
+        return (mean_sig.reshape(mean_sig.shape + (1,)) +
+                np.zeros(mean_sig.shape + (len(self.b_idx),)))

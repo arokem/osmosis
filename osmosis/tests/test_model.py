@@ -1122,3 +1122,21 @@ def test_MultiCanonicalTensorModel():
         # XXX Smoke testing for now:
         npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
+def test_relative_rmse():
+    """
+    Test the calculation of relative RMSE from two model objects
+
+    While you're at it, test the SphereModel class as well.
+    
+    """
+    Model1 = ozm.SphereModel(data_path+'small_dwi.nii.gz',
+                             data_path + 'dwi.bvecs',
+                             data_path + 'dwi.bvals',)
+
+    Model2 = ozm.SphereModel(data_path+'small_dwi.nii.gz',
+                             data_path + 'dwi.bvecs',
+                             data_path + 'dwi.bvals',)
+
+    npt.assert_equal(ozm.relative_rmse(Model1, Model2),
+                     np.zeros(Model1.shape[:-1]))
+                            
