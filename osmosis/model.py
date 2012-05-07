@@ -597,7 +597,8 @@ def relative_rmse(model1, model2):
     Returns
     -------
     relative_RMSE: A measure of goodness of fit, relative to measurement
-    reliability. The measure is larger than 1 when the model is better than 
+    reliability. The measure is larger than 1 when the model is worse than
+    signal-to-signal reliability and smaller than 1 when the model is better. 
 
     Notes
     -----
@@ -622,9 +623,9 @@ def relative_rmse(model1, model2):
     fit2_rmse = ozu.rmse(fit2, sig1)
 
     # Average in each element:
-    fit_rmse = fit1_rmse + fit2_rmse / 2.
+    fit_rmse = (fit1_rmse + fit2_rmse) / 2.
 
-    rel_rmse = signal_rmse/fit_rmse
+    rel_rmse = fit_rmse/signal_rmse
 
     out[model1.mask] = rel_rmse
 
