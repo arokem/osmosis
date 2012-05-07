@@ -67,6 +67,8 @@ import warnings
 
 import numpy as np
 import scipy.io as sio
+
+import nibabel as ni
 import nibabel.trackvis as tv
 
 import osmosis as oz
@@ -530,7 +532,7 @@ def freesurfer_labels():
 
     return label_dict
 
-def nii_from_volume(vol, file_name=None, affine=None):
+def nii_from_volume(vol, file_name, affine=None):
     """
     Create a nifti file from some volume
 
@@ -543,10 +545,14 @@ def nii_from_volume(vol, file_name=None, affine=None):
         Full path
 
     affine: 4 by 4 array/matrix
-       The affine transformation to world/acpc coordinates.
+       The affine transformation to world/acpc coordinates. Default to np.eye(4)
     
 
     Returns
     -------
     """
-    raise NotImplementedError
+
+    if affine is None:
+        affine = np.eye(4)
+
+    ni.Nifti1Image(vol,affine).to_filename(file_name)
