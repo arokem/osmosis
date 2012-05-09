@@ -83,7 +83,7 @@ import osmosis.tensor as ozt
 import osmosis.utils as ozu
 import osmosis.boot as boot
 import osmosis.viz as viz
-
+from osmosis.leastsqbound import leastsqbound
 
 # Global constants for this module:
 AD = 1.5
@@ -2013,27 +2013,25 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         # The fit parameters: 
         theta, phi, beta, lambda1, lambda2 = params
 
-        # Constraints to stabilize the fit (need to use fmin_slsqp and set
-        # these as ub and lb inputs)
-        # Angles are 0=<theta<=pi 
-        if theta>np.pi or theta<0:
-            return np.inf
-        # ... and -pi<=phi<= pi:
-        if phi>np.pi or phi<-np.pi:
-            return np.inf
-        # No negative diffusivities: 
-        if lambda1<0 or lambda2<0:
-            return np.inf
-        # Some more constraints on diffusivities:
-        if lambda1<0.5 or lambda1>1.5:
-            return np.inf
-        if lambda2 > lambda1:
-            return np.inf
-        # Weights between 0 and 1:
-        if beta>1 or beta<0:
-            return np.inf
+        ## # Constraints to stabilize the fit 
+        ## # Angles are 0=<theta<=pi 
+        ## if theta>np.pi or theta<0:
+        ##     return np.inf
+        ## # ... and -pi<=phi<= pi:
+        ## if phi>np.pi or phi<-np.pi:
+        ##     return np.inf
+        ## # No negative diffusivities: 
+        ## if lambda1<0 or lambda2<0:
+        ##     return np.inf
+        ## # The axial diffusivity needs to be larger than the radial diffusivity
+        ## if lambda2 > lambda1:
+        ##     return np.inf
+        ## # Weights between 0 and 1:
+        ## if beta>1 or beta<0:
+        ##     return np.inf
             
-        return self._pred_sig(theta, phi, beta, lambda1, lambda2) - self._vox_sig
+        return (self._pred_sig(theta, phi, beta, lambda1, lambda2) -
+                self._vox_sig)
 
     def _pred_sig(self, theta, phi, beta, lambda1, lambda2):
         """
@@ -2057,18 +2055,28 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         iso_sig = np.exp(-self.bvals[self.b_idx][0] * lambda1)
         tensor_sig =  rot_tensor.predicted_signal(1)
 
-        pred_sig = beta * iso_sig + (1-beta) * tensor_sig
+        return beta * iso_sig + (1-beta) * tensor_sig
+        
 
     @desc.auto_attr
     def _calibration_signal(self):
         """
-        The attenuated signal (relative to S0), extracted from the calibration
-        target ROI and flattened (n_voxels by n_directions)
+        The relative signa, extracted from the calibration target ROI and
+        flattened (n_voxels by n_directions)
 
         """
-        roi_mask = ni.load(self.calibration_roi).get_data()
-        return np.reshape(self.relative_signal[np.where(roi_mask)],
-                          (-1, self.b_idx.shape[0]))
+        # Need to get it from file: 
+        if isinstance(self.calibration_roi, str):
+            roi_mask = ni.load(self.calibration_roi).get_data()
+            idx = np.where(roi_mask)
+        elif isinstance(self.calibration_roi, tuple):
+            idx = self.calibration_roi
+        elif isinstance(self.calibration_roi, np.ndarray):
+            roi_mask = self.calibration_roi
+            idx = np.where(roi_mask)
+            
+        return np.reshape(self.relative_signal[idx],
+                          (-1, self.b_idx.shape[0]))            
         
     @desc.auto_attr
     def calibrate(self):
@@ -2089,17 +2097,24 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
 
         # These 'internal' settings of the optimizer could in principle be
         # put in another, more accesible place:
-        optim_kwds = dict(ftol=1e-5, full_output=True)
-
+        optim_kwds = dict(ftol=1e-5)
+        # theta, phi, beta, lambda1, lambda2
+        bounds=[(0, np.pi),  # 0<=theta<=pi
+                (-np.pi, np.pi), # -pi<=phi<=pi
+                (0,1), # 0<=beta<=1
+                (0, None), # lambda1>0
+                (0, None)] #  lambda2>0
+            
         for vox in range(self._calibration_signal.shape[0]):
             # Need to reassign this with each iteration, so the err-function
             # can become aware of it:
             self._vox_sig = self._calibration_signal[vox] 
-
-
+            
             # Perform the fitting itself:
-            out[vox], cov_x, infodict, mesg, ier = \
-            opt.leastsq(self._err_func, self.start_params, **optim_kwds)
+            out[vox], ier = leastsqbound(self._err_func,
+                                         self.start_params,
+                                         bounds=bounds,
+                                         **optim_kwds)
             
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
