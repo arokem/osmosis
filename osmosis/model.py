@@ -2005,14 +2005,16 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                             #theta, phi, beta, lambda1, lambda2
         self.calibration_roi = calibration_roi
         
-    def _err_func(self, params):
+    def _err_func(self, params, args):
         """
         Error function for the non-linear optimization 
         """
 
         # The fit parameters: 
         theta, phi, beta, lambda1, lambda2 = params
-
+        # Additional argument
+        vox_sig = args
+        
         ## # Constraints to stabilize the fit 
         ## # Angles are 0=<theta<=pi 
         ## if theta>np.pi or theta<0:
@@ -2023,23 +2025,33 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         ## # No negative diffusivities: 
         ## if lambda1<0 or lambda2<0:
         ##     return np.inf
-        ## # The axial diffusivity needs to be larger than the radial diffusivity
+        # The axial diffusivity needs to be larger than the radial diffusivity
         ## if lambda2 > lambda1:
-        ##     return np.inf
+        ##    return np.inf
         ## # Weights between 0 and 1:
         ## if beta>1 or beta<0:
         ##     return np.inf
             
         return (self._pred_sig(theta, phi, beta, lambda1, lambda2) -
-                self._vox_sig)
+                vox_sig)
 
     def _pred_sig(self, theta, phi, beta, lambda1, lambda2):
         """
         The predicted signal for a particular setting of the parameters
         """
-        response_function = ozt.Tensor([[lambda1, 0, 0],
-                                        [0, lambda2, 0],
-                                        [0, 0, lambda2]],
+
+        Q = np.array([[lambda1, 0, 0],
+                      [0, lambda2, 0],
+                      [0, 0, lambda2]])
+
+        # If for some reason this is not symmetrical, then something is wrong
+        # (in all likelihood, this means that the optimization process is
+        # trying out some crazy value, such as nan). In that case, abort and
+        # return a nan:
+        if not np.allclose(Q.T, Q):
+            return np.nan
+        
+        response_function = ozt.Tensor(Q,
                                         self.bvecs[:,self.b_idx],
                                         self.bvals[:,self.b_idx])
                                         
@@ -2097,30 +2109,32 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
 
         # These 'internal' settings of the optimizer could in principle be
         # put in another, more accesible place:
-        optim_kwds = dict(ftol=1e-5)
-        # theta, phi, beta, lambda1, lambda2
+        optim_kwds = dict(ftol=1e-8)
         bounds=[(0, np.pi),  # 0<=theta<=pi
                 (-np.pi, np.pi), # -pi<=phi<=pi
                 (0,1), # 0<=beta<=1
                 (0, None), # lambda1>0
                 (0, None)] #  lambda2>0
-            
+
         for vox in range(self._calibration_signal.shape[0]):
-            # Need to reassign this with each iteration, so the err-function
-            # can become aware of it:
-            self._vox_sig = self._calibration_signal[vox] 
-            
             # Perform the fitting itself:
-            out[vox], ier = leastsqbound(self._err_func,
-                                         self.start_params,
-                                         bounds=bounds,
-                                         **optim_kwds)
+            #out[vox], ier = leastsqbound(self._err_func,
+            #                             self.start_params,
+            #                             bounds = bounds,
+            #                             args=(self._calibration_signal[vox]),
+            #                             **optim_kwds)
+
+            out[vox], ier = opt.leastsq(self._err_func,
+            self.start_params,
+            args=(self._calibration_signal[vox]),
+            **optim_kwds)
             
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
 
         return out
-            
+
+    
 
     
 class TissueFractionModel(CanonicalTensorModel):
