@@ -2000,9 +2000,11 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                                       verbose=verbose)
 
 
-        # This is used to initialize the optimization in each voxel 
-        self.start_params = np.pi/2, np.pi/2, 0.5, 1, 0.5
-                            #theta, phi, beta, lambda1, lambda2
+        # This is used to initialize the optimization in each voxel.
+        # The orientation parameters are chosen to be close to horizontal.
+        
+        self.start_params = np.pi/2, 0, 0.5, 1.5, 0
+                           #theta, phi, beta, lambda1, lambda2
         self.calibration_roi = calibration_roi
         
     def _err_func(self, params, args):
@@ -2014,26 +2016,34 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         theta, phi, beta, lambda1, lambda2 = params
         # Additional argument
         vox_sig = args
-        
-        ## # Constraints to stabilize the fit 
-        ## # Angles are 0=<theta<=pi 
-        ## if theta>np.pi or theta<0:
-        ##     return np.inf
-        ## # ... and -pi<=phi<= pi:
-        ## if phi>np.pi or phi<-np.pi:
-        ##     return np.inf
-        ## # No negative diffusivities: 
-        ## if lambda1<0 or lambda2<0:
-        ##     return np.inf
+
+        # Constraints to stabilize the fit 
+        # Angles are 0=<theta<=pi 
+        if theta>np.pi or theta<0:
+            return np.inf
+        # ... and -pi<=phi<= pi:
+        if phi>np.pi or phi<-np.pi:
+            return np.inf
+        # No negative diffusivities: 
+        if lambda1<0 or lambda2<0:
+             return np.inf
         # The axial diffusivity needs to be larger than the radial diffusivity
-        ## if lambda2 > lambda1:
-        ##    return np.inf
-        ## # Weights between 0 and 1:
-        ## if beta>1 or beta<0:
-        ##     return np.inf
-            
-        return (self._pred_sig(theta, phi, beta, lambda1, lambda2) -
-                vox_sig)
+        if lambda2 > lambda1:
+            return np.inf
+        # Weights between 0 and 1:
+        if beta>1 or beta<0:
+             return np.inf
+
+        # Predict the signal based on the current parameter setting
+        this_pred = self._pred_sig(theta, phi, beta, lambda1, lambda2)
+
+        # The predicted signal needs to be between 0 and 1 (relative signal!):
+        if np.any(this_pred>1) or np.any(this_pred<0):
+            return np.inf
+
+        # Finally, if everything is alright, return the error (leastsq will take
+        # care of squaring and summing it for you):
+        return (this_pred - vox_sig)
 
     def _pred_sig(self, theta, phi, beta, lambda1, lambda2):
         """
@@ -2071,9 +2081,9 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         
 
     @desc.auto_attr
-    def _calibration_signal(self):
+    def calibration_signal(self):
         """
-        The relative signa, extracted from the calibration target ROI and
+        The relative signal, extracted from the calibration target ROI and
         flattened (n_voxels by n_directions)
 
         """
@@ -2100,41 +2110,56 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
 
         """
 
-        out = np.empty((self._calibration_signal.shape[0], 5))
+        out = np.empty((self.calibration_signal.shape[0],
+                        len(self.start_params)))
+        
         if self.verbose:
             print('Calibrating for AD/RD')
-            prog_bar = viz.ProgressBar(self._calibration_signal.shape[0])
+            prog_bar = viz.ProgressBar(self.calibration_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
-        # These 'internal' settings of the optimizer could in principle be
-        # put in another, more accesible place:
-        optim_kwds = dict(ftol=1e-8)
-        bounds=[(0, np.pi),  # 0<=theta<=pi
-                (-np.pi, np.pi), # -pi<=phi<=pi
-                (0,1), # 0<=beta<=1
-                (0, None), # lambda1>0
-                (0, None)] #  lambda2>0
-
-        for vox in range(self._calibration_signal.shape[0]):
+        for vox in range(self.calibration_signal.shape[0]):
             # Perform the fitting itself:
             #out[vox], ier = leastsqbound(self._err_func,
             #                             self.start_params,
             #                             bounds = bounds,
-            #                             args=(self._calibration_signal[vox]),
+            #                             args=(self.calibration_signal[vox]),
             #                             **optim_kwds)
 
             out[vox], ier = opt.leastsq(self._err_func,
-            self.start_params,
-            args=(self._calibration_signal[vox]),
-            **optim_kwds)
+                                        self.start_params,
+                                        args=(self.calibration_signal[vox]))
             
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
 
         return out
 
-    
+    @desc.auto_attr
+    def calibration_fit(self):
+        """
+        Check how well the calibration model fits the signal in the calibration
+        target
+        """
+
+        out = np.empty((self.calibration_signal.shape[0],
+                        self.relative_signal.shape[-1]))
+
+        # Get the calibration parameters: 
+        theta, phi, beta, lambda1, lambda2 = self.calibrate.T
+
+        for vox in xrange(out.shape[0]):
+            out[vox] = self._pred_sig(theta[vox],
+                                      phi[vox],
+                                      beta[vox],
+                                      lambda1[vox],
+                                      lambda2[vox])
+
+
+        return out        
+        
+
 
     
 class TissueFractionModel(CanonicalTensorModel):
