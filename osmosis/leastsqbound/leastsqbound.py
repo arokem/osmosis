@@ -3,6 +3,7 @@
 from scipy.optimize.minpack import _check_func
 from scipy.optimize import _minpack, leastsq
 from numpy import array, take, eye, triu, transpose, dot
+import warnings
 
 # additional numpy imports that will be needed
 from numpy import empty_like, sqrt, cos, sin, arcsin
