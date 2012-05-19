@@ -2134,7 +2134,15 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
 
+        # Set the object's AD/RD according to the calibration:
+        self.ad = np.median(out[:, -2])
+        self.rd = np.median(out[:, -1])
+        # The isotropic component diffusivity is set to be the same as the
+        # axial diffusivity in the fiber component: 
+        self.iso_diffusivity = self.ad
+
         return out
+
 
     @desc.auto_attr
     def calibration_fit(self):
@@ -2155,10 +2163,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
                                       beta[vox],
                                       lambda1[vox],
                                       lambda2[vox])
-
-
         return out        
-        
 
 
     
