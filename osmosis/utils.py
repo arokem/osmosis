@@ -146,6 +146,11 @@ def calculate_rotation(a,b):
     if alpha == 0:
         return np.eye(3)
 
+    # The rotation between vectors that are identical up to a sign inversion is
+    # -I:
+    if np.allclose(alpha, np.pi):
+        return -1 * np.eye(3)
+    
     # Otherwise, we need to do some math: 
     # Find the orthonormal basis for the null-space of these two vectors:
     u = null_space(np.matrix([a,b,[0,0,0]]))
@@ -153,8 +158,8 @@ def calculate_rotation(a,b):
     # Using quaternion notation (See
     # http://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#From_the_rotations_to_the_quaternions): 
     
-    w = np.cos(alpha/2); 
-    xyz = u * np.sin(alpha/2); 
+    w = np.cos(alpha/2)
+    xyz = u * np.sin(alpha/2)
 
     rot = quat2rot(w,xyz[0], xyz[1], xyz[2])
 
@@ -663,4 +668,3 @@ def nans(shape):
     out.fill(np.nan)
     return out
     
-
