@@ -427,7 +427,7 @@ class ProgressBar:
 
     def update_iteration(self, elapsed_iter):
         self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)
-        self.prog_bar += '  %d of %s complete' % (elapsed_iter, self.iterations)
+        self.prog_bar += '  %d of %s complete \n'%(elapsed_iter, self.iterations)
 
     def __update_amount(self, new_amount):
         percent_done = int(round((new_amount / 100.0) * 100.0))
