@@ -1000,7 +1000,8 @@ class SphericalHarmonicsModel(BaseModel):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
-                 verbose=True):
+                 verbose=True,
+                 threshold=0.1):
         """
         Initialize a SphericalHarmonicsModel class instance.
         
@@ -1011,6 +1012,9 @@ class SphericalHarmonicsModel(BaseModel):
         model_coefficients: ndarray
            Coefficients for a SH model, organized according to the conventions
            used by mrtrix (see sph_harm_set for details).
+
+        threshold: The FOD threshold to apply to the estimated FOD, to get rid
+        of noise. 0.1 is a value often used in the literature on this.
         
         """
         # Initialize the super-class:
@@ -1034,10 +1038,12 @@ class SphericalHarmonicsModel(BaseModel):
 
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
         self.n_params = self.model_coeffs.shape[-1]
-
+        
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
-        
+
+        self.threshold = threshold
+
     @desc.auto_attr
     def sph_harm_set(self):
         """
@@ -1127,6 +1133,9 @@ class SphericalHarmonicsModel(BaseModel):
         out[self.mask] = np.asarray(np.matrix(d) *
                                      np.matrix(self.sph_harm_set))
 
+        # Null out smaller than threshold values of the odf: 
+        out[out<self.threshold] = 0
+        
         return out 
     
 
