@@ -85,15 +85,23 @@ class Tensor(object):
             e_s += "); please reshape to be 3 by n"
             raise ValueError(e_s)
 
-        # They should all be unit-length (to within tolerance):
-        for bv in bvecs.T:
-            norm = np.sqrt(np.dot(bv,bv))
-            if not np.allclose(norm, 1, 1e-4):
-                e_s = "One of the bvecs is length %s "%norm
-                e_s += "; make sure they're all approximately"
-                e_s += " unit length"
-                raise ValueError(e_s)
-        
+        # The bvecs should all be unit-length (to within tolerance):
+
+        # This is a time-consuming way of checking that (loop over all the
+        # bvecs and check them one by one):
+        ## for bv in bvecs.T:
+        ##     norm = np.sqrt(np.dot(bv,bv))
+        ##     if not np.all(np.abs(norm-1)<1e-4):
+        ##         e_s = "One of the bvecs is length %s "%norm
+        ##         e_s += "; make sure they're all approximately"
+        ##         e_s += " unit length"
+        ##         raise ValueError(e_s)
+
+        # This is faster:
+        if np.abs(np.sum(np.diag(np.dot(bvecs,bvecs.T)))-bvecs.shape[1])>1e-4:
+            e_s = "Please check that all your bvecs are unit length"  
+            raise ValueError(e_s)
+    
         bvals = np.asarray(bvals)
         if bvecs.shape[-1] != bvals.shape[0]:
             e_s = "bvecs input has shape ("
@@ -292,4 +300,6 @@ def tensor_from_eigs(evecs, evals, bvecs, bvals):
     Parameters 
     """
 
-    return Tensor(ozu.tensor_from_eigs(evals, evecs), bvecs, bvals)
+    t_from_e = ozu.tensor_from_eigs(evals, evecs)
+    T = Tensor(t_from_e, bvecs, bvals)
+    return T  
