@@ -1157,15 +1157,22 @@ class SphericalHarmonicsModel(BaseModel):
         """
         if self.verbose:
             print("Predicting signal from SphericalHarmonicsModel")
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
 
         # Reshape the odf to be one voxel per row:
         flat_odf = self.odf[self.mask]
         pred_sig = np.empty(flat_odf.shape)
 
+            
         for vox in range(pred_sig.shape[0]):
             pred_sig[vox] = self.response_function.convolve_odf(
                                                     flat_odf[vox],
                                                     self._flat_S0[vox])
+            
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
 
         # Pack it back into a volume shaped thing: 
         out = ozu.nans(self.signal.shape)
@@ -1583,13 +1590,61 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
                  mode='relative_signal',
+                 iso_diffusivity=3.0,
+                 model_form='flexible',
                  verbose=True):
-        """
+        r"""
         Initialize a CanonicalTensorModelOpt class instance.
 
         Same inputs except we do not accept over-sampling, since it has no
         meaning here.
+
+        Parameters
+        ----------
+
+        model_form: A string that chooses between different forms of the
+        model. Per default, this is set to 'flexible'.
+
+        'flexible': In this case, we fit the parameters of the following model: 
+
+        .. math::
+
+           \frac{S}{ S_0}= \beta_0 e^{-bD}+\beta_1 e^{-b \theta R_i Q \theta^t}
+
+        In this model, the diffusivity of the sphere is assumed to be the
+        diffusivity of water and Q is taken from the axial_diffusivity and
+        radial_diffusivity inputs. We fit $\beta_0$, $\beta_1$ and $R_i$ (the
+        rotation matrix, which is defined by two parameters: for the azimuth
+        and elevation)
+        
+        'constrained': We will optimize for the following model:
+
+        .. math::
+        
+           \frac{S}{ S_0}= (1-\beta) e^{-bD}+\beta e^{-b \theta R_i Q \theta^t}
+
+        That is, a model in which the sum of the weights on isotropic and
+        anisotropic components is always 1.
+
+        'ball_and_stick': The form of the model in this case is:
+
+        .. math::
+
+            \frac{S}{ S_0}= (1-\beta)e^{-b d}+\beta e^{-b \theta R_idQ\theta^t}
+
+        Note that in this case, d is a fit parameter and
+
+        .. math::
+
+             Q = \begin{pmatrix} 1 & 0 & 0 \\
+                                 0 & 0 & 0 \\
+				 0 & 0  & 0\\
+				 \end{pmatrix} 
+        
+        Is a tensor with $FA=1$. That is, without any radial component.
+
         """
+
         CanonicalTensorModel.__init__(self,
                                       data,
                                       bvecs,
@@ -1603,7 +1658,24 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                                       sub_sample=sub_sample,
                                       over_sample=None,  # Always None
                                       mode=mode,
+                                      iso_diffusivity=iso_diffusivity,
                                       verbose=verbose)
+
+
+        self.model_form = model_form
+        self.iso_pred_sig = np.exp(-self.bvals[self.b_idx][0] * iso_diffusivity)
+
+        # Over-ride the setting of the params file name in the super-class, so
+        # that we can add the model form into the file name (and run on all
+        # model-forms for the same data...):
+
+        # Introspect to figure out what name the current class has:
+        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+
+        # Go on and set it: 
+        self.params_file = params_file_resolver(self,
+                                                this_class + model_form,
+                                                params_file=params_file)
 
 
     @desc.auto_attr
@@ -1612,8 +1684,25 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         Find the model parameters using least-squares optimization.
         """
 
-        params = np.empty((self._flat_signal.shape[0],4))
+        if self.model_form == 'constrained':
+            n_params = 3
+            err_func = self.err_func_constrained
+        elif self.model_form=='flexible':
+            n_params = 4
+            err_func = self.err_func_flexible
+        elif self.model_form == 'ball_and_stick':
+            n_params = 4 
+            err_func = self.err_func_ball_and_stick
+            # Need to replace the canonical tensor with a 
+            self.response_function =  ozt.Tensor(np.diag([1, 0, 0]),
+                          self.bvecs[:, self.b_idx], self.bvals[self.b_idx])
 
+        else:
+            e_s = "%s is not a recognized model form"% self.model_form
+            raise ValueError(e_s)
+
+        params = np.empty((self._flat_signal.shape[0],n_params))
+            
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
@@ -1621,33 +1710,38 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             f_name = this_class + '.' + inspect.stack()[0][3]
             
         for vox in range(self._flat_signal.shape[0]):
-            # Need to set this one in each voxel, so that the optimizer
-            # becomes aware of it:
-            self._vox_sig = self._flat_signal[vox]
             # Starting conditions
             mean_sig = np.mean(self._flat_signal[vox])
-            start_params = 0, 0, mean_sig,mean_sig
+            if self.model_form == 'constrained':
+                start_params = 0, 0, mean_sig
+            elif (self.model_form=='flexible' or
+                  self.model_form=='ball_and_stick'):
+                start_params = 0, 0, mean_sig, mean_sig
             
             # Do the least-squares fitting (setting tolerance to a rather
             # lenient value?):
-            this_params, status = opt.leastsq(self.err_func,
-                                          start_params,
-                                          ftol=10e-5)
+            this_params, status = opt.leastsq(err_func,
+                                              start_params,
+                                              args=(self._flat_signal[vox]),
+                                              ftol=10e-5)
             
             params[vox] = this_params
 
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
 
-        out_params = ozu.nans(self.signal.shape[:3] + (4,))
+        
+        out_params = ozu.nans(self.signal.shape[:3] + (n_params,))
         out_params[self.mask] = np.array(params).squeeze()
 
         return out_params
-    def err_func(self, params):
+
+
+    def _tensor_helper(self, theta, phi)
         """
-        The error function for the fit:
+        This code is used in all three error functions, so we write it out only
+        once here
         """
-        theta,phi,tensor_w,iso_w = params
         # Convert to cartesian coordinates:
         x,y,z = geo.sphere2cart(1, theta, phi)
         bvec = [x,y,z]
@@ -1656,12 +1750,45 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             evecs * ozu.calculate_rotation(bvec, evecs[0]),
                    evals, self.bvecs[:,self.b_idx], self.bvals[:,self.b_idx])
 
+        return rot_tensor
+
+    def err_func_flexible(self, params, args):
+        """
+        This is the error function for the fully flexible model. 
+        """
+        theta, phi, tensor_w, iso_w = params
+        vox_sig = args
+        rot_tensor = self._tensor_helper(theta, phi)
         # Relative to an S0=1:
-        pred_sig = tensor_w * rot_tensor.predicted_signal(1) + iso_w
+        pred_sig = (tensor_w * rot_tensor.predicted_signal(1) +
+                    iso_w * self.iso_pred_sig)
+        return pred_sig - vox_sig
+
+    def err_func_constrained(self, params, args):
+        """
+        This is the error function for the constrained model. 
+        """
+        theta, phi, w = params
+        vox_sig = args
+        rot_tensor = self._tensor_helper(theta, phi)
+        # Relative to an S0=1:
+        pred_sig = (1-w) * self.iso_pred_sig + w * rot_tensor.predicted_signal(1)
+        return pred_sig - self._vox_sig
+
+    def err_func_ball_and_stick(self, params, arg):
+        """
+        This is the error function for the 'ball and stick' model. 
+        """
+        theta, phi, w, d = params
+        # In each one we have a different axial diffusivity for the response
+        # function. Simply multiply it by the current d:
+        self.response_function = self.response_function * d
+        rot_tensor = self._tensor_helper(theta, phi)
+        pred_sig = (1-w) * d + w * rot_tensor.predicted_signal(1)
         return pred_sig - self._vox_sig
 
 
-
+        
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
     This model extends CanonicalTensorModel with the addition of another
