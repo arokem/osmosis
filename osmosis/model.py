@@ -1693,10 +1693,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         elif self.model_form == 'ball_and_stick':
             n_params = 4 
             err_func = self.err_func_ball_and_stick
-            # Need to replace the canonical tensor with a 
-            self.response_function =  ozt.Tensor(np.diag([1, 0, 0]),
-                          self.bvecs[:, self.b_idx], self.bvals[self.b_idx])
-
+            
         else:
             e_s = "%s is not a recognized model form"% self.model_form
             raise ValueError(e_s)
@@ -1708,16 +1705,20 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
-            
+
+        # Initialize the starting conditions for the first voxel
+        if self.model_form == 'constrained':
+            this_params = 0, 0, np.mean(self._flat_signal[0])
+        elif (self.model_form=='flexible' or
+              self.model_form=='ball_and_stick'):
+            this_params = (0, 0, np.mean(self._flat_signal[0]),
+                           np.mean(self._flat_signal[0]))
+
         for vox in range(self._flat_signal.shape[0]):
-            # Starting conditions
-            mean_sig = np.mean(self._flat_signal[vox])
-            if self.model_form == 'constrained':
-                start_params = 0, 0, mean_sig
-            elif (self.model_form=='flexible' or
-                  self.model_form=='ball_and_stick'):
-                start_params = 0, 0, mean_sig, mean_sig
-            
+            # From the second voxel and onwards, we use the end point of the
+            # last voxel as the starting point for this voxel:
+            start_params = this_params
+                
             # Do the least-squares fitting (setting tolerance to a rather
             # lenient value?):
             this_params, status = opt.leastsq(err_func,
@@ -1737,7 +1738,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         return out_params
 
 
-    def _tensor_helper(self, theta, phi)
+    def _tensor_helper(self, theta, phi):
         """
         This code is used in all three error functions, so we write it out only
         once here
@@ -1745,10 +1746,15 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         # Convert to cartesian coordinates:
         x,y,z = geo.sphere2cart(1, theta, phi)
         bvec = [x,y,z]
+        # decompose is an auto-attr of the tensor object, so is only run once
+        # and then cached:
         evals, evecs = self.response_function.decompose
-        rot_tensor = ozt.tensor_from_eigs(
-            evecs * ozu.calculate_rotation(bvec, evecs[0]),
-                   evals, self.bvecs[:,self.b_idx], self.bvals[:,self.b_idx])
+        rot = ozu.calculate_rotation(bvec, evecs[0])
+        rot_evecs = evecs * rot
+        rot_tensor = ozt.tensor_from_eigs(rot_evecs,
+                                          evals,
+                                          self.bvecs[:,self.b_idx],
+                                          self.bvals[:,self.b_idx])
 
         return rot_tensor
 
@@ -1773,19 +1779,24 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         rot_tensor = self._tensor_helper(theta, phi)
         # Relative to an S0=1:
         pred_sig = (1-w) * self.iso_pred_sig + w * rot_tensor.predicted_signal(1)
-        return pred_sig - self._vox_sig
+        return pred_sig - vox_sig
 
-    def err_func_ball_and_stick(self, params, arg):
+    def err_func_ball_and_stick(self, params, args):
         """
         This is the error function for the 'ball and stick' model. 
         """
         theta, phi, w, d = params
+        vox_sig = args
         # In each one we have a different axial diffusivity for the response
         # function. Simply multiply it by the current d:
-        self.response_function = self.response_function * d
+        # Need to replace the canonical tensor with a 
+        self.response_function =  ozt.Tensor(np.diag([1, 0, 0]),
+                          self.bvecs[:, self.b_idx], self.bvals[self.b_idx])
+
+        self.response_function.Q = self.response_function.Q * d
         rot_tensor = self._tensor_helper(theta, phi)
         pred_sig = (1-w) * d + w * rot_tensor.predicted_signal(1)
-        return pred_sig - self._vox_sig
+        return pred_sig - vox_sig
 
 
         
