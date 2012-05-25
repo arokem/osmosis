@@ -12,22 +12,6 @@ import numpy as np
 import numpy.linalg as npla
 
 
-try:
-    # Get parallel computing stuff from IPython:
-    from IPython import parallel
-    try_para = parallel.Client()
-    has_para = True
-except ImportError:
-    warnings.warn("Could not import IPython.parallel")
-    has_para = False
-except AssertionError:
-    # If you get here, that probably means that you didn't turn on your
-    # cluster...
-    e_s = "Could not get an IPython connection file."
-    e_s += "Did you remember to start your cluster?"
-    warnings.warn(e_s)
-    has_para = False
-
 # We want to try importing numexpr for some array computations, but we can do
 # without:
 try:
@@ -1573,6 +1557,7 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
+
 class CanonicalTensorModelOpt(CanonicalTensorModel):
     """
     This one is supposed to do the same thing as CanonicalTensorModel, except
@@ -1678,28 +1663,33 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                                                 params_file=params_file)
 
 
+        # Choose the prediction function based on the model form:
+        if self.model_form == 'constrained':
+            self.pred_func = self._pred_sig_constrained
+        elif self.model_form=='flexible':
+            self.pred_func = self._pred_sig_flexible
+        elif self.model_form == 'ball_and_stick':
+            self.pred_func = self._pred_sig_ball_and_stick
+
+
     @desc.auto_attr
     def model_params(self):
         """
         Find the model parameters using least-squares optimization.
         """
+        return self._optimize()
 
+    def _optimize(self):
         if self.model_form == 'constrained':
             n_params = 3
-            err_func = self.err_func_constrained
-        elif self.model_form=='flexible':
-            n_params = 4
-            err_func = self.err_func_flexible
-        elif self.model_form == 'ball_and_stick':
+        elif self.model_form=='flexible' or self.model_form == 'ball_and_stick':
             n_params = 4 
-            err_func = self.err_func_ball_and_stick
-            
         else:
             e_s = "%s is not a recognized model form"% self.model_form
             raise ValueError(e_s)
 
         params = np.empty((self._flat_signal.shape[0],n_params))
-            
+
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
             prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
@@ -1718,88 +1708,139 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             # From the second voxel and onwards, we use the end point of the
             # last voxel as the starting point for this voxel:
             start_params = this_params
-                
+
             # Do the least-squares fitting (setting tolerance to a rather
             # lenient value?):
-            this_params, status = opt.leastsq(err_func,
+            this_params, status = opt.leastsq(self._err_func,
                                               start_params,
                                               args=(self._flat_signal[vox]),
                                               ftol=10e-5)
-            
             params[vox] = this_params
 
             if self.verbose: 
                 prog_bar.animate(vox, f_name=f_name)
 
-        
         out_params = ozu.nans(self.signal.shape[:3] + (n_params,))
         out_params[self.mask] = np.array(params).squeeze()
 
         return out_params
 
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict the signal from CanonicalTensorModelOpt
+        """
+        if self.verbose:
+            s = "Predicting signal from CanonicalTensorModelOpt. "
+            s += "Fit to %s model"%self.model_form
+            print(s)
+
+        out_flat = np.empty(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            out_flat[vox] = self.pred_func(flat_params[vox])
+
+        out = ozu.nans(self.signal.shape)
+        out[self.mask] = out_flat
+
+        return out
 
     def _tensor_helper(self, theta, phi):
-        """
-        This code is used in all three error functions, so we write it out only
-        once here
-        """
-        # Convert to cartesian coordinates:
-        x,y,z = geo.sphere2cart(1, theta, phi)
-        bvec = [x,y,z]
-        # decompose is an auto-attr of the tensor object, so is only run once
-        # and then cached:
-        evals, evecs = self.response_function.decompose
-        rot = ozu.calculate_rotation(bvec, evecs[0])
-        rot_evecs = evecs * rot
-        rot_tensor = ozt.tensor_from_eigs(rot_evecs,
-                                          evals,
-                                          self.bvecs[:,self.b_idx],
-                                          self.bvals[:,self.b_idx])
+            """
+            This code is used in all three error functions, so we write it out
+            only once here
+            """
+            # Convert to cartesian coordinates:
+            x,y,z = geo.sphere2cart(1, theta, phi)
+            bvec = [x,y,z]
+            # decompose is an auto-attr of the tensor object, so is only run once
+            # and then cached:x
+            evals, evecs = self.response_function.decompose
+            rot = ozu.calculate_rotation(bvec, evecs[0])
+            rot_evecs = evecs * rot
+            rot_tensor = ozt.tensor_from_eigs(rot_evecs,
+                                              evals,
+                                              self.bvecs[:,self.b_idx],
+                                              self.bvals[:,self.b_idx])
+            return rot_tensor
 
-        return rot_tensor
-
-    def err_func_flexible(self, params, args):
-        """
-        This is the error function for the fully flexible model. 
-        """
-        theta, phi, tensor_w, iso_w = params
-        vox_sig = args
-        rot_tensor = self._tensor_helper(theta, phi)
-        # Relative to an S0=1:
-        pred_sig = (tensor_w * rot_tensor.predicted_signal(1) +
-                    iso_w * self.iso_pred_sig)
-        return pred_sig - vox_sig
-
-    def err_func_constrained(self, params, args):
-        """
-        This is the error function for the constrained model. 
-        """
-        theta, phi, w = params
-        vox_sig = args
-        rot_tensor = self._tensor_helper(theta, phi)
-        # Relative to an S0=1:
-        pred_sig = (1-w) * self.iso_pred_sig + w * rot_tensor.predicted_signal(1)
-        return pred_sig - vox_sig
-
-    def err_func_ball_and_stick(self, params, args):
-        """
-        This is the error function for the 'ball and stick' model. 
-        """
-        theta, phi, w, d = params
-        vox_sig = args
-        # In each one we have a different axial diffusivity for the response
-        # function. Simply multiply it by the current d:
-        # Need to replace the canonical tensor with a 
-        self.response_function =  ozt.Tensor(np.diag([1, 0, 0]),
-                          self.bvecs[:, self.b_idx], self.bvals[self.b_idx])
-
-        self.response_function.Q = self.response_function.Q * d
-        rot_tensor = self._tensor_helper(theta, phi)
-        pred_sig = (1-w) * d + w * rot_tensor.predicted_signal(1)
-        return pred_sig - vox_sig
-
-
+    @desc.auto_attr
+    def parallel_fit(self):
+        if self.verbose:
+            print("Calculating model parameters with parallel interface")
+        # Get a parallel direct view (importing everything makes the parallel
+        # engines see everything that any function in this module would see):
+        dview = ozu.start_parallel('from osmosis.model import *') 
         
+        results = []
+        vox_per_chunk = 1000
+        orig_mask = np.copy(self.mask)
+        n_chunks = int(np.round(np.sum(self.mask)))/vox_per_chunk
+        mask_idx = np.array(np.where(self.mask))
+        
+        for chunk in range(n_chunks):
+            if vox_per_chunk*chunk+1 > mask_idx.shape[-1]:
+                this_idx = mask_idx[:,vox_per_chunk * chunk:]
+            else:
+                this_idx = mask_idx[:,vox_per_chunk *
+                                     chunk:vox_per_chunk*(chunk+1)]
+
+            mask_array = np.zeros(self.shape)
+            mask_array[(this_idx[0], this_idx[1], this_idx[2])] = 1
+            # Temporarily switch in the temporary mask
+            self.mask = mask_array
+            results.append(dview.apply_async(self._optimize).get())
+
+        # Put back the original 
+        self.mask = orig_mask
+        return results
+
+
+    def _pred_sig_flexible(self, params):
+            """
+            This is the signal prediction for the fully flexible model. 
+            """
+            theta, phi, tensor_w, iso_w = params
+            rot_tensor = self._tensor_helper(theta, phi)
+            # Relative to an S0=1:
+            return (tensor_w * rot_tensor.predicted_signal(1) +
+                    iso_w * self.iso_pred_sig)
+
+
+    def _pred_sig_constrained(self, params):
+            """
+            This is the signal prediction for the constrained model. 
+            """
+            theta, phi, w = params
+            rot_tensor = self._tensor_helper(theta, phi)
+            # Relative to an S0=1:
+            return (1-w) * self.iso_pred_sig + w * rot_tensor.predicted_signal(1)
+
+
+    def _pred_sig_ball_and_stick(self, params):
+            """
+            This is the signal prediction for the ball-and-stick model
+            """
+            theta, phi, w, d = params
+            # In each one we have a different axial diffusivity for the response
+            # function. Simply multiply it by the current d:
+            # Need to replace the canonical tensor with a 
+            self.response_function =  ozt.Tensor(np.diag([1, 0, 0]),
+                              self.bvecs[:, self.b_idx], self.bvals[self.b_idx])
+
+            self.response_function.Q = self.response_function.Q * d
+            rot_tensor = self._tensor_helper(theta, phi)
+            return (1-w) * d + w * rot_tensor.predicted_signal(1)
+
+
+    def _err_func(self, params, vox_sig):
+            """
+            This is the error function for the 'ball and stick' model. 
+            """
+            pred_sig = self.pred_func(params)
+            return pred_sig - vox_sig
+
+
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
     This model extends CanonicalTensorModel with the addition of another
