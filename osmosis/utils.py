@@ -2,6 +2,7 @@
 A variety of utility functions
 
 """
+import warnings
 
 import numpy as np
 import scipy
@@ -668,3 +669,38 @@ def nans(shape):
     out.fill(np.nan)
     return out
     
+def start_parallel(imports_str=None):
+    """
+    This function starts a parallel computing environment 
+
+    Parameters
+    ----------
+    imports_str: a string with the imports that are required to run on your
+    engines, so that they can do their job. For example: 
+     'import osmosis.model as ozm \n import osmosis.utils as ozu'
+    
+    """
+    try:
+        # Get parallel computing stuff from IPython:
+        from IPython import parallel
+        rc = parallel.Client()
+    except ImportError:
+        warnings.warn("Could not import IPython.parallel")
+        return None
+    except AssertionError:
+        # If you get here, that probably means that you didn't turn on your
+        # cluster...
+        e_s = "Could not get an IPython connection file."
+        e_s += "Did you remember to start your cluster?"
+        warnings.warn(e_s)
+        return None
+
+    if imports_str is not None:
+            rc[:].execute(imports_str)
+
+    print("Parallelizing on %s engines"%len(rc))    
+    dview = rc[:]
+
+    # Now you can do:
+    # out = dview.apply_async(para_func, args)            
+    return dview
