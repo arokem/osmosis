@@ -1,3 +1,6 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
 import os
 import nibabel as ni 
 import osmosis as oz
