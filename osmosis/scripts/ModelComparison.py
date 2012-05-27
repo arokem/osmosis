@@ -26,7 +26,7 @@ data_files = {1000:[make_data_set(
     2000:[make_data_set(
     '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin'),
     make_data_set(
-    '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin.nii.gz')],
+    '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin')],
     4000:[make_data_set(
     '0005_01_DTI_2mm_150dir_2x_b4000_aligned_trilin'),
     make_data_set(
