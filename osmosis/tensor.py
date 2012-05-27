@@ -98,7 +98,7 @@ class Tensor(object):
         ##         raise ValueError(e_s)
 
         # This is faster:
-        if np.abs(np.sum(np.diag(np.dot(bvecs,bvecs.T)))-bvecs.shape[1])>1e-4:
+        if np.abs(np.sum(np.diag(np.dot(bvecs,bvecs.T)))-bvecs.shape[1])>1e-3:
             e_s = "Please check that all your bvecs are unit length"  
             raise ValueError(e_s)
     
