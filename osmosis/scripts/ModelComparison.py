@@ -1,3 +1,4 @@
+import nibabel as ni
 import os
 import osmosis as oz
 import osmosis.model as ozm
