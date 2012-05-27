@@ -28,9 +28,9 @@ data_files = {1000:[make_data_set(
     make_data_set(
     '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin')],
     4000:[make_data_set(
-    '0005_01_DTI_2mm_150dir_2x_b4000_aligned_trilin'),
+    '0005_01_DWI_2mm150dir_2x_b4000_aligned_trilin'),
     make_data_set(
-    '0007_01_DTI_2mm_150dir_2x_b4000_aligned_trilin')]}
+    '0007_01_DWI_2mm150dir_2x_b4000_aligned_trilin')]}
 
 # These are based on the calculations in GetADandRD
 diffusivities = {1000: [dict(AD=1.7139, RD=0.3887),
