@@ -3149,7 +3149,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
-                solver = Lasso()
+                solver = Lasso(alpha=0.01)
                 params[vox] = solver.fit(design_matrix, sig).coef_
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
