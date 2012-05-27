@@ -3105,7 +3105,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             self.solver = solver
 
         self.params_file = params_file_resolver(self,
-                                            'SparseDeconvolutionModel%s'%solver,
+                                    'SparseDeconvolutionModel%s'%self.solver,
                                              params_file)
 
 
