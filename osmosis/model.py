@@ -212,7 +212,7 @@ class DWI(desc.ResetMixin):
         # The data is in a file, and you might not have loaded it yet:
         else:
             # No need to actually load it yet:
-            return ni.load(self.data_file).get_shape()
+            return ni.load(self.data_file).shape
             
     @desc.auto_attr
     def bvals(self):
@@ -1114,12 +1114,10 @@ class SphericalHarmonicsModel(BaseModel):
         out = np.empty(self.signal.shape)
         
         # multiply these two matrices together for the estimated odf:  
-        out[self.mask] = np.asarray(np.matrix(d) *
-                                     np.matrix(self.sph_harm_set))
+        out[self.mask] = np.dot(d, self.sph_harm_set)
 
         # Null out smaller than threshold values of the odf: 
         out[out<self.threshold] = 0
-        
         return out 
     
 
@@ -1129,6 +1127,8 @@ class SphericalHarmonicsModel(BaseModel):
         A canonical tensor that describes the presumed response of a single
         fiber 
         """
+
+        # XXX Need to get the proper response function from CSD! 
         return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
                           self.bvecs[:,self.b_idx],
                           self.bvals[self.b_idx])
@@ -1671,6 +1671,17 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         elif self.model_form == 'ball_and_stick':
             self.pred_func = self._pred_sig_ball_and_stick
 
+        if self.mode == 'relative_signal':
+            self.fit_signal = self._flat_relative_signal
+        elif self.mode == 'signal_attenuation':
+            self.fit_signal = 1-self._flat_relative_signal
+        elif self.mode == 'normalize':
+            e_s = "Mode normalize doesn't make sense in CanonicalTensorModelOpt"
+            raise ValueError(e_s)
+        else:
+            e_s = "Mode %s not recognized"
+            raise ValueError(e_s)            
+
 
     @desc.auto_attr
     def model_params(self):
@@ -1688,7 +1699,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             e_s = "%s is not a recognized model form"% self.model_form
             raise ValueError(e_s)
 
-        params = np.empty((self._flat_signal.shape[0],n_params))
+        params = np.empty((self.fit_signal.shape[0],n_params))
 
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
@@ -1698,13 +1709,13 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
 
         # Initialize the starting conditions for the first voxel
         if self.model_form == 'constrained':
-            this_params = 0, 0, np.mean(self._flat_signal[0])
+            this_params = 0, 0, np.mean(self.fit_signal[0])
         elif (self.model_form=='flexible' or
               self.model_form=='ball_and_stick'):
-            this_params = (0, 0, np.mean(self._flat_signal[0]),
-                           np.mean(self._flat_signal[0]))
+            this_params = (0, 0, np.mean(self.fit_signal[0]),
+                           np.mean(self.fit_signal[0]))
 
-        for vox in range(self._flat_signal.shape[0]):
+        for vox in range(self.fit_signal.shape[0]):
             # From the second voxel and onwards, we use the end point of the
             # last voxel as the starting point for this voxel:
             start_params = this_params
@@ -1713,8 +1724,9 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             # lenient value?):
             this_params, status = opt.leastsq(self._err_func,
                                               start_params,
-                                              args=(self._flat_signal[vox]),
-                                              ftol=10e-5)
+                                    args=(self.fit_signal[vox]),
+                                              ftol=10e-5
+                                              )
             params[vox] = this_params
 
             if self.verbose: 
@@ -1738,8 +1750,11 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            out_flat[vox] = self.pred_func(flat_params[vox])
-
+            this_pred = self.pred_func(flat_params[vox])
+            if self.mode == 'signal_attenuation':
+                this_pred = 1 - this_pred
+            out_flat[vox] = this_pred * self._flat_S0[vox]
+        
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
@@ -1796,32 +1811,70 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         return results
 
 
-    def _pred_sig_flexible(self, params):
+    def _check_constraints(self, constraints):
+        """
+        Helper to check for optimization bounding constraints
+        """
+        # If any one of the constraints is violated:
+        for var, lb, ub in constraints:
+            if var<lb or var>ub:
+                return True
+
+        # Otherwise:
+        return False
+         
+
+    def _pred_sig_flexible(self, params, check_constraints=True):
             """
             This is the signal prediction for the fully flexible model. 
             """
             theta, phi, tensor_w, iso_w = params
+            if check_constraints:
+                if self._check_constraints([[theta, 0, np.pi],
+                                            [phi, -np.pi, np.pi],
+                                            [tensor_w, 0, np.inf], # Weights are
+                                                                   # non-negative
+                                            [iso_w, 0, np.inf]]):
+                    return np.inf
+                
             rot_tensor = self._tensor_helper(theta, phi)
             # Relative to an S0=1:
             return (tensor_w * rot_tensor.predicted_signal(1) +
                     iso_w * self.iso_pred_sig)
 
 
-    def _pred_sig_constrained(self, params):
+    def _pred_sig_constrained(self, params, check_constraints=False):
             """
             This is the signal prediction for the constrained model. 
             """
             theta, phi, w = params
+
+            if check_constraints:
+                if self._check_constraints([[theta, 0, np.pi],
+                                       [phi, -np.pi, np.pi],
+                                       [w, 0, 1]]): # Weights are 0-1
+                    return np.inf
+
+
             rot_tensor = self._tensor_helper(theta, phi)
             # Relative to an S0=1:
             return (1-w) * self.iso_pred_sig + w * rot_tensor.predicted_signal(1)
 
 
-    def _pred_sig_ball_and_stick(self, params):
+    def _pred_sig_ball_and_stick(self, params, check_constraints=False):
             """
             This is the signal prediction for the ball-and-stick model
             """
             theta, phi, w, d = params
+
+            if check_constraints:
+                if self._check_constraints([[theta, 0, np.pi],
+                                            [phi, -np.pi, np.pi],
+                                            [w, 0, 1], # Weights are 0-1
+                                            [d, 0, np.inf]]): # Diffusivity is
+                                                         # non-negative 
+                    return np.inf
+            
             # In each one we have a different axial diffusivity for the response
             # function. Simply multiply it by the current d:
             # Need to replace the canonical tensor with a 
@@ -1832,12 +1885,13 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             rot_tensor = self._tensor_helper(theta, phi)
             return (1-w) * d + w * rot_tensor.predicted_signal(1)
 
-
+        
     def _err_func(self, params, vox_sig):
             """
             This is the error function for the 'ball and stick' model. 
             """
-            pred_sig = self.pred_func(params)
+            # During fitting, you want to check the fitting bounds:
+            pred_sig = self.pred_func(params, check_constraints=True)
             return pred_sig - vox_sig
 
 
@@ -2778,8 +2832,9 @@ class FiberModel(BaseModel):
     ##         f_name = this_class + '.' + inspect.stack()[0][3]
 
 
-    ##     ## Some code attempting to parallelize this problem. This still doesn't
-    ##     #work... 
+    ##     ## Some code attempting to parallelize this problem. This still
+    ##     ## doesn't work...
+
     ##     #rc = parallel.Client()
     ##     #lview = rc.load_balanced_view()
     ##         #ten = lview.map(_tensors_from_fiber, self.FG.fibers,
