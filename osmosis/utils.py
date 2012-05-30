@@ -463,7 +463,7 @@ def rmse(arr1, arr2, axis=-1):
     axis: int, optional
        The axis over which the averaging step is done.
 
-    
+       
     """
     arr1 = np.asarray(arr1)
     arr2 = np.asarray(arr2)
@@ -472,6 +472,38 @@ def rmse(arr1, arr2, axis=-1):
     else:
       return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))
 
+def snr(arr1, arr2=None, axis=-1):
+    """
+    Calculate the SNR as:
+
+    .. math::
+
+        SNR = \frac{mean signal}{standard deviation of the signal}
+
+    Or (when two signals are provided as input):
+    
+        SNR = \frac{mean signal}{RMSE}
+
+    Where the RMSE is calculated between the two signals
+
+    
+    Parameters
+    ----------
+    arr1, arr2: ndarrays
+        If only one array is provided, we'll calculate the first
+        quantity. Otherwise, we will normalize the mean signal by the RMSE
+        between the two arrays
+
+    Returns
+    -------
+    snr: ndarray of the with 1 dimension less than the original arrays.
+    """
+    if arr2 is not None: 
+        return (np.mean(np.concatenate([arr1, arr2],axis=axis), axis=axis)/
+                rmse(arr1, arr2, axis=axis))
+    else:
+        np.mean(arr1, axis=axis)/np.std(arr1, axis=axis)
+    
 def seed_corrcoef(seed, target):
     """
     Compute seed-based correlation coefficient
@@ -496,6 +528,7 @@ def seed_corrcoef(seed, target):
     r = xy / np.sqrt(xx * yy)
 
     return r
+
 
 # Westin stats. Taken from:         
 #
