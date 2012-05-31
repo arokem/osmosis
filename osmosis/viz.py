@@ -70,13 +70,30 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
     im = np.hstack(vol[0:sq])
     height = im.shape[0]
     width = im.shape[1]
+
+    # If this is a 4D thing and it has 3 as the last dimension
+    if len(im.shape)>2:
+        if im.shape[2]==3 or im.shape[2]==4:
+            mode='rgb'
+        else:
+            e_s = "This array has too many dimensions for this"
+            raise ValueError(e_s)
+    else:
+        mode = 'standard'
     
     for i in range(1,sq):
         this_im = np.hstack(vol[(len(vol)/sq)*i:(len(vol)/sq)*(i+1)])
-        wid_margin = width - this_im.shape[-1]
-        if wid_margin: 
-            this_im = np.hstack([this_im, np.nan *np.ones((height, wid_margin))])
-        im = np.vstack([im, this_im])
+        wid_margin = width - this_im.shape[1]
+        if wid_margin:
+            if mode == 'standard':
+                this_im = np.hstack([this_im,
+                                     np.nan *np.ones((height, wid_margin))])
+            else:
+                this_im = np.hstack([this_im,
+                                     np.nan * np.ones((im.shape[2],
+                                                      height,
+                                                      wid_margin))])
+        im = np.concatenate([im, this_im], 0)
     
     if fig is None:
         fig = plt.figure()
@@ -86,7 +103,11 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
         # function:
         ax = fig.axes[0]
 
-    imax = ax.matshow(im.T, vmin=vmin, vmax=vmax, **kwargs)
+    if mode == 'standard':
+        imax = ax.matshow(im.T, vmin=vmin, vmax=vmax, **kwargs)
+    else:
+        imax = plt.imshow(np.rot90(im), interpolation='nearest')
+        cbar = False
     ax.get_axes().get_xaxis().set_visible(False)
     ax.get_axes().get_yaxis().set_visible(False)
     returns = [fig]
@@ -112,6 +133,9 @@ def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
         returns=returns[0]
 
     return returns
+
+
+
     
 def lut_from_cm(cm, n=256):
     """
@@ -427,7 +451,7 @@ class ProgressBar:
 
     def update_iteration(self, elapsed_iter):
         self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)
-        self.prog_bar += '  %d of %s complete \n'%(elapsed_iter, self.iterations)
+        self.prog_bar += '  %d of %s complete '%(elapsed_iter, self.iterations)
 
     def __update_amount(self, new_amount):
         percent_done = int(round((new_amount / 100.0) * 100.0))
@@ -441,3 +465,22 @@ class ProgressBar:
 
     def __str__(self):
         return str(self.prog_bar)
+
+def probability_hist(data, bins=100, fig=None, **kwargs):
+    """
+    A histogram, normalized, such that the sum under the curve is equal to 1
+    """
+
+    if fig is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, aspect='equal')
+    else:
+        ax = fig.get_axes()[0]
+
+
+    hist = np.histogram(data, bins=bins)
+    scale_by = float(np.sum(hist[0]))
+    heights = hist[0] / scale_by    
+    ax.plot(hist[1][1:], heights, **kwargs)
+
+    return fig
