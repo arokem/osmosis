@@ -6,3 +6,7 @@
 *.bvals
 *.bvecs
 *.pdb
+*.mif
+*.hdr
+*.img
+*.mat
