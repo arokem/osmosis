@@ -1,0 +1,9 @@
+import profile_CanonicalTensorModelOpt as sc
+reload(sc)
+import osmosis.tensor
+reload(osmosis.tensor)
+from osmosis.model import CanonicalTensorModelOpt 
+import osmosis.utils as ozu
+reload(ozu)
+
+%lprun -f ozu.calculate_rotation -f CanonicalTensorModelOpt.model_params -f CanonicalTensorModelOpt.err_func_ball_and_stick -f CanonicalTensorModelOpt._tensor_helper sc.fit()
