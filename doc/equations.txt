@@ -51,12 +51,38 @@ Where:
 
 Is a "mixing parameter"
 
+\frac{S}{ S_0}= (1 - \sum_{i=1}^{N}{\beta_i}) e^{-b d}   +
+\sum_{i=1}^{N}{\beta_i e^{-b \theta R_i d Q \theta^t}}
+
+With:
+
+\forall i: 0 \leq \beta_i \leq 1
+
+and
+
+Q = \begin{pmatrix} 1 & 0 & 0 \\
+                                 0 & 0 & 0 \\
+				 0 & 0  & 0\\
+				 \end{pmatrix} 
+
+General "ball and stick":
+
+\frac{S}{ S_0}= \beta_0 e^{-bD}   + \sum_{i=1}^{N}{\beta_i e^{-b \theta R_i Q \theta^t}}
+
+
 
 CanonicalTensorModel:
 
  \begin{pmatrix} \frac{S_1}{S_0} \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0}
  \end{pmatrix} = \begin{pmatrix} \frac{T_1}{T_{max}} & 1 \\ \frac{T_2}{T_{max}} & 1 \\ \vdots &  \vdots \\ \frac{T_n}{T_{max}} & 1 \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \end{pmatrix}
 
+
+ And rewritten in terms of the diffusion equation:
+ 
+\begin{pmatrix} \frac{S_1}{S_0} \\ \frac{S_2}{S_0} \\ \vdots \\ \frac{S_n}{S_0}
+ \end{pmatrix} = \begin{pmatrix} e^{-bD} & e^{-b\theta_1RQ\theta_1^t} \\ e^{-bD} & e^{-b\theta_2RQ\theta_2^t}\\ \vdots &  \vdots \\e^{-bD} & e^{-b\theta_nRQ\theta_n^t} \end{pmatrix} \begin{pmatrix} \beta_0 \\ \beta_1 \end{pmatrix}
+
+ 
  
 MultiCanonicalTensor model:
 

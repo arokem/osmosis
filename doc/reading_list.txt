@@ -38,3 +38,7 @@ Alexander DC, Barker GJ. Optimal imaging parameters for fiber-orientation estima
 Anderson, A.W., 2005. Measurement of fiber orientation distributions using high angular resolution diffusion imaging. Magn. Reson. Med. 54, 1194–1206.
 
 
+About diffusion in various geometries:
+--------------------------------------
+
+Codd SL, Callaghan PT. Spin echo analysis of restricted diffusion under generalized gradient waveforms: planar, cylindrical, and spher- ical pores with wall relaxivity. J Magn Reson 1999;137(2):358–372.
