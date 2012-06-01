@@ -202,8 +202,6 @@ class Tensor(object):
 
         return signal
 
-    
-
 
     @desc.auto_attr
     def _rotations(self):

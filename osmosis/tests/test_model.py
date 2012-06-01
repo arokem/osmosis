@@ -147,7 +147,8 @@ def test_DWI():
                       np.ones(D1.shape[:3]))
         # Set it back:
         ozm.has_numexpr = True
-        
+
+    npt.assert_equal(D1.signal_attenuation, 1-D1.relative_signal)
 
 # This takes some time, because it requires reading large data files and of
 # course, needs to be skipped if the data is no where to be found:     
@@ -989,28 +990,44 @@ def test_SphericalHarmonicsModel():
     model_coeffs = ni.load(data_path + 'CSD10.nii.gz').get_data()
 
     mask = np.zeros(model_coeffs.shape[:3])
-    # Do this in only some small segment:
-    mask[40:42, 40:42, 40:42] = 1
+    # Do this in only one voxel:
+    mask[40, 40, 40] = 1
+    response_file = (data_path +
+                     '0009_01_DWI_2mm150dir_2x_b1000_aligned_trilin_ER.mif')
     
-    SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
+    for response in [response_file, None]:
+        SHM1 = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
                                       data_path + 'dwi.bvecs',
                                       data_path + 'dwi.bvals',
                                       model_coeffs,
+                                      response_file = response,
                                       mask=mask)
 
-    # Can also provide the input as a string:
-    model_coeffs = data_path + 'CSD10.nii.gz'
+        # Can also provide the input as a string:
+        model_coeffs = data_path + 'CSD10.nii.gz'
 
-    SHM = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
-                                      data_path + 'dwi.bvecs',
-                                      data_path + 'dwi.bvals',
-                                      model_coeffs,
-                                      mask=mask)
+        SHM2 = ozm.SphericalHarmonicsModel(data_path + 'dwi.nii.gz',
+                                          data_path + 'dwi.bvecs',
+                                          data_path + 'dwi.bvals',
+                                          model_coeffs,
+                                          response_file = response,
+                                          mask=mask)
 
-    # XXX Smoke testing only. Still need to make sure that this actually does
-    # what the original authors intended... 
-    SHM.fit
+        # Smoke testing:
+        SHM1.fit
+        SHM2.fit
 
+    # Check error-handling
+    npt.assert_raises(ValueError,
+                      ozm.SphericalHarmonicsModel,
+                      [1,2,3],
+                      data_path + 'dwi.bvecs',
+                      data_path + 'dwi.bvals',
+                      model_coeffs,
+                      None, 1.5, 0.5,
+                      response_file)
+
+    
 def test_CanonicalTensorModel():
     """
 
@@ -1029,11 +1046,11 @@ def test_CanonicalTensorModel():
     # XXX Smoke testing only
     npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
-    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1
     # Fit this on some real dwi data
-    for mode in ['signal_attenuation', 'relative_signal', 'normalize']:
+    for mode in ['signal_attenuation', 'relative_signal', 'normalize', 'log']:
         for params_file in [None, tempfile.NamedTemporaryFile().name]:
             CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                        data_path + 'dwi.bvecs',
@@ -1086,7 +1103,7 @@ def test_CanonicalTensorModelOpt():
     Test fitting of the CanonicalTensorModel by optimization
     """
     
-    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1
 
@@ -1106,7 +1123,7 @@ def test_MultiCanonicalTensorModel():
     Test fitting of the MultiCanonicalTensorModel
     """
     
-    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').get_shape()[:3])
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
 
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1

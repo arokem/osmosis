@@ -1034,8 +1034,7 @@ class SphericalHarmonicsModel(BaseModel):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
-                 verbose=True,
-                 threshold=0.1):
+                 verbose=True):
         """
         Initialize a SphericalHarmonicsModel class instance.
         
@@ -1046,9 +1045,6 @@ class SphericalHarmonicsModel(BaseModel):
         model_coefficients: ndarray
            Coefficients for a SH model, organized according to the conventions
            used by mrtrix (see sph_harm_set for details).
-
-        threshold: The FOD threshold to apply to the estimated FOD, to get rid
-        of noise. 0.1 is a value often used in the literature on this.
         
         """
         # Initialize the super-class:
@@ -1073,23 +1069,22 @@ class SphericalHarmonicsModel(BaseModel):
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
         self.n_params = self.model_coeffs.shape[-1]
 
-        e_s = "Need to provide information to generate canonical tensor"
-        e_s += " or path to response file for response function. "
+        self.ad = axial_diffusivity
+        self.rd = radial_diffusivity
 
-        if ( (axial_diffusivity is None or radial_diffusivity is None) and
-             ( response_file is None ) ):
-            raise ValueError(e_s)
+        if (axial_diffusivity is None and radial_diffusivity is None and
+            response_file is None ) :
+             self.ad = AD
+             self.rd = RD
 
         elif (axial_diffusivity is not None and radial_diffusivity is not None
             and response_file is not None):
+            e_s = "Need to provide information to generate canonical tensor"
+            e_s += " *or* path to response file for response function. "
             e_s += "Not both!"
             raise ValueError(e_s)
         
-        self.ad = axial_diffusivity
-        self.rd = radial_diffusivity
         self.response_file = response_file
-
-        self.threshold = threshold
 
     @desc.auto_attr
     def sph_harm_set(self):
@@ -1176,13 +1171,6 @@ class SphericalHarmonicsModel(BaseModel):
 
         # multiply these two matrices together for the estimated odf:  
         out[self.mask] = np.dot(d, self.sph_harm_set)
-
-        # Null out smaller than threshold values of the odf (?):
-        # out[out<self.threshold] = 0
-        #out = 1./out
-
-        #Normalize to 1 in each voxel, dividing by the sum over directions
-        #out = out/(np.sum(out,-1).T + np.zeros(self.signal.shape).T).T
 
         return out 
     
