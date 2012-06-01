@@ -966,6 +966,55 @@ def tensor_dispersion(tensor_model_list, mask=None):
                                       # dyads, in addition to the average one.
 
 
+class _SphericalHarmonicResponseFunction(object):
+    """
+    This is a helper class for the SphericalHarmonicsModel.
+    If you don't provide a file with the coefficients to the spherical
+    harmonics basis set, it uses AD and RD and the model will use  a Tensor.
+
+    Otherwise, it uses its own idiosyncratic set of stuff, implemented here:
+    """
+    def __init__(self, SHM):
+        """
+        Initialization for the helper class. Should get an already initialized
+        SphericalHarmonicsModel as input and uses the information from it as
+        the basis for doing what it does.
+        """
+        if SHM.verbose:
+            print("Using SH-based response function")
+        self.coeffs = np.loadtxt(SHM.response_file)
+        self.n_coeffs = len(self.coeffs)
+        self.bvecs = SHM.bvecs[:, SHM.b_idx]
+        
+    @desc.auto_attr
+    def rotations(self):
+        """
+        Calculate the response function for alignment with each one of the
+        b vectors
+        """
+        out = []
+        for idx, bvec in enumerate(self.bvecs.T):
+            rot = ozu.calculate_rotation(bvec, [1,0,0])
+            bvecs = np.asarray(np.dot(rot, self.bvecs)).squeeze()
+            r, theta, phi = geo.cart2sphere(bvecs[0],bvecs[1],bvecs[2])
+
+            sph_harm_set = []
+            degree = 0        
+            for order in np.arange(0, 2 * self.n_coeffs, 2):
+                sph_harm_set.append(np.real(sph_harm(degree, order, theta, phi)))
+
+            sph_harm_set = np.array(sph_harm_set)
+            out.append(np.dot(self.coeffs, sph_harm_set))
+
+        return np.array(out)
+
+    def convolve_odf(self, odf, S0):
+        """
+        Calculate the convolution of the odf with the response function
+        (rotated to each b vector).
+        """
+        return np.dot(odf, self.rotations)
+        
 class SphericalHarmonicsModel(BaseModel):
     """
     A class for evaluating spherical harmonic models. This assumes that a CSD
@@ -978,8 +1027,9 @@ class SphericalHarmonicsModel(BaseModel):
                  bvals,
                  model_coeffs,
                  params_file=None,
-                 axial_diffusivity=AD,
-                 radial_diffusivity=RD,
+                 axial_diffusivity=None,
+                 radial_diffusivity=None,
+                 response_file=None,
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
@@ -1022,9 +1072,22 @@ class SphericalHarmonicsModel(BaseModel):
 
         self.L = self._calculate_L(self.model_coeffs.shape[-1])
         self.n_params = self.model_coeffs.shape[-1]
+
+        e_s = "Need to provide information to generate canonical tensor"
+        e_s += " or path to response file for response function. "
+
+        if ( (axial_diffusivity is None or radial_diffusivity is None) and
+             ( response_file is None ) ):
+            raise ValueError(e_s)
+
+        elif (axial_diffusivity is not None and radial_diffusivity is not None
+            and response_file is not None):
+            e_s += "Not both!"
+            raise ValueError(e_s)
         
         self.ad = axial_diffusivity
         self.rd = radial_diffusivity
+        self.response_file = response_file
 
         self.threshold = threshold
 
@@ -1070,7 +1133,7 @@ class SphericalHarmonicsModel(BaseModel):
         r,theta,phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
                                       self.bvecs[1, self.b_idx],
                                       self.bvecs[2, self.b_idx])
-
+        
         # Preallocate:
         b = np.empty((self.model_coeffs.shape[-1], theta.shape[0]))
     
@@ -1080,9 +1143,9 @@ class SphericalHarmonicsModel(BaseModel):
            for degree in np.arange(-order,order+1):
                 # In negative degrees, take the imaginary part: 
                 if degree < 0:  
-                    b[i,:] = np.imag(sph_harm(-1 * degree, order, theta, phi));
+                    b[i,:] = np.imag(sph_harm(-1 * degree, order, phi, theta));
                 else:
-                    b[i,:] = np.real(sph_harm(degree, order, theta, phi));
+                    b[i,:] = np.real(sph_harm(degree, order, phi, theta));
                 i = i+1;
         return b
 
@@ -1107,17 +1170,20 @@ class SphericalHarmonicsModel(BaseModel):
                                                # dimension
         n_vox = np.sum(self.mask) # These are the voxels we'll look at
         n_weights = self.model_coeffs.shape[3]  # This is the params dimension 
-
         # Reshape it so that we can multiply for all voxels in one fell swoop:
         d = np.reshape(self.model_coeffs[self.mask], (n_vox, n_weights))
-
         out = np.empty(self.signal.shape)
-        
+
         # multiply these two matrices together for the estimated odf:  
         out[self.mask] = np.dot(d, self.sph_harm_set)
 
-        # Null out smaller than threshold values of the odf: 
-        out[out<self.threshold] = 0
+        # Null out smaller than threshold values of the odf (?):
+        # out[out<self.threshold] = 0
+        #out = 1./out
+
+        #Normalize to 1 in each voxel, dividing by the sum over directions
+        #out = out/(np.sum(out,-1).T + np.zeros(self.signal.shape).T).T
+
         return out 
     
 
@@ -1127,13 +1193,16 @@ class SphericalHarmonicsModel(BaseModel):
         A canonical tensor that describes the presumed response of a single
         fiber 
         """
-
-        # XXX Need to get the proper response function from CSD! 
-        return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
+        if self.response_file is None:
+            if self.verbose:
+                print("Using tensor-based response function")
+            return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]),
                           self.bvecs[:,self.b_idx],
                           self.bvals[self.b_idx])
-        
 
+        else:
+            return _SphericalHarmonicResponseFunction(self)
+        
     @desc.auto_attr
     def fit(self):
         """
@@ -1151,9 +1220,15 @@ class SphericalHarmonicsModel(BaseModel):
 
             
         for vox in range(pred_sig.shape[0]):
-            pred_sig[vox] = self.response_function.convolve_odf(
+            # Predict based on the convolution:
+            this_pred_sig = self.response_function.convolve_odf(
                                                     flat_odf[vox],
                                                     self._flat_S0[vox])
+
+            # We might have a scaling and an offset in addition, so let's fit
+            # those in each voxel based on the signal:
+            a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
+            pred_sig[vox] = a*this_pred_sig + b
             
             if self.verbose:
                 prog_bar.animate(vox, f_name=f_name)
@@ -1217,7 +1292,7 @@ class CanonicalTensorModel(BaseModel):
 
        S = X \beta
 
-    Where: S is the nvoxels x ndirections $b_0$-attenuatedd signal from the
+    Where: S is the nvoxels x ndirections $b_0$-attenuated signal from the
     entire volume, X is a 2 by ndirections matrix, with one column devoted to
     the anistropic contribution from the canonical tensor and the other column
     containing a constant term in all directions, representing the isotropic
@@ -1590,7 +1665,25 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The direction in which the best fit canonical tensor is pointing
+        (in x,y,z coordinates)
+        """
+        flat_params = self.model_params[self.mask]
+        out_flat = np.empty(flat_params.shape)
 
+        for vox in xrange(flat_params.shape[0]):
+            if not np.isnan(flat_params[vox,0]):
+                out_flat[vox] = self.rot_vecs.T[flat_params[vox,0]]
+            else: 
+                out_flat[vox] = [np.nan, np.nan, np.nan]
+
+        out = ozu.nans(self.model_params.shape)
+        out[self.mask] = out_flat
+        return out
+    
 class CanonicalTensorModelOpt(CanonicalTensorModel):
     """
     This one is supposed to do the same thing as CanonicalTensorModel, except
@@ -1662,7 +1755,6 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         Is a tensor with $FA=1$. That is, without any radial component.
 
         """
-
         CanonicalTensorModel.__init__(self,
                                       data,
                                       bvecs,
@@ -1721,9 +1813,6 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
         """
         Find the model parameters using least-squares optimization.
         """
-        return self._optimize()
-
-    def _optimize(self):
         if self.model_form == 'constrained':
             n_params = 3
         elif self.model_form=='flexible' or self.model_form == 'ball_and_stick':
@@ -1811,37 +1900,6 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
                                               self.bvecs[:,self.b_idx],
                                               self.bvals[:,self.b_idx])
             return rot_tensor
-
-    @desc.auto_attr
-    def parallel_fit(self):
-        if self.verbose:
-            print("Calculating model parameters with parallel interface")
-        # Get a parallel direct view (importing everything makes the parallel
-        # engines see everything that any function in this module would see):
-        dview = ozu.start_parallel('from osmosis.model import *') 
-        
-        results = []
-        vox_per_chunk = 1000
-        orig_mask = np.copy(self.mask)
-        n_chunks = int(np.round(np.sum(self.mask)))/vox_per_chunk
-        mask_idx = np.array(np.where(self.mask))
-        
-        for chunk in range(n_chunks):
-            if vox_per_chunk*chunk+1 > mask_idx.shape[-1]:
-                this_idx = mask_idx[:,vox_per_chunk * chunk:]
-            else:
-                this_idx = mask_idx[:,vox_per_chunk *
-                                     chunk:vox_per_chunk*(chunk+1)]
-
-            mask_array = np.zeros(self.shape)
-            mask_array[(this_idx[0], this_idx[1], this_idx[2])] = 1
-            # Temporarily switch in the temporary mask
-            self.mask = mask_array
-            results.append(dview.apply_async(self._optimize).get())
-
-        # Put back the original 
-        self.mask = orig_mask
-        return results
 
 
     def _check_constraints(self, constraints):
@@ -2138,11 +2196,16 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         Predict the signal attenuation from the fit of the
         MultiCanonicalTensorModel 
         """
+
         if self.verbose:
             print("Predicting signal from MultiCanonicalTensorModel")
-
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+            
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
+        
         for vox in xrange(out_flat.shape[0]):
             # If there's a nan in there, just ignore this voxel and set it to
             # all nans:
@@ -2159,7 +2222,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             else:
                 out_flat[vox] = np.nan  # This gets broadcast to the right
                                         # length on assigment?
-        
+            if self.verbose: 
+                prog_bar.animate(vox, f_name=f_name)
+
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
@@ -3145,12 +3210,17 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
 
         # This will be passed as kwarg to the solver initialization:
-        self.solver_params = solver_params
+        if solver_params is None:
+            self.solver_params = dict(alpha=0.01)
+        else:
+            self.solver_params = solver_params
 
     @desc.auto_attr
     def model_params(self):
         """
+
         Use sklearn to fit the parameters:
+
         """
 
         # The file already exists: 
@@ -3184,7 +3254,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
-                solver = Lasso(alpha=0.01)
+                solver = Lasso(**self.solver_params)
                 params[vox] = solver.fit(design_matrix, sig).coef_
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
@@ -3232,6 +3302,54 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
         return out
 
+    
+
+    @desc.auto_attr
+    def fit_angle(self):
+        """
+        The angle between the tensors that were fitted
+        """
+        out_flat = np.empty(self._flat_signal.shape[0])
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox][0]):
+                idx1 = np.argsort(flat_params[vox])[-1]
+                idx2 = np.argsort(flat_params[vox])[-2]
+                ang = np.rad2deg(ozu.vector_angle(
+                    self.bvecs[:,self.b_idx].T[idx1],
+                    self.bvecs[:,self.b_idx].T[idx2]))
+
+                ang = np.min([ang, 180-ang])
+                
+                out_flat[vox] = ang
+                
+        else:
+            out_flat[vox] = np.nan
+        
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = out_flat
+
+        return out
+
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        Gives you not only the principle, but also the 2nd, 3rd, etc
+        """
+        out_flat = np.zeros(self._flat_signal.shape + (3,))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            coeff_idx = np.where(flat_params[vox]>0)[0]
+            for i, idx in enumerate(coeff_idx):
+                out_flat[vox, i] = self.bvecs[:,self.b_idx].T[idx]
+
+        
+        out = ozu.nans(self.signal.shape + (3,))
+        out[self.mask] = out_flat
+            
+        return out
+
+        
     
 
 class SphereModel(BaseModel):
