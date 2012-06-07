@@ -450,7 +450,25 @@ class BaseModel(DWI):
         self.params_file = params_file_resolver(self,
                                                 this_class,
                                                 params_file=params_file)
-         
+
+
+    @desc.auto_attr
+    def adc(self):
+        """
+        This is the empirically defined ADC:
+
+        .. math::
+        
+            ADC = -log \frac{S}{b S0}
+
+        """
+        out = ozu.nans(self.signal.shape)
+        
+        out[self.mask] = ((-1/self.bvals[self.b_idx][0]) *
+                        np.log(self._flat_relative_signal))
+
+        return out
+
     @desc.auto_attr
     def fit(self):
         """
@@ -470,7 +488,7 @@ class BaseModel(DWI):
         """
         
         return self.fit[self.mask].reshape((-1, self.signal.shape[-1])) 
-        
+    
 
     def _correlator(self, correlator, r_idx=0, square=True):
         """
@@ -773,29 +791,13 @@ class TensorModel(BaseModel):
         #adc/md = (ev1+ev2+ev3)/3
         return self.evals.mean(-1)
 
-    @desc.auto_attr
-    def signal_adc(self):
-        """
-        This is the empirically defined ADC:
-
-        .. math::
-        
-            ADC = -log \frac{S}{S0}
-
-        """
-        out = ozu.nans(self.signal.shape)
-        
-        out[self.mask] = ((-1/self.bvals[self.b_idx][0]) *
-                        np.log(self._flat_relative_signal))
-
-        return out
         
     @desc.auto_attr
     def adc_residuals(self):
         """
         The model-predicted ADC, conpared with the empirical ADC.
         """
-        return self.model_adc - self.signal_adc
+        return self.model_adc - self.adc
     
     @desc.auto_attr
     def fractional_anisotropy(self):
@@ -1671,6 +1673,24 @@ class CanonicalTensorModel(BaseModel):
         out = ozu.nans(self.model_params.shape)
         out[self.mask] = out_flat
         return out
+
+
+    @desc.auto_attr
+    def fractional_anisotropy(self):
+        """
+        An analog of the FA for this kind of model.
+
+        .. math::
+
+        FA = \frac{T - S}{T + S}
+
+        Where T is the value of the tensor parameter and S is the value of the
+        sphere parameter.
+        """
+        
+        return ((self.model_params[...,1] - self.model_params[...,2])/
+                (self.model_params[...,1] + self.model_params[...,2]))
+    
     
 class CanonicalTensorModelOpt(CanonicalTensorModel):
     """
@@ -3281,10 +3301,14 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             this_relative = (np.dot(flat_params[vox], design_matrix) + 
                             np.mean(fit_to.T[vox]))
             if self.mode == 'relative_signal' or self.mode=='normalize':
-                out_flat[vox] = this_relative * self._flat_S0[vox]
+                this_pred_sig = this_relative * self._flat_S0[vox]
             elif self.mode == 'signal_attenuation':
-                out_flat[vox] =  (1 - this_relative) * self._flat_S0[vox]
-            
+                this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
+
+            # Fit scale and offset:
+            a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
+            out_flat[vox] = a*this_pred_sig + b
+
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
