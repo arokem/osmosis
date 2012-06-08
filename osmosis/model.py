@@ -900,6 +900,15 @@ class TensorModel(BaseModel):
 
         return out
 
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The principal diffusion direction in X,Y,Z coordinates on the surface
+        of the sphere 
+        """
+        # It's simply the first eigen-vector
+        return self.evecs[:,:,:,0,:]
+
 
     @desc.auto_attr
     def fit(self):
@@ -1256,6 +1265,24 @@ class SphericalHarmonicsModel(BaseModel):
         
         return max([L1,L2])
 
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The principal direction of diffusion as determined by the maximum of
+        the estimated ODF in each voxel.
+        """
+        
+        flat_odf = self.odf[self.mask]
+        out_flat = np.empty((flat_odf.shape[0], 3))
+        for vox in xrange(out_flat.shape[0]):
+            this_odf = flat_odf[vox]
+            
+            out_flat[vox] =\
+                self.bvecs[:, self.b_idx].T[np.argmax(this_odf)]
+
+        out = ozu.nans(self.shape[:3] + (3,))
+        out[self.mask] = out_flat
+        return out
 
 
 class CanonicalTensorModel(BaseModel):
@@ -2239,6 +2266,27 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         return out
 
     @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The principal diffusion direction is the direction of the tensor with
+        the highest weight
+        """
+        out_flat = np.empty((self._flat_signal.shape[0] ,3))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox][0]):
+                # These are the indices into the bvecs:
+                idx = [i for i in self.rot_idx[int(flat_params[vox][0])]]
+                w = flat_params[vox][1:1+self.n_canonicals]
+                # Where's the largest weight:
+                out_flat[vox]=\
+                    self.bvecs[:,self.b_idx].T[int(idx[np.argsort(w)[-1]])]
+                
+        out = ozu.nans(self.signal.shape[:3] + (3,))
+        out[self.mask] = out_flat
+        return out
+        
+    @desc.auto_attr
     def fit_angle(self):
         """
         The angle between the tensors that were fitted
@@ -2248,9 +2296,12 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         for vox in xrange(out_flat.shape[0]):
             if ~np.isnan(flat_params[vox][0]):
                 idx = [i for i in self.rot_idx[int(flat_params[vox][0])]]
+                # Sort them according to their weight and take the two
+                # weightiest ones:
+                idx = np.array(idx)[np.argsort(w)]
                 ang = np.rad2deg(ozu.vector_angle(
-                    self.bvecs[:,self.b_idx].T[idx[0]],
-                    self.bvecs[:,self.b_idx].T[idx[1]]))
+                    self.bvecs[:,self.b_idx].T[idx[-1]],
+                    self.bvecs[:,self.b_idx].T[idx[-2]]))
 
                 ang = np.min([ang, 180-ang])
                 
@@ -3346,7 +3397,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
     @desc.auto_attr
     def principal_diffusion_direction(self):
         """
-        Gives you not only the principle, but also the 2nd, 3rd, etc
+        Gives you not only the principal, but also the 2nd, 3rd, etc
         """
         out_flat = np.zeros(self._flat_signal.shape + (3,))
         flat_params = self.model_params[self.mask]
