@@ -2298,6 +2298,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 idx = [i for i in self.rot_idx[int(flat_params[vox][0])]]
                 # Sort them according to their weight and take the two
                 # weightiest ones:
+                w = flat_params[vox,1:1+self.n_canonicals]
                 idx = np.array(idx)[np.argsort(w)]
                 ang = np.rad2deg(ozu.vector_angle(
                     self.bvecs[:,self.b_idx].T[idx[-1]],
