@@ -156,7 +156,7 @@ class DWI(desc.ResetMixin):
 
         # You might have to scale the bvalues by some factor, so that the units
         # come out correctly in the adc calculation:
-        self.bvals /= scaling_factor
+        self.bvals = self.bvals.copy() / scaling_factor
         
         # You can provide your own affine, if you want and that bypasses the
         # class method provided below as an auto-attr:
@@ -203,7 +203,6 @@ class DWI(desc.ResetMixin):
         Get the shape of the data. If possible, don't even load it from file to
         get that. 
         """
-
         # It must have been in an array
         if not hasattr(self, 'data_file'):
             # No reason not to refer to it directly:
@@ -213,6 +212,7 @@ class DWI(desc.ResetMixin):
         else:
             # No need to actually load it yet:
             return ni.load(self.data_file).shape
+
             
     @desc.auto_attr
     def bvals(self):
@@ -223,6 +223,7 @@ class DWI(desc.ResetMixin):
             print("Loading from file: %s"%self.bvals_file)
 
         return np.loadtxt(self.bvals_file)
+
     
     @desc.auto_attr
     def bvecs(self):
@@ -1585,8 +1586,8 @@ class CanonicalTensorModel(BaseModel):
             i_w = self.ols[:,1,:].copy().squeeze()
 
             # nan out the places where weights are negative: 
-            b_w[np.logical_or(b_w<0, i_w<0)] = np.nan
-            i_w[np.logical_or(b_w<0, i_w<0)] = np.nan
+            b_w[b_w<0] = np.nan
+            i_w[i_w<0] = np.nan
 
             params = np.empty((self._flat_signal.shape[0],3))
             if self.verbose:
@@ -1601,24 +1602,28 @@ class CanonicalTensorModel(BaseModel):
                 vox_fits = np.empty(self.rotations.shape)
                 for rot_i, rot in enumerate(self.rotations):
                     if self.mode == 'log':
-                        this_relative = (np.exp(b_w[rot_i,vox] * rot +
-                                        self.regressors[0][0] * i_w[rot_i,vox]) *
-                                        self._flat_S0[vox])
+                        this_sig = (np.exp(b_w[rot_i,vox] * rot +
+                                    self.regressors[0][0] * i_w[rot_i,vox]) *
+                                    self._flat_S0[vox])
                     else:
-                        this_relative = ((b_w[rot_i,vox] * rot +
+                        this_sig = ((b_w[rot_i,vox] * rot +
                                         self.regressors[0][0] * i_w[rot_i,vox]) *
                                         self._flat_S0[vox])
                         if self.mode == 'signal_attenuation':
+                            this_relative = (b_w[rot_i,vox] * rot +
+                                    self.regressors[0][0] * i_w[rot_i,vox])
                             this_relative = 1 - this_relative
+                            this_sig = this_relative * self._flat_S0[vox]
 
-                    vox_fits[rot_i] = this_relative
+                    vox_fits[rot_i] = this_sig
+                    
                 # Find the predicted signal that best matches the original
                 # relative signal. That will choose the direction for the
                 # tensor we use:
                 corrs = ozu.coeff_of_determination(self._flat_signal[vox],
                                                    vox_fits)
                 idx = np.where(corrs==np.nanmax(corrs))[0]
-
+                
                 # Sometimes there is no good solution (maybe we need to fit
                 # just an isotropic to all of these?):
                 if len(idx):
@@ -1660,20 +1665,18 @@ class CanonicalTensorModel(BaseModel):
         for vox in xrange(out_flat.shape[0]):
             if ~np.isnan(flat_params[vox, 1]):
                 if self.mode == 'log':
-                    this_fit = (np.exp(flat_params[vox,1] *
+                    this_relative = np.exp(flat_params[vox,1] *
                                 self.rotations[flat_params[vox,0]] +
-                                self.regressors[0][0] * flat_params[vox,2]) *
-                                self._flat_S0[vox])
+                                self.regressors[0][0] * flat_params[vox,2]) 
                 else: 
-                    this_fit = ((flat_params[vox,1] *
+                    this_relative = (flat_params[vox,1] *
                                 self.rotations[flat_params[vox,0]] +
-                                self.regressors[0][0] * flat_params[vox,2]) *
-                                self._flat_S0[vox])
-                
+                                self.regressors[0][0] * flat_params[vox,2]) 
+        
                     if self.mode == 'signal_attenuation':
-                        this_fit = 1 - this_fit  
+                        this_relative = 1 - this_fit  
 
-                out_flat[vox]= this_fit
+                out_flat[vox]= this_relative * self._flat_S0[vox]
             else:
                 out_flat[vox] = np.nan
                 
@@ -2157,7 +2160,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
             # Weight for each canonical tensor, plus a place for the index into
             # rot_idx and one more slot for the isotropic weight (at the end)
             params = np.empty((self._flat_signal.shape[0],
-                               self. n_canonicals + 2))
+                               self.n_canonicals + 2))
 
             if self.verbose:
                 print("Fitting MultiCanonicalTensorModel:")
@@ -2182,15 +2185,15 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                     np.array([self.regressors[1][x] for x in rot_idx])))
 
                     if self.mode == 'relative_signal' or self.mode=='normalize':
-                        vox_fits[idx] = this_relative
+                        vox_fits[idx] = this_relative * self._flat_S0[vox]
                     elif self.mode == 'signal_attenuation':
-                        vox_fits[idx] = 1 - this_relative
-
+                        vox_fits[idx] = (1 - this_relative) * self._flat_S0[vox]
+                
                 # Find the predicted signal that best matches the original
                 # signal attenuation. That will choose the direction for the
                 # tensor we use:
-                corrs = ozu.seed_corrcoef(self._flat_relative_signal[vox],
-                                          vox_fits)
+                corrs = ozu.coeff_of_determination(self._flat_signal[vox],
+                                                   vox_fits)
                 
                 idx = np.where(corrs==np.nanmax(corrs))[0]
 
@@ -2224,6 +2227,59 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
             # And return the params for current use:
             return out_params
+
+    @desc.auto_attr
+    def predict_all(self):
+        """
+        Calculate the predicted signal for all the possible OLS solutions
+        """
+        # Get the bvec weights (we don't know how many...) and the
+        # isotropic weights (which are always last): 
+        b_w = self.ols[:,:-1,:].copy().squeeze()
+        i_w = self.ols[:,-1,:].copy().squeeze()
+        
+        # nan out the places where weights are negative: 
+        b_w[b_w<0] = np.nan
+        i_w[i_w<0] = np.nan
+
+        # A predicted signal for each voxel, for each rot_idx, for each
+        # direction: 
+        flat_out = np.empty((self._flat_signal.shape[0],
+                           len(self.rot_idx),
+                           self._flat_signal.shape[-1]))
+
+        if self.verbose:
+            print("Predicting all signals for MultiCanonicalTensorModel:")
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+        for vox in xrange(flat_out.shape[0]):
+            for idx, rot_idx in enumerate(self.rot_idx):
+                # The constant regressor gets added in first:
+                this_relative = i_w[idx,vox] * self.regressors[0][0]
+                # And we add the different canonicals on top of that:
+                this_relative += (np.dot(b_w[idx,:,vox],
+                # The tensor regressors are different in cases where we
+                # are fitting to relative/attenuation signal, so grab that
+                # from the regressors attr:
+                np.array([self.regressors[1][x] for x in rot_idx])))
+
+                if self.mode == 'relative_signal' or self.mode=='normalize':
+                    flat_out[vox, idx] = this_relative * self._flat_S0[vox]
+                elif self.mode == 'signal_attenuation':
+                    flat_out[vox, idx] = (1-this_relative)*self._flat_S0[vox]
+
+            if self.verbose: 
+                prog_bar.animate(vox, f_name=f_name)
+
+        out = ozu.nans(self.signal.shape[:3] + 
+                       (len(self.rot_idx),) + 
+                       (self.signal.shape[-1],))
+        out[self.mask] = flat_out
+
+        return out
+
 
     @desc.auto_attr
     def fit(self):
@@ -2308,8 +2364,9 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 
                 out_flat[vox] = ang
                 
-        else:
-            out_flat[vox] = np.nan
+            else:
+                out_flat[vox] = np.nan
+
         
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = out_flat
