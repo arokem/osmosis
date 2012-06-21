@@ -475,10 +475,9 @@ def probability_hist(data, bins=100, fig=None, **kwargs):
 
     if fig is None:
         fig = plt.figure()
-        ax = fig.add_subplot(111, aspect='equal')
+        ax = fig.add_subplot(111)
     else:
         ax = fig.get_axes()[0]
-
 
     hist = np.histogram(data, bins=bins)
     scale_by = float(np.sum(hist[0]))
@@ -499,21 +498,31 @@ def sph2latlon(theta, phi):
     return np.rad2deg(theta - np.pi/2), np.rad2deg(phi - np.pi)
 
 
-def sig_on_proj(bvecs, val, ax=None, vmin=None, vmax=None,
-                cmap=matplotlib.cm.RdBu, tri=False, **basemap_args):
+def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
+                      cmap=matplotlib.cm.hot, cbar=True, tri=False,
+                      **basemap_args):
     
     """Draw a signal on a 2D projection of the sphere.
 
     Parameters
     ----------
+
     r : (M, N) ndarray
         Function values.
+
     theta : (M,) ndarray
         Inclination / polar angles of function values.
+
     phi : (N,) ndarray
         Azimuth angles of function values.
+
     ax : mpl axis, optional
         If specified, draw onto this existing axis instead.
+
+    cmap: mpl colormap
+
+    cbar: Whether to add the color-bar to the figure
+    
     basemap_args : dict
         Parameters used to initialise the basemap, e.g. ``projection='ortho'``.
 
@@ -550,27 +559,37 @@ def sig_on_proj(bvecs, val, ax=None, vmin=None, vmax=None,
     lat, lon = sph2latlon(theta, phi)
     x, y = m(lon, lat)
 
+    if vmin is None: 
+        vmin = np.nanmin(val)
+    if vmax is None: 
+        vmax = np.nanmax(val)
+
     if tri:
-        if vmin is None: 
-            vmin = np.min(val)
-        if vmax is None: 
-            vmax = np.max(val)
         m.pcolor(x, y, val, vmin=vmin, vmax=vmax, tri=True, cmap=cmap)
     else:
-
         cmap_data = cmap._segmentdata
         red_interp, blue_interp, green_interp = (
         interp.interp1d(np.array(cmap_data[gun])[:,0],
                         np.array(cmap_data[gun])[:,1]) for gun in
                                                   ['red', 'blue','green'])
-        for this_x, this_y, this_r in zip(x,y,val):
-            relative_r = (this_r - np.min(val))/(np.max(val)-np.min(val))
-            red = red_interp(relative_r)
-            blue = blue_interp(relative_r)
-            green = green_interp(relative_r)
+        r = (val - np.nanmin(val))/float(np.nanmax(val)-np.nanmin(val))
+        for this_x, this_y, this_r in zip(x,y,r):
+            red = red_interp(this_r)
+            blue = blue_interp(this_r)
+            green = green_interp(this_r)
             m.plot(this_x, this_y, 'o',
                    c=[red.item(), green.item(), blue.item()])
-        
+
+    if cbar: 
+        mappable = matplotlib.cm.ScalarMappable(cmap=cmap)
+        mappable.set_array(val)
+        # setup colorbar axes instance.
+        pos = ax.get_position()
+        l, b, w, h = pos.bounds
+        # setup colorbar axes
+        cax = fig.add_axes([l+w+0.075, b, 0.05, h], frameon=False) 
+        fig.colorbar(mappable, cax=cax) # draw colorbar
+
     return m, ax
 
 
