@@ -500,7 +500,7 @@ def sph2latlon(theta, phi):
 
 def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
                       cmap=matplotlib.cm.hot, cbar=True, tri=False,
-                      **basemap_args):
+                      boundary=True, **basemap_args):
     
     """Draw a signal on a 2D projection of the sphere.
 
@@ -543,7 +543,8 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
     from mpl_toolkits.basemap import Basemap
 
     m = Basemap(**basemap_args)
-    m.drawmapboundary()
+    if boundary:
+        m.drawmapboundary()
     
     # Rotate the coordinate system so that you are looking from the north pole:
     bvecs_rot = np.array(np.dot(np.matrix([[0,0,-1],[0,1,0],[1,0,0]]), bvecs))
@@ -559,20 +560,30 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
     lat, lon = sph2latlon(theta, phi)
     x, y = m(lon, lat)
 
-    if vmin is None: 
-        vmin = np.nanmin(val)
-    if vmax is None: 
-        vmax = np.nanmax(val)
+    my_min = np.nanmin(val)
+    if vmin is not None:
+        my_min = vmin
+        
+    my_max = np.nanmax(val)
+    if vmax is not None:
+        my_max = vmax
 
     if tri:
-        m.pcolor(x, y, val, vmin=vmin, vmax=vmax, tri=True, cmap=cmap)
+        m.pcolor(x, y, val, vmin=my_min, vmax=my_max, tri=True, cmap=cmap)
     else:
         cmap_data = cmap._segmentdata
         red_interp, blue_interp, green_interp = (
         interp.interp1d(np.array(cmap_data[gun])[:,0],
                         np.array(cmap_data[gun])[:,1]) for gun in
                                                   ['red', 'blue','green'])
-        r = (val - np.nanmin(val))/float(np.nanmax(val)-np.nanmin(val))
+        
+        r = (val - my_min)/float(my_max-my_min)
+
+        # Enforce the maximum and minumum boundaries, if there are values
+        # outside those boundaries:
+        r[r<0]=0
+        r[r>1]=1
+        
         for this_x, this_y, this_r in zip(x,y,r):
             red = red_interp(this_r)
             blue = blue_interp(this_r)
@@ -582,7 +593,7 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
 
     if cbar: 
         mappable = matplotlib.cm.ScalarMappable(cmap=cmap)
-        mappable.set_array(val)
+        mappable.set_array([my_min, my_max])
         # setup colorbar axes instance.
         pos = ax.get_position()
         l, b, w, h = pos.bounds
@@ -592,7 +603,44 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
 
     return m, ax
 
+def sphere(n=100):
+    """
 
+    Create an equi-sampled unit sphere with n samples
+
+    """
+    u = np.linspace(0, 2 * np.pi, n)
+    v = np.linspace(0, np.pi, n)
+
+    x = np.outer(np.cos(u), np.sin(v))
+    y = np.outer(np.sin(u), np.sin(v))
+    z = np.outer(np.ones(np.size(u)), np.cos(v))
+
+    return x,y,z
+
+def plot_ellipsoid(Tensor, n=60):
+    """
+    Plot an ellipsoid from a tensor
+    """
+
+    Q = Tensor.Q
+    x,y,z = sphere(n=n)
     
+    sphere_adc = np.empty(np.prod(x.shape))
 
+    # Each u is a unit vector:
+    for idx, u in enumerate(np.vstack([x.ravel(), y.ravel(), z.ravel()]).T):
+        sphere_adc[idx] = np.dot(u, np.array(np.dot(Q.getI(), u)).squeeze())
+        
+    v = 1/np.sqrt(sphere_adc)
+    v = np.reshape(v, x.shape)
+    r, phi, theta = geo.cart2sphere(x,y,z)
+    x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.plot_surface(x_plot, y_plot, z_plot,  rstride=2, cstride=2, shade=True)
+
+    return fig
 
