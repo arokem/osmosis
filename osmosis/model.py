@@ -1674,7 +1674,7 @@ class CanonicalTensorModel(BaseModel):
                                 self.regressors[0][0] * flat_params[vox,2]) 
         
                     if self.mode == 'signal_attenuation':
-                        this_relative = 1 - this_fit  
+                        this_relative = 1 - this_relative
 
                 out_flat[vox]= this_relative * self._flat_S0[vox]
             else:
