@@ -127,7 +127,7 @@ def vector_angle(a,b):
     norm_a = unit_vector(a)
     norm_b = unit_vector(b)
 
-    # If the vectors are identical, the anlge is 0 per definition: 
+    # If the vectors are identical, the angle is 0 per definition: 
     if np.allclose(norm_a, norm_b):
         return 0
     # If they are negative relative to each other, they are pointing in exactly
@@ -326,6 +326,7 @@ def tensor_from_eigs(evals, evecs):
     The self diffusion tensor
     
     """
+
     evecs = np.asarray(evecs)
     return np.dot((evals*evecs.T), evecs)
     
