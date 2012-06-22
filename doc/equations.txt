@@ -173,3 +173,10 @@ Planarity:
 Sphericity:
 
 \frac{3 (\lambda_3)}{\lambda_1 + \lambda_2 + \lambda_3}
+
+
+RMSE: 
+
+RMSE_{x \rightarrow y} = \sqrt{\frac{\sum_i^N(x_i-y_i)^2}{N}}
+
+RMSE_{relative} = \frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}
