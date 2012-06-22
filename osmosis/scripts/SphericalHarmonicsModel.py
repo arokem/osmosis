@@ -29,15 +29,15 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     response_files = []
     for dw in [dwi1, dwi2]:
         d,f = os.path.split(dw)
-        csd_coeffs.append(f.split('.')[0] + '_CSD.nii.gz')
-        response_files.append(f.split('.') + '_ER.mif')
+        csd_coeffs.append(d + '/' + f.split('.')[0] + '_CSD.nii.gz')
+        response_files.append(d + '/' + f.split('.')[0] + '_ER.mif')
 
     SHM1 = ozm.SphericalHarmonicsModel(dwi1, bvecs1, bvals1,
                                   mask = brain_mask , 
                                   model_coeffs = csd_coeffs[0],
                                   response_file = response_files[0],
-                                  axial_diffusivity=AD1,
-                                  radial_diffusivity=RD1
+                                  #axial_diffusivity=AD1,
+                                  #radial_diffusivity=RD1
                                   )
 
     SHM2 = ozm.SphericalHarmonicsModel(dwi2, bvecs2, bvals2,
@@ -45,8 +45,8 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                   mask = brain_mask , 
                                   model_coeffs = csd_coeffs[1],
                                   response_file = response_files[1],
-                                  axial_diffusivity=AD2,
-                                  radial_diffusivity=RD2
+                                  #axial_diffusivity=AD2,
+                                  #radial_diffusivity=RD2
                                   )
 
     rmse_file_name = '%s%s_relative_rmse_b%s.nii.gz'%(data_path,

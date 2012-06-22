@@ -42,7 +42,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     fig = viz.mosaic(t1_d.T[23:-12], cmap=matplotlib.cm.bone, cbar=False)
     fig = viz.mosaic(vol.T[23:-12], fig=fig, cmap=matplotlib.cm.hot)
     fig.set_size_inches([15,10])
-    fig.savefig('%ssignal_rmse_b%s.png'%(figure_path,
+    fig.savefig('%ssignal_rmse_b%s.svg'%(figure_path,
                                           bval))
 
     vol = ozu.nans(snr.shape)
@@ -50,7 +50,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     fig = viz.mosaic(t1_d.T[23:-12], cmap=matplotlib.cm.bone, cbar=False)
     fig = viz.mosaic(vol.T[23:-12], fig=fig, cmap=matplotlib.cm.hot)
     fig.set_size_inches([15,10])
-    fig.savefig('%ssignal_snr_b%s.png'%(figure_path,
+    fig.savefig('%ssignal_snr_b%s.svg'%(figure_path,
                                           bval))
 
     rmse_mask = signal_rmse[mask_idx]
@@ -59,7 +59,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                          label='b=%s'%bval)
     
     ax_hist_rmse.set_xlabel('RMSE')
-    ax_hist_rmse.set_ylabel('Probability')
+    ax_hist_rmse.set_ylabel('P(RMSE)')
     
     snr_mask = snr[mask_idx]
     fig_hist_snr = viz.probability_hist(snr_mask[np.isfinite(snr_mask)],
@@ -67,22 +67,26 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                          label='b=%s'%bval)
     
     ax_hist_snr.set_xlabel('SNR')
-    ax_hist_snr.set_ylabel('Probability')
+    ax_hist_snr.set_ylabel('P(SNR)')
 
     
 ax_hist_rmse.legend()
 ax_hist_snr.legend()
-fig_hist_rmse.savefig('%ssignal_rmse_hist.png'%figure_path)
-fig_hist_snr.savefig('%ssignal_snr_hist.png'%figure_path)
-    
-for model_name in ([
-            'CanonicalTensorModel',
-            'MultiCanonicalTensorModel',
-            'SparseDeconvolutionModel',
-            'TensorModel',
-            'SphereModel',
-            'PointyCanonicalTensorModel'
-            ]):
+fig_hist_rmse.savefig('%ssignal_rmse_hist.svg'%figure_path)
+fig_hist_snr.savefig('%ssignal_snr_hist.svg'%figure_path)
+
+model_names = [
+    'TensorModel',
+    'CanonicalTensorModel',
+    'MultiCanonicalTensorModel',
+    'SparseDeconvolutionModel',
+    'SphereModel',
+    'PointyCanonicalTensorModel',
+    'SphericalHarmonicsModel',
+    'PointyMultiCanonicalTensorModel'
+            ]
+
+for model_name in model_names:
 
     fig_hist, ax_hist = plt.subplots(1) 
     for bval_idx, bval in enumerate([1000, 2000, 4000]): 
@@ -95,11 +99,11 @@ for model_name in ([
         vol = ozu.nans(rmse.shape)
         vol[mask_idx] = rmse[mask_idx]
         # Clip slices for focus on the main part of things:
-        fig = viz.mosaic(t1_d.T[35:51], cmap=matplotlib.cm.bone, cbar=False)
-        fig = viz.mosaic(vol.T[35:51], fig=fig, cmap=matplotlib.cm.RdYlGn_r,
+        fig = viz.mosaic(t1_d.T[29:60][::2], cmap=matplotlib.cm.bone, cbar=False)
+        fig = viz.mosaic(vol.T[29:60][::2], fig=fig, cmap=matplotlib.cm.RdYlGn_r,
                          vmin=0.5, vmax=1.5)
         fig.set_size_inches([15,10])
-        fig.savefig('%s%s_relative_rmse_b%s.png'%(figure_path,
+        fig.savefig('%s%s_relative_rmse_b%s.svg'%(figure_path,
                                                   model_name,
                                                   bval))
         
@@ -110,27 +114,22 @@ for model_name in ([
                                         label='b=%s'%bval)
         
         ax_hist.set_xlim([0,4])
-        ax_hist.set_xlabel('Relative RMSE')
-        ax_hist.set_ylabel('Probability')
+        ax_hist.set_xlabel(r'$\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$')
+        ax_hist.set_ylabel('$P(\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$)')
 
         print "%s voxels above 1"%len(np.where(rmse_mask>1)[0])
         
     ax_hist.legend()
-    fig_hist.savefig('%s%s_relative_rmse_hist.png'%(figure_path,
+    fig_hist.savefig('%s%s_relative_rmse_hist.svg'%(figure_path,
                                                       model_name))
 
-
-compare_models = ['TensorModel',
-                   'MultiCanonicalTensorModel',
-                   'CanonicalTensorModel',
-                   'PointyCanonicalTensorModel']
         
 
 for bval_idx, bval in enumerate([1000, 2000, 4000]):
-    for model1_idx in range(len(compare_models)):
-        for model2_idx in range(model1_idx+1, len(compare_models)):
-            model1 = compare_models[model1_idx]
-            model2 = compare_models[model2_idx]
+    for model1_idx in range(len(model_names)):
+        for model2_idx in range(model1_idx+1, len(model_names)):
+            model1 = model_names[model1_idx]
+            model2 = model_names[model2_idx]
             model1_rmse = ni.load(
             "%s%s_relative_rmse_b%s.nii.gz"%(data_path, model1, bval)).get_data()
             model2_rmse = ni.load(
@@ -139,16 +138,39 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
             diff = ozu.nans(mask_d.shape)
             diff[mask_idx] = (model2_rmse - model1_rmse)[mask_idx]
 
-            fig = viz.mosaic(t1_d.T, cmap=matplotlib.cm.bone, cbar=False)
+            fig = viz.mosaic(t1_d.T[29:60][::2],
+                             cmap=matplotlib.cm.bone, cbar=False)
             vmax = np.nanmax([np.abs(np.nanmin(diff)),
                               np.nanmax(diff)])
 
-            fig = viz.mosaic(diff.T, fig=fig,
-                             vmax=vmax, vmin=-1*vmax,
+            fig = viz.mosaic(diff.T[29:60][::2], fig=fig,
+                             vmax=vmax/2, vmin=-1*vmax/2,
                             cmap=matplotlib.cm.RdBu_r)
+
             fig.set_size_inches([25,20])
-            fig.savefig('%sdiff_%s_%s_rrmse_hist_b%s.png'%(figure_path,
+
+            fig.savefig('%sdiff_%s_%s_rrmse_b%s.svg'%(figure_path,
                                                            model1,
                                                            model2,
                                                            bval))
 
+            mask_rmse_1 = model1_rmse[mask_idx]
+            fig = viz.probability_hist(mask_rmse_1[np.isfinite(mask_rmse_1)],
+                                       label=model_names[model1_idx])
+
+            mask_rmse_2 = model2_rmse[mask_idx]
+            fig = viz.probability_hist(mask_rmse_2[np.isfinite(mask_rmse_2)],
+                                       fig=fig,
+                                       label=model_names[model2_idx])
+
+            ax = fig.get_axes()[0]
+            ax.set_xlabel(r'$\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$')
+            ax.set_ylabel('$P(\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$)')
+            
+            plt.legend()
+            fig.savefig('%sdiff_%s_%s_rrmse_hist_b%s.svg'%(figure_path,
+                                                           model1,
+                                                           model2,
+                                                           bval))
+
+            
