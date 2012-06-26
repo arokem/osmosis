@@ -317,7 +317,9 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
             affine = tuple(np.eye(4).ravel().squeeze())
         else:
             affine = tuple(np.array(fg.affine).ravel().squeeze())
-
+    else:
+        affine = tuple(np.array(affine).ravel().squeeze())
+        
     _packer(fwrite, affine, 'double')
     _packer(fwrite, n_stats)
 
