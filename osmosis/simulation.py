@@ -107,7 +107,7 @@ class Voxel(object):
             signal += (self.odf.weights[odf_idx] *
                        this_response.predicted_signal(S0))
 
-        return signal
+        return signal / np.sum(self.odf.weights)
 
 
 

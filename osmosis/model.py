@@ -2239,8 +2239,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         i_w = self.ols[:,-1,:].copy().squeeze()
         
         # nan out the places where weights are negative: 
-        b_w[b_w<0] = np.nan
-        i_w[i_w<0] = np.nan
+        #b_w[b_w<0] = np.nan
+        #i_w[i_w<0] = np.nan
 
         # A predicted signal for each voxel, for each rot_idx, for each
         # direction: 

@@ -328,7 +328,7 @@ class FiberGroup(desc.ResetMixin):
                                # affines provided as inputs
         else:
             in_affine = True
-
+            
         if not inplace:
             fibs = np.copy(self.fibers) # Make a copy, to be able to do this not
                                         # inplace
@@ -359,7 +359,8 @@ class FiberGroup(desc.ResetMixin):
         if inplace:
             self.fibers = fibs
             self.affine = affine
-
+            self.coords = self._get_coords()
+            
         # If we asked to do things inplace, we are done. Otherwise, we return a
         # FiberGroup
         else:
@@ -375,10 +376,11 @@ class FiberGroup(desc.ResetMixin):
         """
         return self.fibers[i]
 
-    @desc.auto_attr
-    def coords(self):
+    def _get_coords(self):
         """
-        Hold all the coords from all fibers:
+        Helper function which can be used to get the coordinates of the
+        fibers. Useful for setting self.coords as an attr, but also allows to
+        change that attr within self.xform
         """
         tmp = []
         for fiber in self.fibers:
@@ -386,8 +388,15 @@ class FiberGroup(desc.ResetMixin):
 
         # Concatenate 'em together:
         tmp = np.hstack(tmp)
-            
+
         return tmp
+        
+    @desc.auto_attr
+    def coords(self):
+        """
+        Hold all the coords from all fibers.
+        """
+        return self._get_coords()
 
     @desc.auto_attr
     def unique_coords(self):

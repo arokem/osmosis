@@ -9,6 +9,14 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
+from matplotlib import rc
+#For tex rendering in figures: 
+#rc('text', usetex=True)
+#For not embedding fonts in svg files:
+rc('svg', fonttype='none')
+
+
+
 import osmosis as oz
 import osmosis.viz as viz
 reload(viz)
@@ -102,10 +110,19 @@ for model_name in model_names:
         fig = viz.mosaic(t1_d.T[29:60][::2], cmap=matplotlib.cm.bone, cbar=False)
         fig = viz.mosaic(vol.T[29:60][::2], fig=fig, cmap=matplotlib.cm.RdYlGn_r,
                          vmin=0.5, vmax=1.5)
+
+        fig = viz.mosaic(t1_d.T, cmap=matplotlib.cm.bone, cbar=False)
+        fig = viz.mosaic(vol.T, fig=fig, cmap=matplotlib.cm.RdYlGn_r,
+                         vmin=0.5, vmax=1.5)
+
+        fig.axes[0].set_axis_bgcolor('black')
+
         fig.set_size_inches([15,10])
+        
         fig.savefig('%s%s_relative_rmse_b%s.svg'%(figure_path,
                                                   model_name,
                                                   bval))
+
         
         rmse_mask = rmse[mask_idx]
         # scale the histograms:
@@ -114,8 +131,8 @@ for model_name in model_names:
                                         label='b=%s'%bval)
         
         ax_hist.set_xlim([0,4])
-        ax_hist.set_xlabel(r'$\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$')
-        ax_hist.set_ylabel('$P(\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$)')
+        ax_hist.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
+        ax_hist.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
 
         print "%s voxels above 1"%len(np.where(rmse_mask>1)[0])
         
@@ -138,12 +155,12 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
             diff = ozu.nans(mask_d.shape)
             diff[mask_idx] = (model2_rmse - model1_rmse)[mask_idx]
 
-            fig = viz.mosaic(t1_d.T[29:60][::2],
+            fig = viz.mosaic(t1_d.T[29:60][::4],
                              cmap=matplotlib.cm.bone, cbar=False)
             vmax = np.nanmax([np.abs(np.nanmin(diff)),
                               np.nanmax(diff)])
 
-            fig = viz.mosaic(diff.T[29:60][::2], fig=fig,
+            fig = viz.mosaic(diff.T[29:60][::4], fig=fig,
                              vmax=vmax/2, vmin=-1*vmax/2,
                             cmap=matplotlib.cm.RdBu_r)
 
@@ -164,8 +181,8 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                        label=model_names[model2_idx])
 
             ax = fig.get_axes()[0]
-            ax.set_xlabel(r'$\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$')
-            ax.set_ylabel('$P(\frac{RMSE_{model \rarrow signal}}{RMSE_{signal \rarrow signal}}$)')
+            ax.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
+            ax.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
             
             plt.legend()
             fig.savefig('%sdiff_%s_%s_rrmse_hist_b%s.svg'%(figure_path,

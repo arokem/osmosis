@@ -125,6 +125,7 @@ class Tensor(object):
         # Make sure it's a matrix:
         return apparent_diffusion_coef(self.bvecs, self.Q)
 
+
     def predicted_signal(self, S0):
         """
         Calculate the signal predicted from the properties of this tensor. 

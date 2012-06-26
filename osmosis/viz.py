@@ -601,7 +601,7 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
         cax = fig.add_axes([l+w+0.075, b, 0.05, h], frameon=False) 
         fig.colorbar(mappable, cax=cax) # draw colorbar
 
-    return m, ax
+    return m, fig
 
 def sphere(n=100):
     """
