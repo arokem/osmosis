@@ -270,7 +270,7 @@ def fg_from_pdb(file_name, verbose=True):
         print("Done reading from file")
         
     name = os.path.split(file_name)[-1].split('.')[0]
-    return ozf.FiberGroup(fibers, name=name)
+    return ozf.FiberGroup(fibers, name=name, affine=xform)
     
 # This one's a global used in both packing and unpacking the data 
     
@@ -281,7 +281,7 @@ _fmt_dict = {'int':['=i', 4],
              #'uint':['=I', 4],
                 }
 
-def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
+def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
     """
     Create a pdb file from a osmosis.fibers.FiberGroup class instance.
 
@@ -312,10 +312,11 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True):
 
     
     _packer(fwrite, hdr_sz)
-    if fg.affine is None:
-        affine = tuple(np.eye(4).ravel().squeeze())
-    else:
-        affine = tuple(np.array(fg.affine).ravel().squeeze())
+    if affine is None:
+        if fg.affine is None:
+            affine = tuple(np.eye(4).ravel().squeeze())
+        else:
+            affine = tuple(np.array(fg.affine).ravel().squeeze())
 
     _packer(fwrite, affine, 'double')
     _packer(fwrite, n_stats)
