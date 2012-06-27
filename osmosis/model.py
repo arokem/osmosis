@@ -3167,7 +3167,7 @@ class FiberModel(BaseModel):
         Get the weights for the fiber part of the matrix
         """
         fiber_w = sgd.stochastic_gradient_descent(self.matrix[0],
-                                                  self.voxel_signal_demeaned
+                                                  self.voxel_signal_demeaned,
                                                   verbose=self.verbose)
 
         return fiber_w
