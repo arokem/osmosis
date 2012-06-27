@@ -55,12 +55,12 @@ import scipy.stats as stats
 from scipy.special import sph_harm
 import scipy.optimize as opt
 
-
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
 import nibabel as ni
 
+import osmosis.sgd as sgd
 import osmosis.descriptors as desc
 import osmosis.fibers as ozf
 import osmosis.tensor as ozt
@@ -3034,53 +3034,6 @@ class FiberModel(BaseModel):
                 prog_bar.animate(f_idx, f_name=f_name)
 
         return sig
-
-    # Maybe we don't need to get the fiber-tensors at all? 
-
-    ## @desc.auto_attr
-    ## def fiber_tensors(self):
-    ##     """
-    ##     The tensors for each fiber along it's length
-    ##     """
-    ##     ten = np.empty((len(self.FG.fibers.coords), 9)) #dtype='object')
-    ##     if self.verbose:
-    ##         prog_bar = viz.ProgressBar(self.FG.n_fibers)
-    ##         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
-    ##         f_name = this_class + '.' + inspect.stack()[0][3]
-
-
-    ##     ## Some code attempting to parallelize this problem. This still
-    ##     ## doesn't work...
-
-    ##     #rc = parallel.Client()
-    ##     #lview = rc.load_balanced_view()
-    ##         #ten = lview.map(_tensors_from_fiber, self.FG.fibers,
-    ##         #            len(self.FG.fibers) * [self.bvecs[:, self.b_idx]],
-    ##         #            len(self.FG.fibers) * [self.bvals[:, self.b_idx]],
-    ##         #            len(self.FG.fibers) * [self.axial_diffusivity],
-    ##         #            len(self.FG.fibers) * [self.radial_diffusivity],
-    ##         #            block=True)
-
-    ##     # In each fiber:
-    ##     ## for f_idx, f in enumerate(self.FG):
-    ##     ##     ten[f_idx] = _tensors_from_fiber(f,
-    ##     ##                                      self.bvecs[:, self.b_idx],
-    ##     ##                                      self.bvals[:, self.b_idx],
-    ##     ##                                      self.axial_diffusivity,
-    ##     ##                                      self.radial_diffusivity
-    ##     ##                                      )
-    ##     ##     if self.verbose:
-    ##     ##         prog_bar.animate(f_idx, f_name=f_name)
-
-    ##     for f_idx, f in enumerate(self.FG):
-    ##         ten[f_idx] = f.tensors(self.bvecs[:, self.b_idx],
-    ##                                self.bvals[:, self.b_idx],
-    ##                                self.axial_diffusivity,
-    ##                                self.radial_diffusivity)       
-    ##         if self.verbose:
-    ##             prog_bar.animate(f_idx, f_name=f_name)
-
-    ##     return ten
         
     @desc.auto_attr
     def matrix(self):
@@ -3201,18 +3154,11 @@ class FiberModel(BaseModel):
         Get the weights using scipy.sparse.linalg or sklearn.linear_model.sparse
 
         """
-        if self.verbose:
-            show=True
-        else:
-            show=False
 
-        iso_w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
-        sla.lsqr(self.matrix[1], self.voxel_signal.ravel(), show=show,
-                 iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
-
-        if istop not in [1,2]:
-            warnings.warn("LSQR did not properly converge")
-
+        iso_w =sgd.stochastic_gradient_descent(self.matrix[1],
+                                               self.voxel_signal.ravel(),
+                                               verbose=self.verbose)
+        
         return iso_w
     
     @desc.auto_attr
@@ -3220,21 +3166,9 @@ class FiberModel(BaseModel):
         """
         Get the weights for the fiber part of the matrix
         """
-        #fiber_w = opt.nnls(self.matrix[0].todense(),
-        #                   self.voxel_signal_demeaned)[0]
-        #fiber_w =  self._Lasso.coef_
-
-        if self.verbose:
-            show=True
-        else:
-            show=False
-
-        fiber_w, istop, itn, r1norm, r2norm, anorm, acond, arnorm, xnorm, var=\
-        sla.lsqr(self.matrix[0], self.voxel_signal_demeaned, show=show,
-                 iter_lim=10e10, atol=10e-10, btol=10e-10, conlim=10e10)
-
-        if istop not in [1,2]:
-            warnings.warn("LSQR did not properly converge")
+        fiber_w = sgd.stochastic_gradient_descent(self.matrix[0],
+                                                  self.voxel_signal_demeaned
+                                                  verbose=self.verbose)
 
         return fiber_w
 
