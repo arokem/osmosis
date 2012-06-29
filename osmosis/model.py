@@ -917,7 +917,7 @@ class TensorModel(BaseModel):
             print("Predicting signal from TensorModel")
         adc_flat = self.model_adc[self.mask]
         fit_flat = np.empty(adc_flat.shape)
-        out = np.empty(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
 
         for ii in xrange(len(fit_flat)):
             fit_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
@@ -2940,9 +2940,8 @@ class FiberModel(BaseModel):
         self.axial_diffusivity = axial_diffusivity
         self.radial_diffusivity = radial_diffusivity
         self.mode = mode
-        # This one also has a fiber group, which is xformed to match the
-        # coordinates of the DWI: 
-        self.FG = FG.xform(self.affine.getI(), inplace=False)
+        # The FG is transformed through the provided affine is need be: 
+        self.FG = FG.xform(np.dot(FG.affine,self.affine.getI()), inplace=False)
 
     @desc.auto_attr
     def fg_idx(self):
@@ -3155,8 +3154,8 @@ class FiberModel(BaseModel):
 
         """
 
-        iso_w =sgd.stochastic_gradient_descent(self.matrix[1],
-                                               self.voxel_signal.ravel(),
+        iso_w =sgd.stochastic_gradient_descent(self.voxel_signal.ravel(),
+                                               self.matrix[1],
                                                verbose=self.verbose)
         
         return iso_w
@@ -3166,20 +3165,12 @@ class FiberModel(BaseModel):
         """
         Get the weights for the fiber part of the matrix
         """
-        fiber_w = sgd.stochastic_gradient_descent(self.matrix[0],
-                                                  self.voxel_signal_demeaned,
+        fiber_w = sgd.stochastic_gradient_descent(self.voxel_signal_demeaned,
+                                                  self.matrix[0],
                                                   verbose=self.verbose)
 
         return fiber_w
 
-
-    ## @desc.auto_attr
-    ## def _Lasso(self):
-    ##     """
-    ##     This is the sklearn spLasso object. XXX Maybe needs some more
-    ##     param-settin options...   
-    ##     """
-    ##     return spLasso().fit(self.matrix[0], self.voxel_signal_demeaned)
     
     @desc.auto_attr
     def _fiber_fit(self):
@@ -3187,7 +3178,7 @@ class FiberModel(BaseModel):
         This is the fit for the non-isotropic part of the signal:
         """
         # return self._Lasso.predict(self.matrix[0])
-        return np.dot(self.matrix[0].todense(), self.fiber_weights)
+        return sgd.spdot(self.matrix[0], self.fiber_weights)
 
     @desc.auto_attr
     def _iso_fit(self):
@@ -3202,7 +3193,7 @@ class FiberModel(BaseModel):
         """
         The predicted signal from the FiberModel
         """
-        # We generate the lasso prediction and in each voxel, we add the
+        # We generate the SGD prediction and in each voxel, we add the
         # offset, according to the isotropic part of the signal, which was
         # removed prior to fitting:
         
@@ -3441,3 +3432,118 @@ class SphereModel(BaseModel):
         mean_sig = np.mean(self.signal, -1)
         return (mean_sig.reshape(mean_sig.shape + (1,)) +
                 np.zeros(mean_sig.shape + (len(self.b_idx),)))
+
+
+class SparseKernelModel(BaseModel):
+    """
+
+    Stefan VdW's kernel model
+    
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 sh_order=8,
+                 quad_points=132,
+                 params_file=None,
+                 affine=None,
+                 mask=None,
+                 scaling_factor=SCALE_FACTOR):
+
+        # Initialize the super-class:
+        BaseModel.__init__(self,
+                           data,
+                           bvecs,
+                           bvals,
+                           affine=affine,
+                           mask=mask,
+                           scaling_factor=scaling_factor,
+                           params_file=params_file)
+
+        self.sh_order=sh_order
+        self.quad_points=quad_points
+        # This will soon be replaced by an import from dipy:
+        import kernel_model
+        self.kernel_model = kernel_model
+
+    @desc.auto_attr
+    def _km(self):
+        return self.kernel_model.SparseKernelModel(self.bvals[self.b_idx],
+                                              self.bvecs[:,self.b_idx].T,
+                                              sh_order=self.sh_order,
+                                              qp=self.quad_points,
+                                              loglog_tf=False)
+
+    
+    @desc.auto_attr
+    def model_params(self):
+        """
+        Fit the parameters of the kernel model
+        """
+
+        # The file already exists: 
+        if os.path.isfile(self.params_file):
+            if self.verbose:
+                print("Loading params from file: %s"%self.params_file)
+            # Get the cached values and be done with it:
+            return ni.load(self.params_file).get_data()
+        else:
+
+            if self.verbose:
+                print("Fitting params for SparseKernelModel")
+                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+                f_name = this_class + '.' + inspect.stack()[0][3]
+
+            # 1 parameter for each basis function + 1 for the intercept:
+            out_flat = np.empty((self._flat_signal.shape[0], self.quad_points+1))
+            for vox in range(out_flat.shape[0]):
+                this_fit = self._km.fit(self._flat_relative_signal[vox])
+                beta = this_fit.beta
+                intercept = this_fit.intercept
+                # Fit the model, get the params:
+                out_flat[vox] = np.hstack([intercept, beta])
+                
+                if self.verbose:
+                    prog_bar.animate(vox, f_name=f_name)
+
+            # Save the params for future use: 
+            out_params = ozu.nans(self.signal.shape[:3] + (self.quad_points+1,))
+            out_params[self.mask] = out_flat
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.verbose:
+                print("Saving params to file: %s"%self.params_file)
+            params_ni.to_filename(self.params_file)
+
+            # And return the params for current use:
+            return out_params
+                                
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict the signal based on the kernel model fit
+        """
+        if self.verbose:
+            print("Predicting signal from SparseKernelModel")
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+
+        out_flat = np.zeros(self._flat_signal.shape)
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            this_relative = self.kernel_model.SparseKernelFit(
+                                                flat_params[vox][1:],
+                                                flat_params[vox][0],
+                                                model=self._km).predict()
+            
+            out_flat[vox] = this_relative * self._flat_S0[vox]
+
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
+
+        out = ozu.nans(self.signal.shape)
+        out[self.mask] = out_flat
+        return out

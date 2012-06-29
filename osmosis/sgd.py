@@ -83,6 +83,10 @@ def stochastic_gradient_descent(y, X, momentum=0,
 
     # Initialize the parameters at the origin:
     h = np.zeros(num_regressors)
+
+    # If nothing good happens, we'll return that in the end:
+    h_best = np.zeros(num_regressors)
+    
     gradient = np.zeros(num_regressors)
     
     iteration = 1
