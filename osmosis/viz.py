@@ -2,8 +2,6 @@
 
 Visualization functions.
 
-This might eventually call to fvtk for visualization of 3-d stuff in 3-d. For
-now, only matplotlib stuff. 
 
 """
 
@@ -16,6 +14,12 @@ try:
 except ImportError:
     have_ipython = False
 
+try:
+    from mayavi import mlab as maya
+    have_maya = True
+except ImportError:
+    have_maya = False
+    
 import matplotlib
 
 import matplotlib.pyplot as plt
@@ -25,9 +29,11 @@ import scipy.interpolate as interp
 import numpy as np
 
 import dipy.core.geometry as geo
+from dipy.data import get_sphere
+from dipy.utils.spheremakers import sphere_vf_from
 
 import osmosis.utils as mtu
-
+import osmosis.tensor as ozt
 
 # make a color-cycle that can be used in plotting stuff: 
 color_cycle = cycle(['maroon','red','purple','fuchsia','green',
@@ -381,7 +387,12 @@ def quick_ax(fig=None,subplot=111):
     return ax
 
 
-def plot_ellipse(Dxx, Dyy, Dzz, rstride=4, cstride=4, color='b'):
+def plot_ellipse_mpl(Dxx, Dyy, Dzz, rstride=4, cstride=4, color='b'):
+    """
+    Plot an ellipse shape (in contrast to a tensor ellipsoid, see
+    plot_ellipsoid_mpl for that) in 3d using matplotlib
+    
+    """
     
     fig = plt.figure(figsize=plt.figaspect(1))  # Square figure
     ax = fig.add_subplot(111, projection='3d')
@@ -467,6 +478,7 @@ class ProgressBar:
 
     def __str__(self):
         return str(self.prog_bar)
+
 
 def probability_hist(data, bins=100, fig=None, **kwargs):
     """
@@ -603,10 +615,11 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
 
     return m, fig
 
+
 def sphere(n=100):
     """
 
-    Create an equi-sampled unit sphere with n samples
+    Create a (grid) equi-sampled unit sphere with n samples
 
     """
     u = np.linspace(0, 2 * np.pi, n)
@@ -618,22 +631,33 @@ def sphere(n=100):
 
     return x,y,z
 
-def plot_ellipsoid(Tensor, n=60):
+
+
+def plot_ellipsoid_mpl(Tensor, n=60):
     """
-    Plot an ellipsoid from a tensor
+    Plot an ellipsoid from a tensor using matplotlib
+
+    Parameters
+    ----------
+
+    Tensor: an ozt.Tensor class instance
+
+    n: optional. If an integer is provided, we will plot this for a sphere with
+    n (grid) equi-sampled points. Otherwise, we will plot the originally
+    provided Tensor's bvecs.
+
+    
     """
 
     Q = Tensor.Q
-    x,y,z = sphere(n=n)
-    
-    sphere_adc = np.empty(np.prod(x.shape))
 
-    # Each u is a unit vector:
-    for idx, u in enumerate(np.vstack([x.ravel(), y.ravel(), z.ravel()]).T):
-        sphere_adc[idx] = np.dot(u, np.array(np.dot(Q.getI(), u)).squeeze())
-        
-    v = 1/np.sqrt(sphere_adc)
-    v = np.reshape(v, x.shape)
+    x,y,z = sphere(n=n)
+    new_bvecs = np.vstack([x.ravel(), y.ravel(), z.ravel()])
+    Tensor = ozt.Tensor(Tensor.Q, new_bvecs,
+                        np.ones(new_bvecs.shape[-1]) * Tensor.bvals[0])
+
+    v = Tensor.diffusion_distance.reshape(x.shape)
+    
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
 
@@ -644,3 +668,77 @@ def plot_ellipsoid(Tensor, n=60):
 
     return fig
 
+
+def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
+                        colorbar=False):
+
+    """
+
+    n has to be one of the following: 362, 642, 724
+
+    mode: either "ADC", "ellipse" or "pred_sig"
+    """
+
+    if not have_maya:
+        e_s = "You can't use this function, unless you have mayavi installed" 
+        raise ValueError(e_s)
+
+    figure = maya.figure()
+    
+    Q = Tensor.Q
+    vertices, faces = sphere_vf_from('symmetric%s'%n)
+    x,y,z = vertices.T 
+
+    new_bvecs = np.vstack([x.ravel(), y.ravel(), z.ravel()])
+    Tensor = ozt.Tensor(Q, new_bvecs,
+                        Tensor.bvals[0] * np.ones(new_bvecs.shape[-1]))
+
+    if mode == 'ADC':
+        v = Tensor.ADC
+    elif mode == 'ellipse':
+        v = Tensor.diffusion_distance
+    elif mode == 'pred_sig':
+        v = Tensor.predicted_signal(1)
+
+    r, phi, theta = geo.cart2sphere(x,y,z)
+    x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
+
+    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=v,
+                         colormap=cmap)
+    if colorbar:
+        maya.colorbar(tm, orientation='vertical')
+    # Tweak the mayavi scene: 
+    scene = figure.scene
+    scene.background = (0.7529411764705882,
+                              0.7529411764705882,
+                              0.7529411764705882) # background to silver
+    camera_light = scene.light_manager.lights[0]
+    camera_light.elevation = 0.0
+    camera_light.azimuth = 0.0
+    camera_light1 = scene.light_manager.lights[1]
+    camera_light1.elevation = 0.0
+    camera_light1.azimuth = 0.0
+    camera_light1.intensity = 1.0
+    camera_light1.activate = False
+    camera_light2 = scene.light_manager.lights[2]
+    camera_light2.elevation = 0.0
+    camera_light2.azimuth = 0.0
+    camera_light2.intensity = 1.0
+    camera_light2.activate = False
+    scene.light_manager.light_mode = 'vtk'
+    scene.camera.position = [5.389047944606844,
+                             5.389047944606844,
+                             5.389047944606844]
+    scene.camera.focal_point = [0.0, 0.0, 0.0]
+    scene.camera.view_angle = 30.0
+    scene.camera.view_up = [0.0, 0.0, 1.0]
+    scene.camera.clipping_range = [4.7582918879603735, 15.116625025058763]
+    scene.camera.compute_view_plane_normal()
+
+    if file_name is not None:
+        scene.save(file_name)
+
+    
+    scene.render()
+
+    return scene

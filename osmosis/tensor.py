@@ -122,9 +122,21 @@ class Tensor(object):
         -----
         This is calculated as $ADC = \vec{b} Q \vec{b}^T$
         """
-        # Make sure it's a matrix:
         return apparent_diffusion_coef(self.bvecs, self.Q)
 
+
+    @desc.auto_attr
+    def diffusion_distance(self):
+        """
+        Calculate the diffusion distance in the bvecs
+        """
+
+        # Diffusion distance = u/sqrt(uQu.T), 
+        # where u are the bvecs
+        dist = np.dot(self.bvecs, np.diag(1 / np.sqrt(self.ADC)))
+
+        return np.array([np.dot(this, this) for this in dist.T])
+    
 
     def predicted_signal(self, S0):
         """
