@@ -15,8 +15,6 @@ from matplotlib import rc
 #For not embedding fonts in svg files:
 rc('svg', fonttype='none')
 
-
-
 import osmosis as oz
 import osmosis.viz as viz
 reload(viz)
