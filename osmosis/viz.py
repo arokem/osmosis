@@ -670,7 +670,7 @@ def plot_ellipsoid_mpl(Tensor, n=60):
 
 
 def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
-                        colorbar=False):
+                        colorbar=False, figure=None, vmin=None, vmax=None):
 
     """
 
@@ -683,7 +683,11 @@ def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
         e_s = "You can't use this function, unless you have mayavi installed" 
         raise ValueError(e_s)
 
-    figure = maya.figure()
+    from mayavi.api import Engine
+    # Tweak it: 
+    engine = Engine()
+    engine.start()
+
     
     Q = Tensor.Q
     vertices, faces = sphere_vf_from('symmetric%s'%n)
@@ -707,38 +711,38 @@ def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
                          colormap=cmap)
     if colorbar:
         maya.colorbar(tm, orientation='vertical')
-    # Tweak the mayavi scene: 
-    scene = figure.scene
-    scene.background = (0.7529411764705882,
-                              0.7529411764705882,
-                              0.7529411764705882) # background to silver
-    camera_light = scene.light_manager.lights[0]
-    camera_light.elevation = 0.0
-    camera_light.azimuth = 0.0
-    camera_light1 = scene.light_manager.lights[1]
-    camera_light1.elevation = 0.0
-    camera_light1.azimuth = 0.0
-    camera_light1.intensity = 1.0
-    camera_light1.activate = False
-    camera_light2 = scene.light_manager.lights[2]
-    camera_light2.elevation = 0.0
-    camera_light2.azimuth = 0.0
-    camera_light2.intensity = 1.0
-    camera_light2.activate = False
-    scene.light_manager.light_mode = 'vtk'
-    scene.camera.position = [5.389047944606844,
-                             5.389047944606844,
-                             5.389047944606844]
-    scene.camera.focal_point = [0.0, 0.0, 0.0]
-    scene.camera.view_angle = 30.0
-    scene.camera.view_up = [0.0, 0.0, 1.0]
-    scene.camera.clipping_range = [4.7582918879603735, 15.116625025058763]
-    scene.camera.compute_view_plane_normal()
 
-    if file_name is not None:
-        scene.save(file_name)
+    #maya.xlabel('')
+    #maya.ylabel('')
+    #maya.zlabel('')
+
+    scene = engine.scenes[0]
+    scene.scene.background = (0.7529411764705882,
+                              0.7529411764705882,
+                              0.7529411764705882)
+
+    # Set it to be aligned along the positive dimension of the y axis (similar
+    # to the ortho projection plots). 
+    scene.scene.y_plus_view()
+
+    # Take care of the color-map:
+    if vmin is None:
+        vmin = np.min(v)
+    if vmax is None:
+        vmax = np.max(v)
+        
+    module_manager = engine.scenes[0].children[0].children[0].children[0]
+    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
+    module_manager.scalar_lut_manager.number_of_labels = 6
+
+    # Take care of the lighting:
+    scene.scene.light_manager.light_mode = 'vtk'
 
     
-    scene.render()
+    scene.scene.render()
+    
+    if file_name is not None:
+        scene.scene.save(file_name)
 
+    engine.stop()
     return scene
