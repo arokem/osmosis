@@ -473,6 +473,22 @@ def rmse(arr1, arr2, axis=-1):
     else:
       return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))
 
+def mae(arr1, arr2, axis=-1):
+    """
+    Calculate the mean absolute error between two arrays
+
+    Parameters
+    ----------
+    arr1, arr2: array-like
+       Need to be the same shape
+    """
+
+    arr1 = np.asarray(arr1)
+    arr2 = np.asarray(arr2)
+    return np.mean(np.abs(arr1 - arr2))
+    
+    
+
 def snr(arr1, arr2=None, axis=-1):
     """
     Calculate the SNR as:
