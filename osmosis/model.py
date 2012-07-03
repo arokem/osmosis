@@ -588,14 +588,42 @@ class BaseModel(DWI):
             
         return out
 
+def relative_mae(model1, model2):
+    """
+    Given two model objects, compate the model fits to signal-to-signal
+    reliability in the mean absolute error sense
+    """
+    # Assume that the last dimension is the signal dimension, so the dimension
+    # across which the rmse will be calculated: 
+    out = ozu.nans(model1.shape[:-1])
+    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    signal_mae = ozu.mae(sig1, sig2)
+    fit1_mae = ozu.mae(fit1, sig2)
+    fit2_mae = ozu.mae(fit2, sig1)
+
+    # Average in each element:
+    fit_mae = (fit1_mae + fit2_mae) / 2.
+
+    rel_mae = fit_mae/signal_mae
+
+    out[model1.mask] = rel_mae
+
+    return out
+
 
 def relative_rmse(model1, model2):
     """
     Given two model objects, compare the model fits to signal-to-signal
-    reliability 
+    reliability in the root mean square error sense.
 
     Parameters
     ----------
+    model1, model2: two objects from a class inherited from BaseModel
 
     Returns
     -------
