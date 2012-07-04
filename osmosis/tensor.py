@@ -131,12 +131,10 @@ class Tensor(object):
         Calculate the diffusion distance in the bvecs
         """
 
-        # Diffusion distance = u/sqrt(uQu.T), 
-        # where u are the bvecs
-        dist = np.dot(self.bvecs, np.diag(1 / np.sqrt(self.ADC)))
+        sphADC = np.dot(self.bvecs.T, np.dot(self.Q.getI(), self.bvecs))
+        dist = np.diag(1 / np.sqrt(sphADC))
 
-        return np.array([np.dot(this, this) for this in dist.T])
-    
+        return dist
 
     def predicted_signal(self, S0):
         """
