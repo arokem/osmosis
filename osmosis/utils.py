@@ -485,7 +485,7 @@ def mae(arr1, arr2, axis=-1):
 
     arr1 = np.asarray(arr1)
     arr2 = np.asarray(arr2)
-    return np.mean(np.abs(arr1 - arr2))
+    return np.mean(np.abs(arr1 - arr2),axis=axis)
     
     
 
