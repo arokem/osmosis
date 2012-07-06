@@ -48,7 +48,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     fig = viz.mosaic(t1_d.T[23:-12], cmap=matplotlib.cm.bone, cbar=False)
     fig = viz.mosaic(vol.T[23:-12], fig=fig, cmap=matplotlib.cm.hot)
     fig.set_size_inches([15,10])
-    fig.savefig('%ssignal_rmse_b%s.png'%(figure_path,
+    fig.savefig('%ssignal_rmse_b%s.svg'%(figure_path,
                                           bval))
 
     vol = ozu.nans(snr.shape)
@@ -56,7 +56,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     fig = viz.mosaic(t1_d.T[23:-12], cmap=matplotlib.cm.bone, cbar=False)
     fig = viz.mosaic(vol.T[23:-12], fig=fig, cmap=matplotlib.cm.hot)
     fig.set_size_inches([15,10])
-    fig.savefig('%ssignal_snr_b%s.png'%(figure_path,
+    fig.savefig('%ssignal_snr_b%s.svg'%(figure_path,
                                           bval))
 
     rmse_mask = signal_rmse[mask_idx]
@@ -78,8 +78,8 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
     
 ax_hist_rmse.legend()
 ax_hist_snr.legend()
-fig_hist_rmse.savefig('%ssignal_rmse_hist.png'%figure_path)
-fig_hist_snr.savefig('%ssignal_snr_hist.png'%figure_path)
+fig_hist_rmse.savefig('%ssignal_rmse_hist.svg'%figure_path)
+fig_hist_snr.savefig('%ssignal_snr_hist.svg'%figure_path)
 
 model_names = [
     'TensorModel',
@@ -114,7 +114,7 @@ for model_name in model_names:
 
         fig.set_size_inches([15,10])
         
-        fig.savefig('%s%s_relative_rmse_b%s.png'%(figure_path,
+        fig.savefig('%s%s_relative_rmse_b%s.svg'%(figure_path,
                                                   model_name,
                                                   bval))
 
@@ -129,10 +129,10 @@ for model_name in model_names:
         ax_hist.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
         ax_hist.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
 
-        print "%s voxels above 1"%len(np.where(rmse_mask>1)[0])
+        print "%s voxels above 1"%(len(np.where(rmse_mask>1)[0])/float(len(rmse_mask)))
         
     ax_hist.legend()
-    fig_hist.savefig('%s%s_relative_rmse_hist.png'%(figure_path,
+    fig_hist.savefig('%s%s_relative_rmse_hist.svg'%(figure_path,
                                                       model_name))
 
         
@@ -156,12 +156,12 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                               np.nanmax(diff)])
 
             fig = viz.mosaic(diff.T[29:60][::2], fig=fig,
-                             vmax=vmax/2, vmin=-1*vmax/2,
+                             vmax=1, vmin=-1,
                             cmap=matplotlib.cm.RdBu_r)
 
             fig.set_size_inches([25,20])
 
-            fig.savefig('%sdiff_%s_%s_rrmse_b%s.png'%(figure_path,
+            fig.savefig('%sdiff_%s_%s_rrmse_b%s.svg'%(figure_path,
                                                            model1,
                                                            model2,
                                                            bval))
@@ -180,7 +180,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
             ax.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
             
             plt.legend()
-            fig.savefig('%sdiff_%s_%s_rrmse_hist_b%s.png'%(figure_path,
+            fig.savefig('%sdiff_%s_%s_rrmse_hist_b%s.svg'%(figure_path,
                                                            model1,
                                                            model2,
                                                            bval))

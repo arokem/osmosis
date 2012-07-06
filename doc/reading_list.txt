@@ -23,6 +23,9 @@ Page 4:  "It appears evident that attempts to fit 3D ellipsoids to such data wou
 to inaccurate results with large fit errors." 
 
 
+D.K. Jones, M.A. Horsﬁeld, and A. Simmons, Optimal strategies for measuring diffusion in anisotropic systems by magnetic resonance imaging,
+Magn Reson Med 42 (1999), 515–525.
+
 
 
 About spherical deconvolution and the SH decomposition:
@@ -41,4 +44,6 @@ Anderson, A.W., 2005. Measurement of fiber orientation distributions using high 
 About diffusion in various geometries:
 --------------------------------------
 
-Codd SL, Callaghan PT. Spin echo analysis of restricted diffusion under generalized gradient waveforms: planar, cylindrical, and spher- ical pores with wall relaxivity. J Magn Reson 1999;137(2):358–372.
+Codd SL, Callaghan PT. Spin echo analysis of restricted diffusion under generalized gradient waveforms: planar, cylindrical, and spherical pores with wall relaxivity. J Magn Reson 1999;137(2):358–372.
+
+
