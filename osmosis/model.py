@@ -58,6 +58,8 @@ import scipy.optimize as opt
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
+from dipy.core.triangle_subdivide import create_half_unit_sphere
+from dipy.reconst.recspeed import local_maxima
 import nibabel as ni
 
 import osmosis.sgd as sgd
@@ -3474,6 +3476,7 @@ class SparseKernelModel(BaseModel):
                  bvals,
                  sh_order=8,
                  quad_points=132,
+                 verts_level=5,
                  params_file=None,
                  affine=None,
                  mask=None,
@@ -3494,6 +3497,7 @@ class SparseKernelModel(BaseModel):
         # This will soon be replaced by an import from dipy:
         import kernel_model
         self.kernel_model = kernel_model
+        self.verts_level = verts_level
 
     @desc.auto_attr
     def _km(self):
@@ -3561,11 +3565,22 @@ class SparseKernelModel(BaseModel):
 
         out_flat = np.zeros(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
+
+        # We will use a cached fit object generated in the first iteration
+        _fit_obj = None
+        # And the vertices are the b vectors:
+        _verts = self.bvecs[:,self.b_idx].T
         for vox in xrange(out_flat.shape[0]):
-            this_relative = self.kernel_model.SparseKernelFit(
-                                                flat_params[vox][1:],
-                                                flat_params[vox][0],
-                                                model=self._km).predict()
+            this_fit = self.kernel_model.SparseKernelFit(
+                                    flat_params[vox][1:],
+                                    flat_params[vox][0],
+                                    model=self._km) 
+
+            this_relative = this_fit.predict(cache=_fit_obj,
+                                             vertices=_verts)            
+            _fit_obj = this_fit # From now on, we will use this cached object
+            _verts = None # And set the verts input to None, so that it is
+                          # ignored in future iterations
             
             out_flat[vox] = this_relative * self._flat_S0[vox]
 
@@ -3575,3 +3590,83 @@ class SparseKernelModel(BaseModel):
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
         return out
+
+    @desc.auto_attr
+    def odf_verts(self):
+        """
+        The vertices on which to estimate the odf
+        """
+        verts, edges, sides = create_half_unit_sphere(self.verts_level)
+
+        return verts, edges
+
+    @desc.auto_attr
+    def odf(self):
+        """
+        The orientation distribution function estimated from the SparseKernel
+        model  
+        """
+        _verts = self.odf_verts[0] # These are the vertices on which we estimate
+                                   # the ODF 
+        if self.verbose:
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+        out_flat = np.zeros((self._flat_signal.shape[0], _verts.shape[0]))
+        flat_params = self.model_params[self.mask]
+
+        # We are going to use cached computations in the fit object: 
+        _fit_obj = None # Initially we don't have a cached fit object
+        for vox in xrange(out_flat.shape[0]):
+            this_fit = self.kernel_model.SparseKernelFit(
+                                                flat_params[vox][1:],
+                                                flat_params[vox][0],
+                                                model=self._km)
+            out_flat[vox] = this_fit.odf(cache=_fit_obj, vertices=_verts)
+            _fit_obj = this_fit # From now on, we will use this cached object
+            _verts = None # And we need to ignore the vertices, so that the
+                          # cached fit object can use the cached computation. 
+            
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
+
+        out = ozu.nans(self.signal.shape[:3] + (out_flat.shape[-1],))
+        out[self.mask] = out_flat
+        return out
+
+
+    @desc.auto_attr
+    def fit_angle(self):
+        """
+        The angle between the two primary peaks in the ODF
+        
+        """
+        out_flat = np.zeros(self._flat_signal.shape[0])
+        flat_odf = self.odf[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            p, i = local_maxima(flat_odf[vox], self.odf_verts[1])
+            mask = p > 0.5 * np.max(p)
+            p = p[mask]
+            i = i[mask]
+
+            if len(p) < 2:
+                out_flat[vox] = np.nan
+            else:
+                out_flat[vox] = np.rad2deg(ozu.vector_angle(
+                                    self.odf_verts[0][i[0]],
+                                    self.odf_verts[0][i[1]]))
+
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = out_flat
+        return out
+    
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The direction of the primary peak of the ODF
+        """
+
+        raise NotImplementedError
+
+
