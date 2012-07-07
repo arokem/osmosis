@@ -3645,17 +3645,20 @@ class SparseKernelModel(BaseModel):
         out_flat = np.zeros(self._flat_signal.shape[0])
         flat_odf = self.odf[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            p, i = local_maxima(flat_odf[vox], self.odf_verts[1])
-            mask = p > 0.5 * np.max(p)
-            p = p[mask]
-            i = i[mask]
-
-            if len(p) < 2:
+            if np.any(np.isnan(flat_odf[vox])):
                 out_flat[vox] = np.nan
             else:
-                out_flat[vox] = np.rad2deg(ozu.vector_angle(
-                                    self.odf_verts[0][i[0]],
-                                    self.odf_verts[0][i[1]]))
+                p, i = local_maxima(flat_odf[vox], self.odf_verts[1])
+                mask = p > 0.5 * np.max(p)
+                p = p[mask]
+                i = i[mask]
+
+                if len(p) < 2:
+                    out_flat[vox] = np.nan
+                else:
+                    out_flat[vox] = np.rad2deg(ozu.vector_angle(
+                                        self.odf_verts[0][i[0]],
+                                        self.odf_verts[0][i[1]]))
 
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = out_flat
