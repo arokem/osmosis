@@ -590,6 +590,32 @@ class BaseModel(DWI):
             
         return out
 
+
+def overfitting_index(model1, model2):
+    """
+    How badly is the model overfitting? This can be assessed by comparing the
+    RMSE of the model compared to the fit data (or learning set), relative to
+    the RMSE of the model on another data set (or testing set)
+    """
+    out = ozu.nans(model1.shape[:-1])    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    rmse_train1 = ozu.rmse(fit1, sig1)
+    rmse_train2 = ozu.rmse(fit2, sig2)
+
+    rmse_test1 = ozu.rmse(fit1, sig2)
+    rmse_test2 = ozu.rmse(fit2, sig1)
+
+    rmse_ratio1 = rmse_train1/rmse_test1
+    rmse_ratio2 = rmse_train2/rmse_test2
+
+    out[model1.mask] = (rmse_ratio1 + rmse_ratio2)/2
+
+    return out
+    
 def relative_mae(model1, model2):
     """
     Given two model objects, compate the model fits to signal-to-signal
@@ -617,6 +643,8 @@ def relative_mae(model1, model2):
 
     return out
 
+
+    
 
 def relative_rmse(model1, model2):
     """
@@ -1636,14 +1664,12 @@ class CanonicalTensorModel(BaseModel):
                                     self.regressors[0][0] * i_w[rot_i,vox]) *
                                     self._flat_S0[vox])
                     else:
-                        this_sig = ((b_w[rot_i,vox] * rot +
-                                        self.regressors[0][0] * i_w[rot_i,vox]) *
-                                        self._flat_S0[vox])
-                        if self.mode == 'signal_attenuation':
-                            this_relative = (b_w[rot_i,vox] * rot +
+                        this_relative = (b_w[rot_i,vox] * rot +
                                     self.regressors[0][0] * i_w[rot_i,vox])
+                        if self.mode == 'signal_attenuation':
                             this_relative = 1 - this_relative
-                            this_sig = this_relative * self._flat_S0[vox]
+
+                        this_sig = this_relative * self._flat_S0[vox]
 
                     vox_fits[rot_i] = this_sig
                     
@@ -3492,8 +3518,8 @@ class SparseKernelModel(BaseModel):
                            scaling_factor=scaling_factor,
                            params_file=params_file)
 
-        self.sh_order=sh_order
-        self.quad_points=quad_points
+        self.sh_order = sh_order
+        self.quad_points = quad_points
         # This will soon be replaced by an import from dipy:
         import kernel_model
         self.kernel_model = kernel_model
