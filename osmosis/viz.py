@@ -31,6 +31,10 @@ import numpy as np
 import dipy.core.geometry as geo
 from dipy.data import get_sphere
 from dipy.utils.spheremakers import sphere_vf_from
+from dipy.core.triangle_subdivide import (create_unit_sphere,
+                                          create_half_unit_sphere)
+from dipy.core.sphere import Sphere, interp_rbf
+
 
 import osmosis.utils as mtu
 import osmosis.tensor as ozt
@@ -669,12 +673,10 @@ def plot_ellipsoid_mpl(Tensor, n=60):
     return fig
 
 
-def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
+def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None):
 
     """
-
-    n has to be one of the following: 362, 642, 724
 
     mode: either "ADC", "ellipse" or "pred_sig"
     """
@@ -690,7 +692,9 @@ def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
 
     
     Q = Tensor.Q
-    vertices, faces = sphere_vf_from('symmetric%s'%n)
+    sphere = create_unit_sphere(5)
+    vertices = sphere.vertices
+    faces = sphere.faces
     x,y,z = vertices.T 
 
     new_bvecs = np.vstack([x.ravel(), y.ravel(), z.ravel()])
@@ -709,6 +713,84 @@ def plot_ellipsoid_maya(Tensor, n=724, cmap='jet', mode='ADC', file_name=None,
 
     tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=v,
                          colormap=cmap)
+    if colorbar:
+        maya.colorbar(tm, orientation='vertical')
+
+    #maya.xlabel('')
+    #maya.ylabel('')
+    #maya.zlabel('')
+
+    scene = engine.scenes[0]
+    scene.scene.background = (0.7529411764705882,
+                              0.7529411764705882,
+                              0.7529411764705882)
+
+    # Set it to be aligned along the positive dimension of the y axis (similar
+    # to the ortho projection plots). 
+    scene.scene.y_plus_view()
+
+    # Take care of the color-map:
+    if vmin is None:
+        vmin = np.min(v)
+    if vmax is None:
+        vmax = np.max(v)
+        
+    module_manager = engine.scenes[0].children[0].children[0].children[0]
+    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
+    module_manager.scalar_lut_manager.number_of_labels = 6
+
+    # Take care of the lighting:
+    scene.scene.light_manager.light_mode = 'vtk'
+
+    
+    scene.scene.render()
+    
+    if file_name is not None:
+        scene.scene.save(file_name)
+
+    engine.stop()
+    return scene
+
+def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
+                        colorbar=False, figure=None, vmin=None, vmax=None):
+
+    """
+
+    Interpolate a measured signal, using RBF interpolation.
+
+    Parameters
+    ----------
+    signal:
+
+    bvecs: the x,y,z locations where the signal was measured 
+    
+    """
+
+    if not have_maya:
+        e_s = "You can't use this function, unless you have mayavi installed" 
+        raise ValueError(e_s)
+
+    from mayavi.api import Engine
+    # Tweak it: 
+    engine = Engine()
+    engine.start()
+
+    
+    s0 = Sphere(xyz=bvecs.T)
+    s1 = create_unit_sphere(6)
+
+    interp_signal = interp_rbf(signal, s0, s1)
+
+    vertices = s1.vertices
+    faces = s1.faces
+    x,y,z = vertices.T 
+    
+    r, phi, theta = geo.cart2sphere(x,y,z)
+    x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
+
+    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces,
+                              scalars=interp_signal,
+                              colormap=cmap)
     if colorbar:
         maya.colorbar(tm, orientation='vertical')
 
