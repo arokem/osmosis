@@ -39,7 +39,7 @@ import osmosis.tensor as ozt
 color_cycle = cycle(['maroon','red','purple','fuchsia','green',
                      'lime','olive','yellow','navy','blue'])
 
-def mosaic(vol, fig=None, title=None, size=None, vmin=None, vmax=None,
+def mosaic(vol, fig=None, title=None, size=[10,10], vmin=None, vmax=None,
            return_mosaic=False, cbar=True, return_cbar=False, **kwargs):
     """
     Display a 3-d volume of data as a 2-d mosaic
@@ -338,7 +338,7 @@ def scale_bvecs_by_sig(bvecs, sig):
     return x,y,z
 
 
-def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
+def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r, size=None):
     """
     Create a scatter plot with density of the data-points at each point on the
     x,y grid coded by the color in the colormap (hot per default)
@@ -374,7 +374,9 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r):
     ax.set_yticks([0] + [i * res/5.0 for i in range(5)])
     ax.set_xticklabels([0] + ['%0.2f'%(i * ((max_x - min_x)/5.0) + min_x) for i in range(5)])
     ax.set_yticklabels([0] + ['%0.2f'%(i * ((max_y - min_y)/5.0) + min_y) for i in range(5,0,-1)])
-    
+
+    if size is not None:
+        fig.set_size_inches(size)
     return fig
 
 
@@ -480,9 +482,14 @@ class ProgressBar:
         return str(self.prog_bar)
 
 
-def probability_hist(data, bins=100, fig=None, **kwargs):
+def probability_hist(data, bins=100, fig=None, cumsum=False, **kwargs):
     """
-    A histogram, normalized, such that the sum under the curve is equal to 1
+    A histogram, normalized as a probability density function. Note that this
+    does not sum to 1. It's a probability *density* function, not a probability
+    *mass* function.
+
+    If cumsum is set to True, we get the cumulative probabilities
+
     """
 
     if fig is None:
@@ -491,12 +498,16 @@ def probability_hist(data, bins=100, fig=None, **kwargs):
     else:
         ax = fig.get_axes()[0]
 
-    hist = np.histogram(data, bins=bins)
-    scale_by = float(np.sum(hist[0]))
-    heights = hist[0] / scale_by    
-    ax.plot(hist[1][1:], heights, **kwargs)
+    # The denisty argument makes sure that it *integrates* to 1 over its
+    # support:
+    hist = np.histogram(data, bins=bins, density=True)
+    if cumsum:
+        ax.plot(hist[1][1:], np.cumsum(hist[0])/np.sum(hist[0]), **kwargs)
+    else:
+        ax.plot(hist[1][1:], hist[0], **kwargs)
 
     return fig
+
 
 def sph2latlon(theta, phi):
     """Convert spherical coordinates to latitude and longitude.
