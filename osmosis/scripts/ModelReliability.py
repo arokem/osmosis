@@ -17,7 +17,7 @@ reload(ozu)
 
 from data import *
 
-for bval_idx, bval in enumerate([1000, 2000, 4000]):
+for bval_idx, bval in enumerate([1000]):#, 2000, 4000]):
     AD1,RD1 = diffusivities[bval][0]['AD'], diffusivities[bval][0]['RD']
     AD2,RD2 = diffusivities[bval][1]['AD'], diffusivities[bval][1]['RD']
     dwi1, bvecs1, bvals1 = data_files[bval][0]
@@ -158,7 +158,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                                 PDD2_flat[vox])
             prog_bar.animate(vox)
         angles = ozu.nans(PDD1.shape[:3])
-        angles[PDD1.mask] = angles_flat
+        angles[Model1.mask] = angles_flat
     
 
 

@@ -46,6 +46,26 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                         axial_diffusivity=AD2) 
 
 
+    PointyCanonicalTensorModel1 = ozm.CanonicalTensorModel(dwi1,
+                                        bvecs1,
+                                        bvals1,
+                                        #mode='normalize',
+                                        mask = brain_mask,
+                                        params_file=(file_root[0] +
+                                      'PointyCanonicalTensorModel.nii.gz'),
+                                        radial_diffusivity=0,
+                                        axial_diffusivity=AD1)
+    
+    PointyCanonicalTensorModel2 = ozm.CanonicalTensorModel(dwi2,
+                                        bvecs2,
+                                        bvals2,
+                                        #mode='normalize',
+                                        params_file=(file_root[0] +
+                                       'PointyCanonicalTensorModel.nii.gz'),
+                                        mask = brain_mask,
+                                        radial_diffusivity=0,
+                                        axial_diffusivity=AD2) 
+
     MultiCanonicalTensorModel1 = ozm.MultiCanonicalTensorModel(dwi1,
                                             bvecs1,
                                             bvals1,
@@ -120,13 +140,16 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
 
     ModelFest = zip([TensorModel1,CanonicalTensorModel1,
                      MultiCanonicalTensorModel1,SparseDeconvolutionModel1,
-                     SphereModel1,PointyMultiCanonicalTensorModel1],
+                     SphereModel1,PointyMultiCanonicalTensorModel1,
+                     PointyCanonicalTensorModel1],
                      [TensorModel2,CanonicalTensorModel2,
                       MultiCanonicalTensorModel2,SparseDeconvolutionModel2,
-                      SphereModel2,PointyMultiCanonicalTensorModel2],
+                      SphereModel2,PointyMultiCanonicalTensorModel2,
+                      PointyCanonicalTensorModel2],
                      ['TensorModel', 'CanonicalTensorModel',
                       'MultiCanonicalTensorModel','SparseDeconvolutionModel',
                          'SphereModel', 'PointyMultiCanonicalTensorModel',
+                         'PointyCanonicalTensorModel'
                          ])
 
 
