@@ -30,6 +30,8 @@ mask_idx = np.where(mask_d==1)
 
 t1_ni = ni.load(data_path + 'FP_t1_resampled_to_dwi.nii.gz')
 t1_d = t1_ni.get_data()
+# Set the background to black:
+t1_d[~np.isfinite(t1_d)] = 0
 
 fig_hist_rmse, ax_hist_rmse = plt.subplots(1)
 fig_hist_snr, ax_hist_snr = plt.subplots(1)
@@ -90,12 +92,16 @@ model_names = [
     'PointyCanonicalTensorModel',
     'SphericalHarmonicsModel',
     'PointyMultiCanonicalTensorModel',
-    'SparseKernelModel'
-            ]
+    'SparseKernelModel',
+    'SparseKernelModel_sh_order4',
+    'SparseKernelModel_sh_order6',
+    'SparseKernelModel_sh_order10',
+    ]
 
 for model_name in model_names:
 
     fig_hist, ax_hist = plt.subplots(1) 
+    fig_hist_cumsum, ax_hist_cumsum = plt.subplots(1) 
     for bval_idx, bval in enumerate([1000, 2000, 4000]): 
         print "bvalue = %s, model= %s"%(bval, model_name)
         rmse_file_name = '%s%s_relative_rmse_b%s.nii.gz'%(data_path,
@@ -129,11 +135,30 @@ for model_name in model_names:
         ax_hist.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
         ax_hist.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
 
-        print "%s voxels above 1"%len(np.where(rmse_mask>1)[0])
+        # scale the histograms:
+        fig_hist_cumsum = viz.probability_hist(rmse_mask[np.isfinite(rmse_mask)],
+                                        fig=fig_hist_cumsum,
+                                        bins=100,
+                                        cumsum=True,
+                                        label='b=%s'%bval)
+        
+        ax_hist_cumsum.set_xlim([0,4])
+        ax_hist_cumsum.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
+        ax_hist_cumsum.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
+
+
+        print "%s voxels above 1"%(len(np.where(rmse_mask>1)[0])/float(len(rmse_mask)))
+
+        
         
     ax_hist.legend()
     fig_hist.savefig('%s%s_relative_rmse_hist.png'%(figure_path,
                                                       model_name))
+
+    ax_hist_cumsum.legend()
+    fig_hist_cumsum.savefig('%s%s_relative_rmse_hist_cumsum.png'%(figure_path,
+                                                      model_name))
+
 
         
 
@@ -156,7 +181,7 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                               np.nanmax(diff)])
 
             fig = viz.mosaic(diff.T[29:60][::2], fig=fig,
-                             vmax=vmax/2, vmin=-1*vmax/2,
+                             vmax=vmax, vmin=-1*vmax,
                             cmap=matplotlib.cm.RdBu_r)
 
             fig.set_size_inches([25,20])

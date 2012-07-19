@@ -7,6 +7,7 @@ import inspect
 import os
 import warnings
 import itertools
+import tempfile
 
 import numpy as np
 import numpy.linalg as npla
@@ -58,6 +59,8 @@ import scipy.optimize as opt
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
+from dipy.core.triangle_subdivide import create_half_unit_sphere
+from dipy.reconst.recspeed import local_maxima
 import nibabel as ni
 
 import osmosis.sgd as sgd
@@ -446,11 +449,15 @@ class BaseModel(DWI):
                          sub_sample=sub_sample,
                          verbose=verbose)
 
-        # Introspect to figure out what name the current class has:
-        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
-        self.params_file = params_file_resolver(self,
-                                                this_class,
-                                                params_file=params_file)
+        # Sometimes you might want to not store the params in a file: 
+        if params_file == 'temp':
+            self.params_file=tempfile.NamedTemporaryFile().name
+        else:
+            # Introspect to figure out what name the current class has:
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            self.params_file = params_file_resolver(self,
+                                                    this_class,
+                                                    params_file=params_file)
 
 
     @desc.auto_attr
@@ -588,6 +595,32 @@ class BaseModel(DWI):
             
         return out
 
+
+def overfitting_index(model1, model2):
+    """
+    How badly is the model overfitting? This can be assessed by comparing the
+    RMSE of the model compared to the fit data (or learning set), relative to
+    the RMSE of the model on another data set (or testing set)
+    """
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    rmse_train1 = ozu.rmse(fit1, sig1)
+    rmse_train2 = ozu.rmse(fit2, sig2)
+
+    rmse_test1 = ozu.rmse(fit1, sig2)
+    rmse_test2 = ozu.rmse(fit2, sig1)
+
+    rmse_ratio1 = rmse_test1/rmse_train1
+    rmse_ratio2 = rmse_test2/rmse_train2
+
+    out = ozu.nans(model1.shape[:-1])    
+    out[model1.mask] = (rmse_ratio1 + rmse_ratio2)/2.
+
+    return out
+    
 def relative_mae(model1, model2):
     """
     Given two model objects, compate the model fits to signal-to-signal
@@ -615,6 +648,8 @@ def relative_mae(model1, model2):
 
     return out
 
+
+    
 
 def relative_rmse(model1, model2):
     """
@@ -1165,7 +1200,7 @@ class SphericalHarmonicsModel(BaseModel):
         """
                 
         # Convert to spherical coordinates:
-        r,theta,phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
+        r, theta, phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
                                       self.bvecs[1, self.b_idx],
                                       self.bvecs[2, self.b_idx])
         
@@ -1634,14 +1669,12 @@ class CanonicalTensorModel(BaseModel):
                                     self.regressors[0][0] * i_w[rot_i,vox]) *
                                     self._flat_S0[vox])
                     else:
-                        this_sig = ((b_w[rot_i,vox] * rot +
-                                        self.regressors[0][0] * i_w[rot_i,vox]) *
-                                        self._flat_S0[vox])
-                        if self.mode == 'signal_attenuation':
-                            this_relative = (b_w[rot_i,vox] * rot +
+                        this_relative = (b_w[rot_i,vox] * rot +
                                     self.regressors[0][0] * i_w[rot_i,vox])
+                        if self.mode == 'signal_attenuation':
                             this_relative = 1 - this_relative
-                            this_sig = this_relative * self._flat_S0[vox]
+
+                        this_sig = this_relative * self._flat_S0[vox]
 
                     vox_fits[rot_i] = this_sig
                     
@@ -2103,7 +2136,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         according to the order we will use them in fitting
         """
         # Use stdlib magic to make the indices into the basis set: 
-        pre_idx = itertools.combinations(range(len(self.b_idx)),
+        pre_idx = itertools.combinations(range(self.rot_vecs.shape[-1]),
                                          self.n_canonicals)
 
         # Generate all of them and store, so you know where you stand
@@ -2385,8 +2418,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 w = flat_params[vox,1:1+self.n_canonicals]
                 idx = np.array(idx)[np.argsort(w)]
                 ang = np.rad2deg(ozu.vector_angle(
-                    self.bvecs[:,self.b_idx].T[idx[-1]],
-                    self.bvecs[:,self.b_idx].T[idx[-2]]))
+                    self.rot_vecs.T[idx[-1]],
+                    self.rot_vecs.T[idx[-2]]))
 
                 ang = np.min([ang, 180-ang])
                 
@@ -3474,6 +3507,7 @@ class SparseKernelModel(BaseModel):
                  bvals,
                  sh_order=8,
                  quad_points=132,
+                 verts_level=5,
                  params_file=None,
                  affine=None,
                  mask=None,
@@ -3489,11 +3523,12 @@ class SparseKernelModel(BaseModel):
                            scaling_factor=scaling_factor,
                            params_file=params_file)
 
-        self.sh_order=sh_order
-        self.quad_points=quad_points
+        self.sh_order = sh_order
+        self.quad_points = quad_points
         # This will soon be replaced by an import from dipy:
         import kernel_model
         self.kernel_model = kernel_model
+        self.verts_level = verts_level
 
     @desc.auto_attr
     def _km(self):
@@ -3561,11 +3596,22 @@ class SparseKernelModel(BaseModel):
 
         out_flat = np.zeros(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
+
+        # We will use a cached fit object generated in the first iteration
+        _fit_obj = None
+        # And the vertices are the b vectors:
+        _verts = self.bvecs[:,self.b_idx].T
         for vox in xrange(out_flat.shape[0]):
-            this_relative = self.kernel_model.SparseKernelFit(
-                                                flat_params[vox][1:],
-                                                flat_params[vox][0],
-                                                model=self._km).predict()
+            this_fit = self.kernel_model.SparseKernelFit(
+                                    flat_params[vox][1:],
+                                    flat_params[vox][0],
+                                    model=self._km) 
+
+            this_relative = this_fit.predict(cache=_fit_obj,
+                                             vertices=_verts)            
+            _fit_obj = this_fit # From now on, we will use this cached object
+            _verts = None # And set the verts input to None, so that it is
+                          # ignored in future iterations
             
             out_flat[vox] = this_relative * self._flat_S0[vox]
 
@@ -3575,3 +3621,86 @@ class SparseKernelModel(BaseModel):
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
         return out
+
+    @desc.auto_attr
+    def odf_verts(self):
+        """
+        The vertices on which to estimate the odf
+        """
+        verts, edges, sides = create_half_unit_sphere(self.verts_level)
+
+        return verts, edges
+
+    @desc.auto_attr
+    def odf(self):
+        """
+        The orientation distribution function estimated from the SparseKernel
+        model  
+        """
+        _verts = self.odf_verts[0] # These are the vertices on which we estimate
+                                   # the ODF 
+        if self.verbose:
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+        out_flat = np.zeros((self._flat_signal.shape[0], _verts.shape[0]))
+        flat_params = self.model_params[self.mask]
+
+        # We are going to use cached computations in the fit object: 
+        _fit_obj = None # Initially we don't have a cached fit object
+        for vox in xrange(out_flat.shape[0]):
+            this_fit = self.kernel_model.SparseKernelFit(
+                                                flat_params[vox][1:],
+                                                flat_params[vox][0],
+                                                model=self._km)
+            out_flat[vox] = this_fit.odf(cache=_fit_obj, vertices=_verts)
+            _fit_obj = this_fit # From now on, we will use this cached object
+            _verts = None # And we need to ignore the vertices, so that the
+                          # cached fit object can use the cached computation. 
+            
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
+
+        out = ozu.nans(self.signal.shape[:3] + (out_flat.shape[-1],))
+        out[self.mask] = out_flat
+        return out
+
+
+    @desc.auto_attr
+    def fit_angle(self):
+        """
+        The angle between the two primary peaks in the ODF
+        
+        """
+        out_flat = np.zeros(self._flat_signal.shape[0])
+        flat_odf = self.odf[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if np.any(np.isnan(flat_odf[vox])):
+                out_flat[vox] = np.nan
+            else:
+                p, i = local_maxima(flat_odf[vox], self.odf_verts[1])
+                mask = p > 0.5 * np.max(p)
+                p = p[mask]
+                i = i[mask]
+
+                if len(p) < 2:
+                    out_flat[vox] = np.nan
+                else:
+                    out_flat[vox] = np.rad2deg(ozu.vector_angle(
+                                        self.odf_verts[0][i[0]],
+                                        self.odf_verts[0][i[1]]))
+
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = out_flat
+        return out
+    
+    @desc.auto_attr
+    def principal_diffusion_direction(self):
+        """
+        The direction of the primary peak of the ODF
+        """
+
+        raise NotImplementedError
+
+

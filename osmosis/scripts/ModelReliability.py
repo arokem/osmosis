@@ -143,7 +143,7 @@ for bval_idx, bval in enumerate([1000]):#, 2000, 4000]):
         #'SphereModel',
         #'PointyMultiCanonicalTensorModel',
                          ])
-
+    angles = []
     for Model1,Model2,model_name in ModelFest:      
         PDD1 = Model1.principal_diffusion_direction
         PDD2 = Model2.principal_diffusion_direction
@@ -157,8 +157,11 @@ for bval_idx, bval in enumerate([1000]):#, 2000, 4000]):
             angles_flat[vox] = ozu.vector_angle(PDD1_flat[vox],
                                                 PDD2_flat[vox])
             prog_bar.animate(vox)
-        angles = ozu.nans(PDD1.shape[:3])
-        angles[Model1.mask] = angles_flat
+
+        this_angles = ozu.nans(PDD1.shape[:3])
+        this_angles[Model1.mask] = angles_flat
+
+        angles.append(this_angles)
     
 
 
