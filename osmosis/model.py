@@ -7,6 +7,7 @@ import inspect
 import os
 import warnings
 import itertools
+import tempfile
 
 import numpy as np
 import numpy.linalg as npla
@@ -448,11 +449,15 @@ class BaseModel(DWI):
                          sub_sample=sub_sample,
                          verbose=verbose)
 
-        # Introspect to figure out what name the current class has:
-        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
-        self.params_file = params_file_resolver(self,
-                                                this_class,
-                                                params_file=params_file)
+        # Sometimes you might want to not store the params in a file: 
+        if params_file == 'temp':
+            self.params_file=tempfile.NamedTemporaryFile().name
+        else:
+            # Introspect to figure out what name the current class has:
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            self.params_file = params_file_resolver(self,
+                                                    this_class,
+                                                    params_file=params_file)
 
 
     @desc.auto_attr
@@ -597,7 +602,6 @@ def overfitting_index(model1, model2):
     RMSE of the model compared to the fit data (or learning set), relative to
     the RMSE of the model on another data set (or testing set)
     """
-    out = ozu.nans(model1.shape[:-1])    
     sig1 = model1.signal[model1.mask]
     sig2 = model2.signal[model2.mask]
     fit1 = model1.fit[model1.mask]
@@ -609,10 +613,11 @@ def overfitting_index(model1, model2):
     rmse_test1 = ozu.rmse(fit1, sig2)
     rmse_test2 = ozu.rmse(fit2, sig1)
 
-    rmse_ratio1 = rmse_train1/rmse_test1
-    rmse_ratio2 = rmse_train2/rmse_test2
+    rmse_ratio1 = rmse_test1/rmse_train1
+    rmse_ratio2 = rmse_test2/rmse_train2
 
-    out[model1.mask] = (rmse_ratio1 + rmse_ratio2)/2
+    out = ozu.nans(model1.shape[:-1])    
+    out[model1.mask] = (rmse_ratio1 + rmse_ratio2)/2.
 
     return out
     
@@ -1195,7 +1200,7 @@ class SphericalHarmonicsModel(BaseModel):
         """
                 
         # Convert to spherical coordinates:
-        r,theta,phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
+        r, theta, phi = geo.cart2sphere(self.bvecs[0, self.b_idx],
                                       self.bvecs[1, self.b_idx],
                                       self.bvecs[2, self.b_idx])
         
@@ -2131,7 +2136,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
         according to the order we will use them in fitting
         """
         # Use stdlib magic to make the indices into the basis set: 
-        pre_idx = itertools.combinations(range(len(self.b_idx)),
+        pre_idx = itertools.combinations(range(self.rot_vecs.shape[-1]),
                                          self.n_canonicals)
 
         # Generate all of them and store, so you know where you stand
@@ -2413,8 +2418,8 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                 w = flat_params[vox,1:1+self.n_canonicals]
                 idx = np.array(idx)[np.argsort(w)]
                 ang = np.rad2deg(ozu.vector_angle(
-                    self.bvecs[:,self.b_idx].T[idx[-1]],
-                    self.bvecs[:,self.b_idx].T[idx[-2]]))
+                    self.rot_vecs.T[idx[-1]],
+                    self.rot_vecs.T[idx[-2]]))
 
                 ang = np.min([ang, 180-ang])
                 
