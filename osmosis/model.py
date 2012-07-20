@@ -451,7 +451,7 @@ class BaseModel(DWI):
 
         # Sometimes you might want to not store the params in a file: 
         if params_file == 'temp':
-            self.params_file=tempfile.NamedTemporaryFile().name
+            self.params_file='temp'
         else:
             # Introspect to figure out what name the current class has:
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
@@ -837,7 +837,9 @@ class TensorModel(BaseModel):
             
             # Save the params for future use: 
             params_ni = ni.Nifti1Image(block, self.affine)
-            params_ni.to_filename(self.params_file)
+            # If we asked it to be temporary, no need to save anywhere: 
+            if self.params_file != 'temp':
+                params_ni.to_filename(self.params_file)
             # And return the params for current use:
             return block
 
@@ -1706,9 +1708,10 @@ class CanonicalTensorModel(BaseModel):
             out_params = ozu.nans(self.signal.shape[:3] + (3,))
             out_params[self.mask] = np.array(params).squeeze()
             params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
+            if self.params_file != 'temp':
+                if self.verbose:
+                    print("Saving params to file: %s"%self.params_file)
+                    params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
@@ -2282,9 +2285,10 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
                                         (params.shape[-1],))
             out_params[self.mask] = np.array(params).squeeze()
             params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
+            if self.params_file != 'temp':
+                if self.verbose:
+                    print("Saving params to file: %s"%self.params_file)
+                params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
@@ -3368,9 +3372,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             out_params[self.mask] = params
             # Save the params to a file: 
             params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
+            if self.params_file != 'temp':
+                if self.verbose:
+                    print("Saving params to file: %s"%self.params_file)
+                params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
@@ -3575,9 +3580,10 @@ class SparseKernelModel(BaseModel):
             out_params = ozu.nans(self.signal.shape[:3] + (self.quad_points+1,))
             out_params[self.mask] = out_flat
             params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.verbose:
-                print("Saving params to file: %s"%self.params_file)
-            params_ni.to_filename(self.params_file)
+            if self.params_file != 'temp':
+                if self.verbose:
+                    print("Saving params to file: %s"%self.params_file)
+                params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
