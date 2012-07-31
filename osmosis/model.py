@@ -3602,11 +3602,11 @@ class SparseKernelModel(BaseModel):
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
 
-            # Save the params for future use: 
             out_params = ozu.nans(self.signal.shape[:3] + (self.quad_points+1,))
             out_params[self.mask] = out_flat
-            params_ni = ni.Nifti1Image(out_params, self.affine)
             if self.params_file != 'temp':
+                # Save the params for future use: 
+                params_ni = ni.Nifti1Image(out_params, self.affine)
                 if self.verbose:
                     print("Saving params to file: %s"%self.params_file)
                 params_ni.to_filename(self.params_file)
