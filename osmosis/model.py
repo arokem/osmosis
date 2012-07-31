@@ -613,11 +613,15 @@ def overfitting_index(model1, model2):
     rmse_test1 = ozu.rmse(fit1, sig2)
     rmse_test2 = ozu.rmse(fit2, sig1)
 
-    rmse_ratio1 = rmse_test1/rmse_train1
-    rmse_ratio2 = rmse_test2/rmse_train2
+    fit_rmse = (rmse_train1 + rmse_train2) / 2.
+    predict_rmse = (rmse_test1 + rmse_test2) /2. 
 
+    # The measure is a contrast index of the error on the training data vs. the
+    # error on the testing data:
+    overfit = (fit_rmse - predict_rmse) / (fit_rmse + predict_rmse) 
+    
     out = ozu.nans(model1.shape[:-1])    
-    out[model1.mask] = (rmse_ratio1 + rmse_ratio2)/2.
+    out[model1.mask] = overfit
 
     return out
     
@@ -649,6 +653,28 @@ def relative_mae(model1, model2):
     return out
 
 
+def rsquared(model1, model2):
+    """
+
+    Compare two models by way of R squared. In this case, for each voxel in the
+    mask, average the r squared from model1 prediction to model2 signal and
+    vice versa.
+    """
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    out_flat = np.empty(fit1.shape[0])
+    
+    for vox in range(fit1.shape[0]):
+        out_flat[vox] = np.mean([np.corrcoef(fit1[vox], sig2[vox])[0,1],
+                                 np.corrcoef(fit2[vox], sig1[vox])[0,1]])
+        
+    out = ozu.nans(model1.shape[:-1])
+
+    out[model1.mask] = out_flat
+    return out
     
 
 def relative_rmse(model1, model2):
