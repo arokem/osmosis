@@ -787,7 +787,8 @@ class TensorModel(BaseModel):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
-                 verbose=True):
+                 verbose=True,
+                 fit_method='WLS'):
         """
         Parameters
         -----------
@@ -817,7 +818,11 @@ class TensorModel(BaseModel):
         params_file: A file to cache the initial tensor calculation in. If this
         file already exists, we pull the tensor fit out of it. Otherwise, we
         calculate the tensor fit and save this file with the params of the
-        tensor fit. 
+        tensor fit.
+
+        fit_method: str
+           'WLS' for weighted least squares fitting (default) or 'LS'/'OLS' for
+           ordinary least squares.
         
         """
         # Initialize the super-class:
@@ -831,6 +836,12 @@ class TensorModel(BaseModel):
                            sub_sample=sub_sample,
                            params_file=params_file,
                            verbose=verbose) 
+
+        # Allow using 'OLS' to denote the ordinary least-squares method
+        if fit_method=='OLS':
+            fit_method = 'LS'
+        
+        self.fit_method = fit_method
         
     @desc.auto_attr
     def model_params(self):
@@ -843,19 +854,20 @@ class TensorModel(BaseModel):
         evecs (9) + evals (3)
         
         """
+        block = ozu.nans(self.shape[:3] + (12,))
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
                 print("Loading TensorModel params from: %s" %self.params_file)
-            return ni.load(self.params_file).get_data()
+            block[self.mask] = ni.load(self.params_file).get_data()[self.mask]
         else:
             if self.verbose:
                 print("Fitting TensorModel params using dipy")
-            block = ozu.nans(self.shape[:3] + (12,))
             mp = dti.Tensor(self.data,
                             self.bvals,
                             self.bvecs.T,
-                            self.mask).model_params 
+                            self.mask,
+                            fit_method=self.fit_method).model_params 
 
             # Make sure it has the right shape (this is necessary because dipy
             # reshapes things under the hood with its masked interface):
@@ -866,8 +878,8 @@ class TensorModel(BaseModel):
             # If we asked it to be temporary, no need to save anywhere: 
             if self.params_file != 'temp':
                 params_ni.to_filename(self.params_file)
-            # And return the params for current use:
-            return block
+        # And return the params for current use:
+        return block
 
     @desc.auto_attr
     def evecs(self):
@@ -3289,8 +3301,7 @@ class FiberModel(BaseModel):
         # removed prior to fitting:
         
         return np.array(self._fiber_fit + self._iso_fit).squeeze()
-               
-                
+
 class SparseDeconvolutionModel(CanonicalTensorModel):
     """
     Use the lasso to do spherical deconvolution with a canonical tensor basis
@@ -3331,11 +3342,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                                       mode=mode,
                                       verbose=verbose)
         
-        # For now, the default is Lasso:
+        # For now, the default is ElasticNet:
         if solver is None:
-            self.solver = 'Lasso'
+            self.solver = sklearn_solvers['ElasticNet']
         else:
-            self.solver = solver
+            self.solver = sklearn_solvers[solver]
 
         self.params_file = params_file_resolver(self,
                                     'SparseDeconvolutionModel%s'%self.solver,
@@ -3344,7 +3355,25 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
         # This will be passed as kwarg to the solver initialization:
         if solver_params is None:
-            self.solver_params = dict(alpha=0.01)
+            """
+            If you are interested in controlling the L1 and L2 penalty
+            separately, keep in mind that this is equivalent to::
+
+                a * L1 + b * L2
+
+            where::
+
+                alpha = a + b and rho = a / (a + b)
+            """
+            # Taken from Stefan:
+            a = 0.0001
+            b = 0.00001
+            alpha = a + b
+            rho = a/(a+b)
+            self.solver_params = dict(alpha=alpha,
+                                      rho=rho,
+                                      fit_intercept=True,
+                                      positive=True)
         else:
             self.solver_params = solver_params
 
@@ -3384,10 +3413,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             # One basis function per column (instead of rows):
             design_matrix = design_matrix.T
             
+            # Reuse the same solver again and again:
+            solver = self.solver(**self.solver_params)
+            
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
-                solver = Lasso(**self.solver_params)
                 params[vox] = solver.fit(design_matrix, sig).coef_
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
@@ -3432,9 +3463,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
 
             # Fit scale and offset:
-            a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
-            out_flat[vox] = a*this_pred_sig + b
-
+            #a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
+            # out_flat[vox] = a*this_pred_sig + b
+            out_flat[vox] = this_pred_sig 
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
 
