@@ -16,6 +16,7 @@ except ImportError:
 
 try:
     from mayavi import mlab as maya
+    from mayavi.api import Engine
     have_maya = True
 except ImportError:
     have_maya = False
@@ -684,6 +685,53 @@ def plot_ellipsoid_mpl(Tensor, n=60):
     return fig
 
 
+def _display_maya(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
+                   colorbar=False, figure=None, vmin=None, vmax=None,
+                   file_name=None):
+    
+    if figure is None: 
+        engine = Engine()
+        engine.start()
+        # Adding the engine to a figure will subsequently give you control
+        # through the mayavi GUI:
+        figure = maya.figure(engine)    
+    
+    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
+                              colormap=cmap, figure=figure)
+    if colorbar:
+        maya.colorbar(tm, orientation='vertical')
+
+    scene = figure.scene
+    scene.background = (1,1,1)
+
+    # Set it to be aligned along the negative dimension of the y axis: 
+    scene.y_minus_view()
+
+    # Take care of the color-map:
+    if vmin is None:
+        vmin = np.min(v)
+    if vmax is None:
+        vmax = np.max(v)
+
+    scene.parallel_projection=True
+    
+    poly_data_normals = engine.scenes[0].children[0].children[0]
+    poly_data_normals.filter.feature_angle = 80 # Extra smooth
+    module_manager = poly_data_normals.children[0]
+    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
+    module_manager.scalar_lut_manager.number_of_labels = 6
+
+    # Take care of the lighting:
+    scene.light_manager.light_mode = 'vtk'
+
+    
+    scene.render()
+    if file_name is not None:
+        scene.save(file_name)
+    engine.stop()
+    return figure
+
+
 def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None):
 
@@ -695,12 +743,6 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     if not have_maya:
         e_s = "You can't use this function, unless you have mayavi installed" 
         raise ValueError(e_s)
-
-    from mayavi.api import Engine
-    # Tweak it: 
-    engine = Engine()
-    engine.start()
-
     
     Q = Tensor.Q
     sphere = create_unit_sphere(5)
@@ -722,45 +764,12 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
 
-    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=v,
-                         colormap=cmap)
-    if colorbar:
-        maya.colorbar(tm, orientation='vertical')
-
-    #maya.xlabel('')
-    #maya.ylabel('')
-    #maya.zlabel('')
-
-    scene = engine.scenes[0]
-    scene.scene.background = (0.7529411764705882,
-                              0.7529411764705882,
-                              0.7529411764705882)
-
-    # Set it to be aligned along the positive dimension of the y axis (similar
-    # to the ortho projection plots). 
-    scene.scene.y_plus_view()
-
-    # Take care of the color-map:
-    if vmin is None:
-        vmin = np.min(v)
-    if vmax is None:
-        vmax = np.max(v)
-        
-    module_manager = engine.scenes[0].children[0].children[0].children[0]
-    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
-    module_manager.scalar_lut_manager.number_of_labels = 6
-
-    # Take care of the lighting:
-    scene.scene.light_manager.light_mode = 'vtk'
-
+    # Call and return straightaway:
+    return _display_maya(x_plot, y_plot, z_plot, faces, v, cmap=cmap,
+                         colorbar=colorbar, figure=None, vmin=vmin, vmax=vmax,
+                         file_name=file_name)
     
-    scene.scene.render()
-    
-    if file_name is not None:
-        scene.scene.save(file_name)
 
-    engine.stop()
-    return scene
 
 def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None):
@@ -781,12 +790,6 @@ def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
         e_s = "You can't use this function, unless you have mayavi installed" 
         raise ValueError(e_s)
 
-    from mayavi.api import Engine
-    # Tweak it: 
-    engine = Engine()
-    engine.start()
-
-    
     s0 = Sphere(xyz=bvecs.T)
     s1 = create_unit_sphere(6)
 
@@ -799,43 +802,8 @@ def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
 
-    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces,
-                              scalars=interp_signal,
-                              colormap=cmap)
-    if colorbar:
-        maya.colorbar(tm, orientation='vertical')
-
-    #maya.xlabel('')
-    #maya.ylabel('')
-    #maya.zlabel('')
-
-    scene = engine.scenes[0]
-    scene.scene.background = (0.7529411764705882,
-                              0.7529411764705882,
-                              0.7529411764705882)
-
-    # Set it to be aligned along the positive dimension of the y axis (similar
-    # to the ortho projection plots). 
-    scene.scene.y_plus_view()
-
-    # Take care of the color-map:
-    if vmin is None:
-        vmin = np.min(v)
-    if vmax is None:
-        vmax = np.max(v)
-        
-    module_manager = engine.scenes[0].children[0].children[0].children[0]
-    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
-    module_manager.scalar_lut_manager.number_of_labels = 6
-
-    # Take care of the lighting:
-    scene.scene.light_manager.light_mode = 'vtk'
-
     
-    scene.scene.render()
-    
-    if file_name is not None:
-        scene.scene.save(file_name)
-
-    engine.stop()
-    return scene
+    # Call and return straightaway:
+    return _display_maya(x_plot, y_plot, z_plot, faces, interp_signal,
+                         cmap=cmap, colorbar=colorbar, figure=figure,
+                         vmin=vmin, vmax=vmax, file_name=file_name)
