@@ -3461,7 +3461,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_relative = (np.dot(flat_params[vox], design_matrix) + 
+            this_relative = (np.dot(flat_params[vox], design_matrix.T) +
                             np.mean(fit_to.T[vox]))
             if self.mode == 'relative_signal' or self.mode=='normalize':
                 this_pred_sig = this_relative * self._flat_S0[vox]
