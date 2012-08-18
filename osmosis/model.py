@@ -3461,7 +3461,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_relative = (np.dot(flat_params[vox], design_matrix.T) +
+            this_relative = (np.dot(flat_params[vox], design_matrix.T) + 
                             np.mean(fit_to.T[vox]))
             if self.mode == 'relative_signal' or self.mode=='normalize':
                 this_pred_sig = this_relative * self._flat_S0[vox]
@@ -3783,7 +3783,7 @@ class SphericalKernelModel(BaseModel):
     This model predicts the signal in any point on the sphere by averaging the
     nearest neighbors to that point. Averaging the signal is based on a
     spherical analogue of a Gaussian function and cross-validation is used in
-    every voxel to estimate the value of this single model parameter.
+    every voxel to estimate the value of this single model parameter. 
 
     """
     def __init__(self,
@@ -3795,7 +3795,7 @@ class SphericalKernelModel(BaseModel):
                  mask=None,
                  scaling_factor=SCALE_FACTOR):
 
-
+        
         # Initialize the super-class:
         BaseModel.__init__(self,
                            data,
@@ -3812,13 +3812,13 @@ class SphericalKernelModel(BaseModel):
         """
         The model params here are a single number per voxel, referring to the
         width of the Gaussian that you would need to employ to predict the
-        signal.
+        signal. 
         """
         pass
-
+        
 
     def fit(self):
         """
-
+        
         """
         pass
