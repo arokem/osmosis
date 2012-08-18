@@ -34,7 +34,7 @@ try:
     # And the dense version:
     from sklearn.linear_model import Lasso, LassoCV
     # Get other stuff from sklearn.linear_model:
-    from sklearn.linear_model import ElasticNet, Lars, Ridge
+    from sklearn.linear_model import ElasticNet, Lars, Ridge, ElasticNetCV
     # Get OMP:
     from sklearn.linear_model.omp import OrthogonalMatchingPursuit as OMP
      
@@ -44,6 +44,7 @@ try:
     sklearn_solvers = dict(Lasso=Lasso,
                            OMP=OMP,
                            ElasticNet=ElasticNet,
+                           ElasticNetCV=ElasticNetCV,
                            Lars=Lars)
 
 except ImportError:
