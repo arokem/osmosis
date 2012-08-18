@@ -64,6 +64,7 @@ from dipy.core.triangle_subdivide import create_half_unit_sphere
 from dipy.reconst.recspeed import local_maxima
 import nibabel as ni
 
+import osmosis as oz
 import osmosis.sgd as sgd
 import osmosis.descriptors as desc
 import osmosis.fibers as ozf
@@ -1532,8 +1533,12 @@ class CanonicalTensorModel(BaseModel):
                 verts, faces = dpd.get_sphere('symmetric%s'%over_sample)
                 # Their convention is transposed relative to ours:
                 self.rot_vecs = verts.T
-            elif over_sample<=150 or over_sample in [246,755]:
+            elif (isinstance(over_sample, int) and (over_sample<=150 or
+                                                    over_sample in [246,755])):
                 self.rot_vecs = ozu.get_camino_pts(over_sample)
+            elif over_sample== 'quad132':
+                pp = os.path.split(oz.__file__)[0]+'/data/SparseKernelModel/'
+                self.rot_vecs = np.loadtxt(pp + 'qsph1-16-132DP.dat')[:,:-1].T
             else:
                 e_s = "You asked to sample the sphere in %s"%over_sample
                 e_s += " different directions. Can only do that for n<=150"
@@ -3596,10 +3601,12 @@ class SparseKernelModel(BaseModel):
     @desc.auto_attr
     def _km(self):
         return self.kernel_model.SparseKernelModel(self.bvals[self.b_idx],
-                                              self.bvecs[:,self.b_idx].T,
-                                              sh_order=self.sh_order,
-                                              qp=self.quad_points,
-                                              loglog_tf=False)
+                                                   self.bvecs[:,self.b_idx].T,
+                                                   sh_order=self.sh_order,
+                                                   qp=self.quad_points,
+                                                   loglog_tf=False,
+                                                   alpha=self.alpha,
+                                                   beta=self.beta)
 
     
     @desc.auto_attr
