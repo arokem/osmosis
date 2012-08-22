@@ -118,6 +118,8 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                             bvals1,
                                             axial_diffusivity=AD1,
                                             radial_diffusivity=RD1,
+                                            params_file=(file_root[0] +
+                                            'SparseDeconvolutionModel.nii.gz'),
                                             mask=brain_mask)
 
     SparseDeconvolutionModel2 = ozm.SparseDeconvolutionModel(dwi2,
@@ -125,6 +127,8 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                                             bvals2,
                                             axial_diffusivity=AD2,
                                             radial_diffusivity=RD2,
+                                            params_file=(file_root[0] +
+                                            'SparseDeconvolutionModel.nii.gz'),
                                             mask=brain_mask)
 
     SphereModel1 = ozm.SphereModel(dwi1,
@@ -153,17 +157,17 @@ for bval_idx, bval in enumerate([1000, 2000, 4000]):
                          ])
 
 
-    # Compute the relative MAE for each model: 
-    relative_mae = []
+    # Compute the relative RMSE for each model: 
+    relative_rmse = []
     for Model1,Model2,model_name in ModelFest:      
-        mae_file_name = '%s%s_relative_mae_b%s.nii.gz'%(data_path,
+        rmse_file_name = '%s%s_relative_rmse_b%s.nii.gz'%(data_path,
                                                           model_name,
                                                           bval)
         # Only do this if you have to:
-        if not os.path.isfile(mae_file_name):
-            relative_mae = ozm.relative_mae(Model1, Model2)
-            io.nii_from_volume(relative_mae,
-                               mae_file_name,
+        if not os.path.isfile(rmse_file_name):
+            relative_rmse = ozm.relative_rmse(Model1, Model2)
+            io.nii_from_volume(relative_rmse,
+                               rmse_file_name,
                                ni.load(dwi1).get_affine())
         
 

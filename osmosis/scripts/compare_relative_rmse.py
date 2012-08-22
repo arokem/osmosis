@@ -131,7 +131,8 @@ for model_name in model_names:
                                         fig=fig_hist, bins=100,
                                         label='b=%s'%bval)
         
-        ax_hist.set_xlim([0,4])
+        ax_hist.set_xlim([0.5,1.5])
+        ax_hist.plot([1,1],[0,8], 'k--')
         ax_hist.set_xlabel(r'$\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$')
         ax_hist.set_ylabel(r'$P(\frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}$)')
 
