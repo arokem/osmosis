@@ -15,9 +15,9 @@ def test_sgd():
     X = np.random.randn(1000,10)
 
     y = np.dot(X, beta)
-    beta_hat = sgd(y,X, plot=False)
+    beta_hat = sgd(y,X, plot=False, lamda=0)
 
-    beta_hat_sparse = sgd(y, sps.csr_matrix(X), plot=False)
+    beta_hat_sparse = sgd(y, sps.csr_matrix(X), plot=False, lamda=0)
 
     # We should be able to get back the right answer for this simple case
     npt.assert_array_almost_equal(beta, beta_hat, decimal=1)

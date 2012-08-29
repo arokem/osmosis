@@ -25,7 +25,9 @@ def stochastic_gradient_descent(y, X, momentum=0,
                                 max_error_checks=10,
                                 converge_on_r=0.2,
                                 verbose=True,
-                                plot=True):
+                                plot=True,
+                                lamda=0,
+                                alpha=0.5):
     """
 
     Solve y=Xh for h, using a stochastic gradient descent.
@@ -69,6 +71,8 @@ def stochastic_gradient_descent(y, X, momentum=0,
        Whether to display information in each iteration
 
     plot: whether to generate a plot of the progression of the optimization
+
+    lamda, alpha: ElasticNet params
     
     Returns
     -------
@@ -111,7 +115,11 @@ def stochastic_gradient_descent(y, X, momentum=0,
             # The sum of squared error given the current parameter setting: 
             sse = np.sum((y - spdot(X,h))**2)
             # The gradient is (Kay 2008 supplemental page 27): 
-            gradient = (spdot(X0.T, spdot(X0,h) - y0)) + momentum*gradient
+            gradient = ((spdot(X0.T, spdot(X0,h) - y0))
+                        +
+                        lamda *((1-alpha) + alpha * h)
+                       )
+            gradient += momentum*gradient
             # Normalize to unit-length
             unit_length_gradient = gradient / np.sqrt(np.dot(gradient, gradient))
             # Update the parameters in the direction of the gradient:
@@ -124,7 +132,9 @@ def stochastic_gradient_descent(y, X, momentum=0,
         # Every once in a while check whether it's converged:
         if np.mod(iteration, check_error_iter):
             # This calculates the sum of squared residuals at this point:
-            ss_residuals.append(np.sum(np.power(y - spdot(X,h), 2)))
+            ss_residuals.append(np.sum(np.power(y - spdot(X,h), 2)) +
+                                lamda * (alpha*np.sum(h**2) +
+                                         (1-alpha)*np.sum(h)))
             rsq_est = rsq(ss_residuals[-1], ss_residuals_to_mean)
             if verbose:
                 print("Itn #:%03d | SSE: %.1f | R2=%.1f "%
