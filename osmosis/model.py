@@ -1278,16 +1278,9 @@ class SphericalHarmonicsModel(BaseModel):
         convolved with a "response function", a canonical tensor, to calculate
         back the estimated signal. 
         """
-        volshape = self.model_coeffs.shape[:3] # Disregarding the params
-                                               # dimension
-        n_vox = np.sum(self.mask) # These are the voxels we'll look at
-        n_weights = self.model_coeffs.shape[3]  # This is the params dimension 
-        # Reshape it so that we can multiply for all voxels in one fell swoop:
-        d = np.reshape(self.model_coeffs[self.mask], (n_vox, n_weights))
         out = np.empty(self.signal.shape)
-
         # multiply these two matrices together for the estimated odf:  
-        out[self.mask] = np.dot(d, self.sph_harm_set)
+        out[self.mask] = np.dot(self.model_coeffs[self.mask], self.sph_harm_set)
 
         return out 
     
@@ -3523,10 +3516,40 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
             
         return out
-
-        
     
+    def quantitative_anisotropy(self, Np):
+        """
 
+        Return the relative size and indices of the Np major peaks in the ODF
+        
+        """
+        if self.verbose:
+            print("Calculating quantitative anisotropy:")
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+
+        # Allocate space for Np QA values and indices in the entire volume:
+        qa_flat = np.zeros((self._flat_signal.shape[0], Np))
+        inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
+        
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(flat_params.shape[0]):
+            this_params = flat_params[vox]
+            ii = np.argsort(this_params)[::-1]  # From largest to smallest
+            inds_flat[vox] = ii[:Np]
+            qa_flat[vox] = (this_params/np.sum(this_params))[inds_flat[vox]] 
+
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
+
+        qa = np.zeros(self.signal.shape[:3] + (Np,))
+        qa[self.mask] = qa_flat
+        inds = np.zeros(qa.shape)
+        inds[self.mask] = inds_flat
+        return qa, inds
+    
 class SphereModel(BaseModel):
     """
     This is a very simple model, where for each direction we predict the
@@ -3576,6 +3599,8 @@ class SparseKernelModel(BaseModel):
                  sh_order=8,
                  quad_points=132,
                  verts_level=5,
+                 alpha=None,
+                 rho=None,
                  params_file=None,
                  affine=None,
                  mask=None,
@@ -3598,6 +3623,18 @@ class SparseKernelModel(BaseModel):
         self.kernel_model = kernel_model
         self.verts_level = verts_level
 
+        # Set the sparseness params.
+        # First, for the default values:
+        aa = 0.0001  # L1 weight
+        bb = 0.00001 # L2 weight
+        if alpha is None:
+            alpha = aa + bb
+        if rho is None: 
+            rho = aa/(aa + bb)
+
+        self.alpha = alpha
+        self.rho = rho
+            
     @desc.auto_attr
     def _km(self):
         return self.kernel_model.SparseKernelModel(self.bvals[self.b_idx],
@@ -3605,8 +3642,9 @@ class SparseKernelModel(BaseModel):
                                                    sh_order=self.sh_order,
                                                    qp=self.quad_points,
                                                    loglog_tf=False,
-                                                   alpha=self.alpha,
-                                                   beta=self.beta)
+                                                   #alpha=self.alpha,
+                                                   #rho=self.rho
+                                                   )
 
     
     @desc.auto_attr
