@@ -829,7 +829,8 @@ def plot_cut_planes(vol,
                     vmax=None,
                     figure=None,
                     view_azim=45.0,
-                    view_elev=45.0):
+                    view_elev=45.0,
+                    file_name=None):
     """
     Display cut planes into a volume
 
@@ -922,16 +923,22 @@ def plot_cut_planes(vol,
             lut[0, -1] = 0
             module_manager.scalar_lut_manager.lut.table = lut
 
-    module_manager.scalar_lut_manager.show_scalar_bar = True
-    module_manager.scalar_lut_manager.show_legend = True
-    module_manager.scalar_lut_manager.scalar_bar.number_of_labels = 5
-    module_manager.scalar_lut_manager.number_of_labels = 5
-    module_manager.scalar_lut_manager.scalar_bar.title = ''
-
-    scene.scene.camera.clipping_range = [170, 480]
-    scene.scene.camera.position = [297, 150, 190]
+   # module_manager.scalar_lut_manager.show_scalar_bar = True
+   # module_manager.scalar_lut_manager.show_legend = True
+   # module_manager.scalar_lut_manager.scalar_bar.number_of_labels = 5
+   # module_manager.scalar_lut_manager.number_of_labels = 5
+   # module_manager.scalar_lut_manager.scalar_bar.title = ''
+   # module_manager.scalar_lut_manager.scalar_bar_representation.position = np.array([1,0])
+    #scene.scene.camera.clipping_range = [170, 480]
+    #scene.scene.camera.position = [297, 150, 190]
 
     maya.view(view_azim, view_elev)
+
+    scene.render()
+    
+    scene = figure.scene
+    if file_name is not None:
+        scene.save(file_name)
 
     return figure, engine
     
