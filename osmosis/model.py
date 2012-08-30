@@ -725,6 +725,42 @@ def relative_rmse(model1, model2):
 
     return out
 
+def pdd_reliability(model1, model2):
+    """
+
+    Compute the angle between the first PDD in two models.
+
+    Parameters
+    ----------
+    model1, model2: two objects from a class inherited from BaseModel.
+       Must implement an auto_attr class method 'principal_diffusion_direction',
+       which returns arrays of 3-vectors representing a direction in three space
+       which is the principal diffusion direction in each voxel. Some models
+       will have more than one principal diffusion direction in each voxel. In
+       that case, the first direction in each voxel will be used to represent
+       that voxel. 
+    
+    """
+    vol_shape = model1.shape[:3]
+    pdd1 = model1.principal_diffusion_direction[model1.mask]
+    pdd2 = model2.principal_diffusion_direction[model2.mask]
+
+    # Some models create not only the first PDD, but subsequent directions as
+    # well, so If we have a lot of PDD, we take only the first one: 
+    if len(pdd1.shape) == 3:
+        pdd1 = pdd1[:, 0]
+    if len(pdd2.shape) == 3:
+        pdd2 = pdd2[:, 0]
+
+    out_flat = np.empty(pdd1.shape[0])    
+    for vox in range(pdd1.shape[0]):
+        this_ang = np.rad2deg(ozu.vector_angle(pdd1[vox], pdd2[vox]))
+        out_flat[vox] = np.min([this_ang, 180-this_ang])
+
+    out = ozu.nans(vol_shape)
+    out[model1.mask] = out_flat
+    return out
+
 # The following is a pattern used by many different classes, so we encapsulate
 # it in one general function that everyone can use (DRY!):
 def params_file_resolver(object, file_name_root, params_file=None):
@@ -3347,9 +3383,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         else:
             self.solver = sklearn_solvers[solver]
 
+        
+        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
         self.params_file = params_file_resolver(self,
-                                    'SparseDeconvolutionModel%s'%self.solver,
-                                             params_file)
+                                                this_class,
+                                                params_file=params_file)
 
 
         # This will be passed as kwarg to the solver initialization:
