@@ -417,7 +417,7 @@ def coeff_of_determination(data, model, axis=-1):
     residuals = data - model
     ss_err = np.sum(residuals ** 2, axis=axis)
 
-    demeaned_data = data - np.mean(data,-1)[...,np.newaxis]
+    demeaned_data = data - np.mean(data, axis=axis)[...,np.newaxis]
     ss_tot = np.sum(demeaned_data **2, axis=axis)
 
     # Don't divide by 0:
