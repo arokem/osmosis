@@ -1459,16 +1459,17 @@ class SphericalHarmonicsModel(BaseModel):
     @desc.auto_attr
     def odf_peaks(self):
         """
-        Calculate the value of each of the peaks in the ODF
+        Calculate the value of each of the peaks in the ODF using the dipy
+        peak-finding algorithm
         """
         faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
         odf_flat = self.odf[self.mask]
-        out_flat = ozu.nans(odf_flat.shape)
+        out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
             peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
             out_flat[vox][inds] = peaks 
 
-        out = ozu.nans(self.odf.shape)
+        out = np.zeros(self.odf.shape)
         out[self.mask] = out_flat
         return out
 
@@ -3659,7 +3660,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
 
         return out
-
     
 
     @desc.auto_attr
@@ -3697,14 +3697,23 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
         odf_flat = self.model_params[self.mask]
-        out_flat = ozu.nans(odf_flat.shape)
+        out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
             peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
             out_flat[vox][inds] = peaks 
 
-        out = ozu.nans(self.odf.shape)
+        out = np.zeros(self.model_params.shape)
         out[self.mask] = out_flat
         return out
+
+
+    @desc.auto_attr
+    def n_peaks(self):
+        """
+        How many peaks in the ODF of each voxel
+        """
+        return np.sum(self.odf_peaks > 0, -1)
+
 
     @desc.auto_attr
     def principal_diffusion_direction(self):
@@ -3723,12 +3732,14 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
             
         return out
-    
+
+        
+        
     def quantitative_anisotropy(self, Np):
         """
 
-        Return the relative size and indices of the Np major peaks in the ODF
-        
+        Return the relative size and indices of the Np major param values
+        (canonical tensor) weights  in the ODF 
         """
         if self.verbose:
             print("Calculating quantitative anisotropy:")
