@@ -61,7 +61,9 @@ import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
 from dipy.core.triangle_subdivide import create_half_unit_sphere
-from dipy.reconst.recspeed import local_maxima
+import dipy.reconst.recspeed as recspeed
+import dipy.core.sphere as sphere
+
 import nibabel as ni
 
 import osmosis as oz
@@ -669,7 +671,7 @@ def rsquared(model1, model2):
 
     out_flat = np.empty(fit1.shape[0])
     
-    for vox in range(fit1.shape[0]):
+    for vox in xrange(fit1.shape[0]):
         out_flat[vox] = np.mean([np.corrcoef(fit1[vox], sig2[vox])[0,1],
                                  np.corrcoef(fit2[vox], sig1[vox])[0,1]])
         
@@ -723,6 +725,176 @@ def relative_rmse(model1, model2):
 
     out[model1.mask] = rel_rmse
 
+    return out
+
+def noise_ceiling(model1, model2, n_sims=1000, alpha=0.05):
+    """
+    Calculate the maximal model accuracy possible, given the noise in the
+    signal. This is based on the method described by Kay et al. (in review).
+
+
+    Parameters
+    ----------
+    model1, model2: two objects from a class inherited from BaseModel
+
+    n_sims: int
+       How many simulations of the signal to perform in each voxel.
+
+    alpha:
+
+    Returns
+    -------
+    coeff: The medians of the distributions of simulated signals in each voxel
+    lb, ub: the (1-alpha) confidence interval boundaries on coeff
+
+    Notes
+    -----
+
+    The following is performed on the relative signal ($\frac{S}{S_0}$):
+
+    The idea is that noise in the signal can be computed in each voxel by
+    comparing the signal in each direction as measured in two different
+    measurements. The standard error of measurement for two sample points is
+    calculated as follows. First we calculate the mean: 
+
+    .. math ::
+
+       \bar{x_i} = x_{i,1} + x_{i,2} 
+
+    Where $i$ denotes the direction within the voxel. Next, we can calculate
+    the standard deviation of the noise: 
+
+    .. math::
+
+        \sigma^2_{noise,i} = \frac{(x_{i,1} - \bar{x_i})^2 + (x_{i,2} - \bar{x_i})^2}{2}
+
+    Note that this is also the standard error of the measurement, since it
+    implicity contains the factor of $\sqrt{N-1} = \sqrt{1}$.
+
+    We calculate a mean across directions:
+
+    .. math::
+
+        \sigma_{noise} = \sqrt{mean(\sigma^2_{noise, i})}
+
+    Next, we calculate an estimate of the standard deviation attributable to
+    the signal. This is done by first subtracting the noise variance from the
+    overall data variance, while making sure that this quantity is non-negative
+    and then taking the square root of the resulting quantity:
+    
+    .. math::
+
+        \sigma_{signal} = \sqrt{max(0, np.mean(\sigma{x_1}, sigma{x_2}) - \sigma^2_{noise})}
+
+    Then, we use Monte Carlo simulation to create a signal: to do that, we
+    assume that the signal itself is generated from a Gaussian distribution
+    with the above calculated variance). We add noise to this signal (zero mean
+    Gaussian with variance $\sigma_{noise}) and compute the correlation between
+    the noise-corrupted simulated signal and the noise-free simulated
+    signal. The median of the resulting value over many simulations is the
+    noise ceiling. The 95% central values represent a confidence interval on
+    this value.  
+
+    This is performed over each voxel in the mask.
+
+    """
+    # Extract the relative signal 
+    sig1 = model1.relative_signal[model1.mask]
+    sig2 = model2.relative_signal[model1.mask]
+
+    noise_ceil_flat = np.empty(sig1.shape[0])
+    ub_flat = np.empty(sig1.shape[0])
+    lb_flat = np.empty(sig1.shape[0])
+
+    for vox in xrange(sig1.shape[0]):
+        sigma_noise = np.sqrt(np.mean(np.var([sig1[vox],sig2[vox]],0)))
+        mean_sig_w_noise = np.mean([sig1[vox], sig2[vox]], 0)
+        var_sig_w_noise = np.var(mean_sig_w_noise)
+        sigma_signal = np.sqrt(np.max([0, var_sig_w_noise - sigma_noise**2]))
+        # Create the simulated signal over many iterations:
+        sim_signal = sigma_signal * np.random.randn(sig1[vox].shape[0] * n_sims)
+        sim_signal_w_noise = (sim_signal +
+                    sigma_noise * np.random.randn(sig1[vox].shape[0] * n_sims))
+
+        # Reshape it so that you have n_sims separate simulations of this voxel:
+        sim_signal = np.reshape(sim_signal, (n_sims, -1))
+        sim_signal_w_noise = np.reshape(sim_signal_w_noise, (n_sims, -1))
+        coeffs = ozu.coeff_of_determination(sim_signal_w_noise, sim_signal)
+        sort_coeffs = np.sort(coeffs)
+        lb_flat[vox] = sort_coeffs[alpha/2 * coeffs.shape[-1]]
+        ub_flat[vox] = sort_coeffs[1-alpha/2 * coeffs.shape[-1]]
+        noise_ceil_flat[vox] = np.median(coeffs)
+
+    out_coeffs = ozu.nans(model1.mask.shape)
+    out_ub = ozu.nans(out_coeffs.shape)
+    out_lb = ozu.nans(out_coeffs.shape)
+    
+    out_coeffs[model1.mask] = noise_ceil_flat
+    out_lb[model1.mask] = lb_flat
+    out_ub[model1.mask] = ub_flat
+
+    return out_coeffs, out_lb, out_ub
+        
+def coeff_of_determination(model1, model2):
+    """
+
+    Calculate the voxel-wise coefficient of determination between on model fit
+    and the other model signal, averaged across both ways.
+
+    """
+    out = ozu.nans(model1.shape[:-1])
+    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    fit1 = model1.fit[model1.mask]
+    fit2 = model2.fit[model2.mask]
+
+    fit1_R_sq = ozu.coeff_of_determination(fit1, sig2, axis=-1)
+    fit2_R_sq = ozu.coeff_of_determination(fit2, sig1, axis=-1)
+
+    # Average in each element:
+    fit_R_sq = np.mean([fit1_R_sq, fit2_R_sq],0)
+
+    out[model1.mask] = fit2_R_sq
+
+    return out
+   
+
+
+def pdd_reliability(model1, model2):
+    """
+
+    Compute the angle between the first PDD in two models.
+
+    Parameters
+    ----------
+    model1, model2: two objects from a class inherited from BaseModel.
+       Must implement an auto_attr class method 'principal_diffusion_direction',
+       which returns arrays of 3-vectors representing a direction in three space
+       which is the principal diffusion direction in each voxel. Some models
+       will have more than one principal diffusion direction in each voxel. In
+       that case, the first direction in each voxel will be used to represent
+       that voxel. 
+    
+    """
+    vol_shape = model1.shape[:3]
+    pdd1 = model1.principal_diffusion_direction[model1.mask]
+    pdd2 = model2.principal_diffusion_direction[model2.mask]
+
+    # Some models create not only the first PDD, but subsequent directions as
+    # well, so If we have a lot of PDD, we take only the first one: 
+    if len(pdd1.shape) == 3:
+        pdd1 = pdd1[:, 0]
+    if len(pdd2.shape) == 3:
+        pdd2 = pdd2[:, 0]
+
+    out_flat = np.empty(pdd1.shape[0])    
+    for vox in xrange(pdd1.shape[0]):
+        this_ang = np.rad2deg(ozu.vector_angle(pdd1[vox], pdd2[vox]))
+        out_flat[vox] = np.min([this_ang, 180-this_ang])
+
+    out = ozu.nans(vol_shape)
+    out[model1.mask] = out_flat
     return out
 
 # The following is a pattern used by many different classes, so we encapsulate
@@ -1278,20 +1450,29 @@ class SphericalHarmonicsModel(BaseModel):
         convolved with a "response function", a canonical tensor, to calculate
         back the estimated signal. 
         """
-        volshape = self.model_coeffs.shape[:3] # Disregarding the params
-                                               # dimension
-        n_vox = np.sum(self.mask) # These are the voxels we'll look at
-        n_weights = self.model_coeffs.shape[3]  # This is the params dimension 
-        # Reshape it so that we can multiply for all voxels in one fell swoop:
-        d = np.reshape(self.model_coeffs[self.mask], (n_vox, n_weights))
         out = np.empty(self.signal.shape)
-
         # multiply these two matrices together for the estimated odf:  
-        out[self.mask] = np.dot(d, self.sph_harm_set)
+        out[self.mask] = np.dot(self.model_coeffs[self.mask], self.sph_harm_set)
 
         return out 
-    
 
+    @desc.auto_attr
+    def odf_peaks(self):
+        """
+        Calculate the value of each of the peaks in the ODF
+        """
+        faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
+        odf_flat = self.odf[self.mask]
+        out_flat = ozu.nans(odf_flat.shape)
+        for vox in xrange(odf_flat.shape[0]):
+            peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
+            out_flat[vox][inds] = peaks 
+
+        out = ozu.nans(self.odf.shape)
+        out[self.mask] = out_flat
+        return out
+
+    
     @desc.auto_attr
     def response_function(self):
         """
@@ -1324,7 +1505,7 @@ class SphericalHarmonicsModel(BaseModel):
         pred_sig = np.empty(flat_odf.shape)
 
             
-        for vox in range(pred_sig.shape[0]):
+        for vox in xrange(pred_sig.shape[0]):
             # Predict based on the convolution:
             this_pred_sig = self.response_function.convolve_odf(
                                                     flat_odf[vox],
@@ -1647,7 +1828,7 @@ class CanonicalTensorModel(BaseModel):
 
         iso_regressor, tensor_regressor, fit_to = self.regressors
         
-        for idx in range(ols_weights.shape[0]):
+        for idx in xrange(ols_weights.shape[0]):
             # The 'design matrix':
             d = np.vstack([tensor_regressor[idx], iso_regressor]).T
             # This is $(X' X)^{-1} X':
@@ -1983,7 +2164,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             this_params = (0, 0, np.mean(self.fit_signal[0]),
                            np.mean(self.fit_signal[0]))
 
-        for vox in range(self.fit_signal.shape[0]):
+        for vox in xrange(self.fit_signal.shape[0]):
             # From the second voxel and onwards, we use the end point of the
             # last voxel as the starting point for this voxel:
             start_params = this_params
@@ -2687,7 +2868,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
-        for vox in range(self.calibration_signal.shape[0]):
+        for vox in xrange(self.calibration_signal.shape[0]):
             # Perform the fitting itself:
             #out[vox], ier = leastsqbound(self._err_func,
             #                             self.start_params,
@@ -3354,9 +3535,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         else:
             self.solver = sklearn_solvers[solver]
 
+        
+        this_class = str(self.__class__).split("'")[-2].split('.')[-1]
         self.params_file = params_file_resolver(self,
-                                    'SparseDeconvolutionModel%s'%self.solver,
-                                             params_file)
+                                                this_class,
+                                                params_file=params_file)
 
 
         # This will be passed as kwarg to the solver initialization:
@@ -3507,6 +3690,23 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return out
 
     @desc.auto_attr
+    def odf_peaks(self):
+        """
+        Calculate the value of the peaks in the ODF (in this case, that is
+        defined as the weights on the model params 
+        """
+        faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
+        odf_flat = self.model_params[self.mask]
+        out_flat = ozu.nans(odf_flat.shape)
+        for vox in xrange(odf_flat.shape[0]):
+            peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
+            out_flat[vox][inds] = peaks 
+
+        out = ozu.nans(self.odf.shape)
+        out[self.mask] = out_flat
+        return out
+
+    @desc.auto_attr
     def principal_diffusion_direction(self):
         """
         Gives you not only the principal, but also the 2nd, 3rd, etc
@@ -3523,10 +3723,40 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
             
         return out
-
-        
     
+    def quantitative_anisotropy(self, Np):
+        """
 
+        Return the relative size and indices of the Np major peaks in the ODF
+        
+        """
+        if self.verbose:
+            print("Calculating quantitative anisotropy:")
+            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
+            f_name = this_class + '.' + inspect.stack()[0][3]
+
+
+        # Allocate space for Np QA values and indices in the entire volume:
+        qa_flat = np.zeros((self._flat_signal.shape[0], Np))
+        inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
+        
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(flat_params.shape[0]):
+            this_params = flat_params[vox]
+            ii = np.argsort(this_params)[::-1]  # From largest to smallest
+            inds_flat[vox] = ii[:Np]
+            qa_flat[vox] = (this_params/np.sum(this_params))[inds_flat[vox]] 
+
+            if self.verbose:
+                prog_bar.animate(vox, f_name=f_name)
+
+        qa = np.zeros(self.signal.shape[:3] + (Np,))
+        qa[self.mask] = qa_flat
+        inds = np.zeros(qa.shape)
+        inds[self.mask] = inds_flat
+        return qa, inds
+    
 class SphereModel(BaseModel):
     """
     This is a very simple model, where for each direction we predict the
@@ -3576,6 +3806,8 @@ class SparseKernelModel(BaseModel):
                  sh_order=8,
                  quad_points=132,
                  verts_level=5,
+                 alpha=None,
+                 rho=None,
                  params_file=None,
                  affine=None,
                  mask=None,
@@ -3598,6 +3830,18 @@ class SparseKernelModel(BaseModel):
         self.kernel_model = kernel_model
         self.verts_level = verts_level
 
+        # Set the sparseness params.
+        # First, for the default values:
+        aa = 0.0001  # L1 weight
+        bb = 0.00001 # L2 weight
+        if alpha is None:
+            alpha = aa + bb
+        if rho is None: 
+            rho = aa/(aa + bb)
+
+        self.alpha = alpha
+        self.rho = rho
+            
     @desc.auto_attr
     def _km(self):
         return self.kernel_model.SparseKernelModel(self.bvals[self.b_idx],
@@ -3605,8 +3849,9 @@ class SparseKernelModel(BaseModel):
                                                    sh_order=self.sh_order,
                                                    qp=self.quad_points,
                                                    loglog_tf=False,
-                                                   alpha=self.alpha,
-                                                   beta=self.beta)
+                                                   #alpha=self.alpha,
+                                                   #rho=self.rho
+                                                   )
 
     
     @desc.auto_attr
@@ -3631,7 +3876,7 @@ class SparseKernelModel(BaseModel):
 
             # 1 parameter for each basis function + 1 for the intercept:
             out_flat = np.empty((self._flat_signal.shape[0], self.quad_points+1))
-            for vox in range(out_flat.shape[0]):
+            for vox in xrange(out_flat.shape[0]):
                 this_fit = self._km.fit(self._flat_relative_signal[vox])
                 beta = this_fit.beta
                 intercept = this_fit.intercept
@@ -3750,7 +3995,7 @@ class SparseKernelModel(BaseModel):
             if np.any(np.isnan(flat_odf[vox])):
                 out_flat[vox] = np.nan
             else:
-                p, i = local_maxima(flat_odf[vox], self.odf_verts[1])
+                p, i = recspeed.local_maxima(flat_odf[vox], self.odf_verts[1])
                 mask = p > 0.5 * np.max(p)
                 p = p[mask]
                 i = i[mask]

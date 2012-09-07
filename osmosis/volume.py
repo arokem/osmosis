@@ -2,7 +2,7 @@
 osmosis.volume
 =================
 
-Integration of data from volumes into fiber groups
+Integration of data from volumes and into volumes
 
 
 """
@@ -11,9 +11,8 @@ import os
 import numpy as np
 import nibabel as ni
 
-import osmosis.fibers as mtf
+import osmosis.fibers as ozf
 import osmosis.io as io
-import osmosis.utils as mtu
 
 
 def nii2fg(fg, nii, data_node=0, stat_name=None):
@@ -54,7 +53,7 @@ def nii2fg(fg, nii, data_node=0, stat_name=None):
     if not isinstance(nii, ni.Nifti1Image):
         nii = ni.load(nii)
 
-    if not isinstance(fg, mtf.FiberGroup):
+    if not isinstance(fg, ozf.FiberGroup):
         fg = io.fg_from_pdb(fg)
 
     affine = np.matrix(nii.get_affine()).getI()
@@ -66,7 +65,7 @@ def nii2fg(fg, nii, data_node=0, stat_name=None):
     
     stat_arr = np.empty(fg.n_fibers)
     for f_idx, fib in enumerate(fg.fibers):
-        this_coord = mtu.nearest_coord(data, fib.coords[:, data_node])
+        this_coord = ozu.nearest_coord(data, fib.coords[:, data_node])
         if this_coord is not None:
             stat_arr[f_idx] = data[this_coord]
         else: 
@@ -190,3 +189,4 @@ def resample_volume(source, target):
 
     return ni.Nifti1Image(new_vol, combined_aff)
     
+
