@@ -578,7 +578,6 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
     # Rotate the coordinate system so that you are looking from the north pole:
     bvecs_rot = np.array(np.dot(np.matrix([[0,0,-1],[0,1,0],[1,0,0]]), bvecs))
 
-
     # To get the orthographic projection, when the first coordinate is positive:
     neg_idx = np.where(bvecs_rot[0]>0)
 
@@ -599,6 +598,7 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
 
     if tri:
         m.pcolor(x, y, val, vmin=my_min, vmax=my_max, tri=True, cmap=cmap)
+
     else:
         cmap_data = cmap._segmentdata
         red_interp, blue_interp, green_interp = (
@@ -776,7 +776,7 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     
 
 
-def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
+def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
                         offset=0):
 
@@ -792,29 +792,34 @@ def plot_signal_interp(signal, bvecs, cmap='jet', file_name=None,
     
     """
 
-    if not have_maya:
-        e_s = "You can't use this function, unless you have mayavi installed" 
-        raise ValueError(e_s)
-
     s0 = Sphere(xyz=bvecs.T)
     s1 = create_unit_sphere(6)
 
     interp_signal = interp_rbf(signal, s0, s1)
-
     vertices = s1.vertices
-    faces = s1.faces
-    x,y,z = vertices.T 
-    
-    r, phi, theta = geo.cart2sphere(x,y,z)
-    x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
+    if maya:
+        if not have_maya:
+            e_s = "You can't use this function, unless you have mayavi installed"
+            raise ValueError(e_s)
+        
+        faces = s1.faces
+        x,y,z = vertices.T 
 
-    
-    # Call and return straightaway:
-    return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces,
-                               interp_signal,
-                               cmap=cmap, colorbar=colorbar, figure=figure,
-                               vmin=vmin, vmax=vmax, file_name=file_name)
+        r, phi, theta = geo.cart2sphere(x,y,z)
+        x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
 
+
+        # Call and return straightaway:
+        return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces,
+                                   interp_signal,
+                                   cmap=cmap, colorbar=colorbar, figure=figure,
+                                   vmin=vmin, vmax=vmax, file_name=file_name)
+    else:
+        return sig_on_projection(vertices.T, interp_signal,
+                                 ax=None, vmin=None, vmax=None,
+                                 cmap=matplotlib.cm.hot, cbar=True, tri=False,
+                                 boundary=True)
+    
 
 def plot_cut_planes(vol,
                     overlay=None,
