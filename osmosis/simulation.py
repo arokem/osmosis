@@ -103,11 +103,35 @@ class Voxel(object):
                                                  evecs,
                                                  self.bvecs,
                                                  self.bvals)
-
-            signal += (self.odf.weights[odf_idx] *
-                       this_response.predicted_signal(S0))
+            this_signal = (self.odf.weights[odf_idx] *
+                          this_response.predicted_signal(S0))
+            signal += this_signal
 
         return signal / np.sum(self.odf.weights)
+
+    def adc(self):
+        """
+
+        The ADC in each bvec direction, given the ODF
+
+        """
+        
+        # Initialize to zero:
+        adc = np.zeros(self.bvecs.shape[-1])
+
+        # Decompose the response function to its eigen-decomposition:
+        evals, evecs = self.response_function.decompose
+        # We generate the signal for each one of the fibers in the ODF: 
+        for odf_idx, odf_vec in enumerate(self.odf.bvecs):
+            this_response = ozt.rotate_to_vector(odf_vec,
+                                                 evals,
+                                                 evecs,
+                                                 self.bvecs,
+                                                 self.bvals)
+            this_adc = self.odf.weights[odf_idx] * this_response.ADC
+            adc += this_adc
+
+        return adc / np.sum(self.odf.weights)
 
 
 
