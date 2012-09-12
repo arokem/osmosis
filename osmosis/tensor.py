@@ -257,7 +257,7 @@ def rotate_to_vector(vector, evals, evecs, bvecs, bvals):
     
     """
     e1 = evecs[0]
-    rot_tensor_e = evecs * ozu.calculate_rotation(vector, e1)
+    rot_tensor_e = np.dot(ozu.calculate_rotation(vector, e1), evecs)
     return tensor_from_eigs(rot_tensor_e, evals, bvecs, bvals)
 
     
