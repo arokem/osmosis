@@ -12,6 +12,7 @@ import numpy as np
 import nibabel as ni
 
 import osmosis.fibers as ozf
+import osmosis.utils as ozu
 import osmosis.io as io
 
 
