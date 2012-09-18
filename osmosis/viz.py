@@ -529,7 +529,7 @@ def sph2latlon(theta, phi):
 
 def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
                       cmap=matplotlib.cm.hot, cbar=True, tri=False,
-                      boundary=True, **basemap_args):
+                      boundary=False, **basemap_args):
     
     """Draw a signal on a 2D projection of the sphere.
 
@@ -564,7 +564,7 @@ def sig_on_projection(bvecs, val, ax=None, vmin=None, vmax=None,
     if ax is None: 
         fig, ax = plt.subplots(1)
 
-    basemap_args.setdefault('projection', 'ortho')
+    basemap_args.setdefault('projection', 'hammer')
     basemap_args.setdefault('lat_0', 0)
     basemap_args.setdefault('lon_0', 0)
     basemap_args.setdefault('resolution', 'c')
