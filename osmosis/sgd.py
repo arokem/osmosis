@@ -8,7 +8,6 @@ This is adapted from Kendrick Kay's Matlab SGD code.
 
 import scipy.sparse as sps
 import numpy as np
-import matplotlib.pyplot as plt
 
 # In accordance with the conditions of re-distribution of code written by KNK
 # the following comment appears here:
@@ -167,6 +166,7 @@ def stochastic_gradient_descent(y, X, momentum=0,
                 print("Sum of squared residuals= %.1f"%ss_residuals_min)
 
                 if plot:
+                    import matplotlib.pyplot as plt
                     fig, ax = plt.subplots()
                     ax.plot(ss_residuals)
                     ax.set_xlabel("Iteration #")
