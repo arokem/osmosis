@@ -13,14 +13,6 @@ try:
     have_ipython = True
 except ImportError:
     have_ipython = False
-
-try:
-    from mayavi import mlab as maya
-    import mayavi.tools as maya_tools
-    EM = maya_tools.engine_manager.EngineManager()
-    have_maya = True
-except ImportError:
-    have_maya = False
     
 import matplotlib
 
@@ -745,7 +737,12 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     mode: either "ADC", "ellipse" or "pred_sig"
     """
 
-    if not have_maya:
+    try:
+        from mayavi import mlab as maya
+        import mayavi.tools as maya_tools
+        EM = maya_tools.engine_manager.EngineManager()
+        have_maya = True
+    except ImportError:
         e_s = "You can't use this function, unless you have mayavi installed" 
         raise ValueError(e_s)
     
@@ -797,8 +794,14 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
 
     interp_signal = interp_rbf(signal, s0, s1)
     vertices = s1.vertices
+
     if maya:
-        if not have_maya:
+        try:
+            from mayavi import mlab as maya
+            import mayavi.tools as maya_tools
+            EM = maya_tools.engine_manager.EngineManager()
+            have_maya = True
+        except ImportError:
             e_s = "You can't use this function, unless you have mayavi installed"
             raise ValueError(e_s)
         
@@ -856,7 +859,12 @@ def plot_cut_planes(vol,
     cmap: str, optional
        The name of a mayavi colormap to use (default: 'gray')
     """ 
-    if not have_maya:
+    try:
+        from mayavi import mlab as maya
+        import mayavi.tools as maya_tools
+        EM = maya_tools.engine_manager.EngineManager()
+        have_maya = True
+    except ImportError:
         e_s = "You can't use this function, unless you have mayavi installed" 
         raise ValueError(e_s)
 
