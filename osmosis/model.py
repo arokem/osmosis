@@ -1473,7 +1473,42 @@ class SphericalHarmonicsModel(BaseModel):
         out[self.mask] = out_flat
         return out
 
-    
+    @desc.auto_attr
+    def crossing_index(self):
+        """
+        Calculate an index of crossing in each voxel. This index is an analogue
+        of FA, in that it is a normalized standard deviation between the values
+        of the magnitudes of the peaks, which is then normalized by the
+        standard deviation of the case in which there is only 1 peak with the
+        value '1'.
+        """
+        # Flatten and sort (small => large) 
+        flat_peaks = self.odf_peaks[self.mask]
+        cross_flat = np.empty(flat_peaks.shape[0])
+        for vox in xrange(cross_flat.shape[0]):
+            # Normalize all the peaks by the 2-norm of the vector:
+            peaks_norm = flat_peaks[vox]/np.sqrt(np.dot(flat_peaks[vox],
+                                                        flat_peaks[vox]))
+            non_zero_idx = np.where(peaks_norm>0)[0]
+
+            # Deal with some corner cases - if there is no peak, we define this
+            # to be 0: 
+            if len(non_zero_idx) == 0:
+                cross_flat[vox] = 0
+            # If there's only one peak, we define it to be 1: 
+            elif len(non_zero_idx) == 1:
+                cross_flat[vox] = 1
+            # Otherwise, we need to do some math: 
+            else: 
+                std_peaks = (np.std(peaks_norm[non_zero_idx]))
+                std_norm = np.std(np.hstack([1, np.zeros(len(non_zero_idx)-1)]))
+                cross_flat[vox] = std_peaks/std_norm
+            
+        cross = ozu.nans(self.data.shape[:3])
+        cross[self.mask] = cross_flat
+        return cross
+        
+
     @desc.auto_attr
     def response_function(self):
         """
@@ -1571,6 +1606,8 @@ class SphericalHarmonicsModel(BaseModel):
         out = ozu.nans(self.shape[:3] + (3,))
         out[self.mask] = out_flat
         return out
+
+
 
 
 class CanonicalTensorModel(BaseModel):
@@ -3605,7 +3642,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             
             # Reuse the same solver again and again:
             solver = self.solver(**self.solver_params)
-            
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
