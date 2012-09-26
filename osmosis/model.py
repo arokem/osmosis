@@ -860,7 +860,6 @@ def coeff_of_determination(model1, model2):
     return out
    
 
-
 def pdd_reliability(model1, model2):
     """
 
@@ -896,6 +895,27 @@ def pdd_reliability(model1, model2):
     out = ozu.nans(vol_shape)
     out[model1.mask] = out_flat
     return out
+
+
+def model_params_reliability(model1, model2):
+    """
+    Compute the vector angle between the sets of model params for two model
+    instances in each voxel as a measure of model reliability.
+    """
+    vol_shape = model1.shape[:3]
+
+    mp1 = model1.model_params[model1.mask]
+    mp2 = model2.model_params[model1.mask]
+    
+    out_flat = np.empty(mp1.shape[0])
+    
+    for vox in xrange(out_flat.shape[0]):
+        out_flat[vox]= np.rad2deg(ozu.vector_angle(mp1[vox], mp2[vox]))
+
+    out = ozu.nans(vol_shape)
+    out[model1.mask] = out_flat
+    return out
+    
 
 # The following is a pattern used by many different classes, so we encapsulate
 # it in one general function that everyone can use (DRY!):
@@ -3570,9 +3590,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # For now, the default is ElasticNet:
         if solver is None:
             self.solver = sklearn_solvers['ElasticNet']
-        else:
+        # Assume it's a key into the dict: 
+        elif isinstance(solver, str):
             self.solver = sklearn_solvers[solver]
-
+        # Assume it's a class: 
+        else:
+            self.solver = solver
         
         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
         self.params_file = params_file_resolver(self,
