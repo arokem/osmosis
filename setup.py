@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Setup file for the Python nitime package."""
+"""Setup file for osmosis"""
 
 import os
 import sys
