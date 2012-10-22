@@ -94,27 +94,17 @@ MultiCanonicalTensor model:
  \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix}
 
 
-SparseDeconvolutionModel:
 
-\begin{pmatrix} \frac{S_1}{S_0} - \langle\frac{S}{S_0}\rangle \\ \frac{S_2}{S_0} -
-\langle\frac{S}{S_0}\rangle \\ \vdots \\ \frac{S_n}{S_0} - \langle\frac{S}{S_0}\rangle
- \end{pmatrix} = \begin{pmatrix}
- \frac{T^1_1}{T^1_{max}} - \langle\frac{T^1}{T^1_{max}}\rangle &
- \frac{T^2_1}{T^2_{max}} - \langle\frac{T^2}{T^2_{max}}\rangle &
- \cdots &
- \frac{T^n_1}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
-\\
- \frac{T^1_2}{T^1_{max}} - \langle\frac{T^1}{T^1_{max}}\rangle &
- \frac{T^2_1}{T^2_{max}} - \langle\frac{T^2}{T^2_{max}}\rangle &
- \cdots &
- \frac{T^n_2}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
-\\ \vdots & \vdots & \cdots & \vdots \\
- \frac{T^n_2}{T^1_{max}} - \langle\frac{T^n}{T^1_{max}}\rangle &
- \frac{T^n_1}{T^2_{max}} - \langle\frac{T^n}{T^2_{max}}\rangle &
- \cdots &
- \frac{T^n_n}{T^n_{max}} -  \langle \frac{T^n}{T^n_{max}}\rangle 
-\end{pmatrix}
- \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_n \end{pmatrix}
+SparseDeconvolutionModel (non-normed):
+
+\begin{pmatrix} \frac{S_1}{S_0} - \langle\frac{S}{S_0}\rangle \\
+\frac{S_2}{S_0} - \langle\frac{S}{S_0}\rangle \\ \vdots \\ \frac{S_n}{S_0} -
+\langle\frac{S}{S_0}\rangle \end{pmatrix} = \begin{pmatrix} T^1_1 - \langle T^1
+\rangle & T^2_1 - \langle T^2 \rangle & \cdots & T^m_1 -  \langle T^m \rangle
+\\ T^1_2 - \langle T^1 \rangle &  T^2_2 - \langle T^2 \rangle & \cdots & T^m_2 -
+\langle T^m \rangle  \\ \vdots & \vdots & \cdots & \vdots \\T^1_n - \langle
+T^1 \rangle & T^2_n - \langle T^2 \rangle & \cdots & T^m_n -  \langle T^m
+\rangle \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_m \end{pmatrix}
 
 
  Lasso:
