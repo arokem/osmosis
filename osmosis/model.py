@@ -19,7 +19,7 @@ try:
     import numexpr
     has_numexpr = True
 except ImportError:
-    e_s = "Could not import numexpr. Download and install from: XXX "
+    e_s = "Could not import numexpr. Get it! "
     warnings.warn(e_s)
     has_numexpr = False
     
@@ -631,11 +631,11 @@ def overfitting_index(model1, model2):
     
 def relative_mae(model1, model2):
     """
-    Given two model objects, compate the model fits to signal-to-signal
+    Given two model objects, compare the model fits to signal-to-signal
     reliability in the mean absolute error sense
     """
     # Assume that the last dimension is the signal dimension, so the dimension
-    # across which the rmse will be calculated: 
+    # across which the mae will be calculated: 
     out = ozu.nans(model1.shape[:-1])
     
     sig1 = model1.signal[model1.mask]
@@ -659,10 +659,9 @@ def relative_mae(model1, model2):
 
 def rsquared(model1, model2):
     """
-
-    Compare two models by way of R squared. In this case, for each voxel in the
-    mask, average the r squared from model1 prediction to model2 signal and
-    vice versa.
+    Compare two models by way of the Pearson correlation coefficient. For each
+    voxel in the mask, average the r squared from model1 prediction to model2
+    signal and vice versa.
     """
     sig1 = model1.signal[model1.mask]
     sig2 = model2.signal[model2.mask]
@@ -834,13 +833,13 @@ def noise_ceiling(model1, model2, n_sims=1000, alpha=0.05):
     out_ub[model1.mask] = ub_flat
 
     return out_coeffs, out_lb, out_ub
+
+
         
 def coeff_of_determination(model1, model2):
     """
-
     Calculate the voxel-wise coefficient of determination between on model fit
     and the other model signal, averaged across both ways.
-
     """
     out = ozu.nans(model1.shape[:-1])
     
@@ -1486,7 +1485,7 @@ class SphericalHarmonicsModel(BaseModel):
         odf_flat = self.odf[self.mask]
         out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
-            peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
+            peaks, inds = recspeed.local_maxima(odf_flat[vox], faces)
             out_flat[vox][inds] = peaks 
 
         out = np.zeros(self.odf.shape)
@@ -1628,8 +1627,6 @@ class SphericalHarmonicsModel(BaseModel):
         return out
 
 
-
-
 class CanonicalTensorModel(BaseModel):
     """
     This is a simplified bi-tensor model, where one tensor is constrained to be a
@@ -1769,7 +1766,7 @@ class CanonicalTensorModel(BaseModel):
             # Symmetric spheres from dipy: 
             if over_sample in[362, 642]:
                 # We want to get these vertices:
-                verts, faces = dpd.get_sphere('symmetric%s'%over_sample)
+                verts = dpd.get_sphere('symmetric%s'%over_sample).vertices
                 # Their convention is transposed relative to ours:
                 self.rot_vecs = verts.T
             elif (isinstance(over_sample, int) and (over_sample<=150 or
@@ -3758,7 +3755,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         odf_flat = self.model_params[self.mask]
         out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
-            peaks, inds = recspeed.peak_finding(odf_flat[vox], faces)
+            peaks, inds = recspeed.local_maxima(odf_flat[vox], faces)
             out_flat[vox][inds] = peaks 
 
         out = np.zeros(self.model_params.shape)
