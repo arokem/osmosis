@@ -157,3 +157,19 @@ def test_stejskal_tanner():
     npt.assert_equal(mtt.stejskal_tanner(S0, bvals, ADC), np.diag(st))
 
     
+def test_diffusion_distance():
+    """
+    Test for regression on the calculation of diffusion distance
+    """
+
+    Q1 = np.array([[ 0.53343911,  0.        ,  0.        ],
+                   [ 0.        ,  0.61706389,  0.        ],
+                   [ 0.        ,  0.        ,  0.64934378]])
+
+    bvecs = np.array([[1,0,0],[0,1,0],[0,0,1],[-0.24187,  0.10309, -0.96482]]).T
+    bvals = [1,1,1,1]
+
+    T1 = mtt.Tensor(Q1, bvecs, bvals)
+
+    npt.assert_almost_equal(T1.diffusion_distance,
+                np.array([ 0.73036916,  0.78553414,  0.8058187 ,  0.80052344]))

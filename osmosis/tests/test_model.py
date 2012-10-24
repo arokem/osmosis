@@ -933,19 +933,19 @@ def test_TensorModel():
                          TM.sphericity, np.ones(TM.planarity.shape))
 
 
+# We'll use these two identical models in a few tests below:
+TM1 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
+                          data_path + 'dwi.bvecs',
+                          data_path + 'dwi.bvals')
+    
+TM2 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
+                          data_path + 'dwi.bvecs',
+                          data_path + 'dwi.bvals')
+    
 def test_tensor_stats():
     """
     Test tensor_coherence and tensor_dispersion
     """
-    # Let's put in two identical TensorModel instances: 
-    
-    TM1 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
-                          data_path + 'dwi.bvecs',
-                          data_path + 'dwi.bvals')
-    
-    TM2 = ozm.TensorModel(data_path + 'small_dwi.nii.gz',
-                          data_path + 'dwi.bvecs',
-                          data_path + 'dwi.bvals')
 
     c = ozm.tensor_coherence([TM1, TM2])
     # Coherence should be 1 everywhere:
@@ -955,6 +955,90 @@ def test_tensor_stats():
     d = ozm.tensor_dispersion([TM1, TM2])
     npt.assert_almost_equal(d,np.zeros(d.shape))
 
+
+def test_overfitting_index():
+    """
+    Testing the calculation of the overfitting index
+
+    """
+    ii = ozm.overfitting_index(TM1, TM2)
+    # Since the models are identical, this should all be zeros: 
+    npt.assert_equal(ii, np.zeros(ii.shape))
+
+
+def test_relative_mae():
+    """
+    Testing the calculation of relative mean absolute error.
+    """
+    ii = ozm.relative_mae(TM1, TM2)
+    # Since the models are identical, this should all be infs: 
+    npt.assert_equal(ii, np.ones(ii.shape) * np.inf)
+
+def test_rsquared():
+    ii = ozm.rsquared(TM1, TM2)
+
+    # Test for regression:
+    npt.assert_almost_equal(ii,
+    np.array([[[ 0.41738295,  0.5686638 ,  0.66632678,  0.66796424],
+        [ 0.55782746,  0.52997752,  0.65248008,  0.79295422]],
+
+       [[ 0.49519897,  0.52195252,  0.70362685,  0.62545745],
+        [ 0.43410031,  0.56910023,  0.76395852,  0.73071651]],
+
+       [[ 0.50371373,  0.56810418,  0.53169063,  0.60985997],
+        [ 0.53667339,  0.69261167,  0.70018453,  0.63229423]]]))
+
+
+def test_noise_ceiling():
+    """
+    Test the calculation of the noise ceiling
+    
+    """
+
+    out_coeffs, out_lb, out_ub = ozm.noise_ceiling(TM1, TM2)
+
+    npt.assert_almost_equal(out_coeffs, np.ones(out_coeffs.shape))
+    npt.assert_almost_equal(out_lb, np.ones(out_lb.shape))
+    npt.assert_almost_equal(out_ub, np.ones(out_ub.shape))
+
+
+def test_coefficient_of_determination():
+    """
+    Test the computation of coefficient of determination
+    """
+    cod = ozm.coeff_of_determination(TM1, TM2)
+
+    # Test for regressions:
+    npt.assert_almost_equal(cod,
+    np.array([[[ -3.44661890e+00,  -9.56966221e-01,  -2.95984527e-01,
+          -2.14809778e-01],
+        [ -1.13823857e+00,  -1.47624354e+00,  -2.49836988e-01,
+           4.45058522e-01]],
+
+       [[ -2.12348903e+00,  -1.03695127e+00,   3.43880861e-03,
+          -5.08955429e-01],
+        [ -2.70970026e+00,  -8.62731412e-01,   3.21255708e-01,
+           1.52058544e-01]],
+
+       [[ -1.54499435e+00,  -1.12129147e+00,  -1.34573166e+00,
+          -5.70547139e-01],
+        [ -1.31661328e+00,  -1.31546355e-02,  -9.43582307e-03,
+          -4.12026495e-01]]]))
+
+def test_pdd_reliability():
+    """
+    Test the calculation of model reliability by PDD
+    """
+    reliab = ozm.pdd_reliability(TM1, TM2)
+    npt.assert_equal(reliab, np.zeros(reliab.shape))
+    
+
+def test_model_params_reliability():
+    """
+    Test the calculation of model params reliability by vector angle:
+    """
+    reliab = ozm.model_params_reliability(TM1, TM2)
+    npt.assert_equal(reliab, np.zeros(reliab.shape))
 
 @npt.decorators.slow
 @npt.decorators.skipif(no_data)
@@ -1015,12 +1099,28 @@ def test_SphericalHarmonicsModel():
 
         # Smoke testing:
         SHM1.fit
-        SHM2.fit
-
+        SHM1.odf_peaks
+        SHM1.crossing_index
+        pdd_reliab = ozm.pdd_reliability(SHM1, SHM2) 
+        npt.assert_almost_equal(pdd_reliab[40, 40, 40], 0)
+        
     # Check error-handling
+    # In this one, the input is not a proper array (why I am testing this
+    # here?): 
     npt.assert_raises(ValueError,
                       ozm.SphericalHarmonicsModel,
                       [1,2,3],
+                      data_path + 'dwi.bvecs',
+                      data_path + 'dwi.bvals',
+                      model_coeffs,
+                      None,None,None,
+                      response_file)
+
+    # In this one, both a response function coefficients file and AD/RD for the
+    # calculation of a tensor are provided:
+    npt.assert_raises(ValueError,
+                      ozm.SphericalHarmonicsModel,
+                      data_path + 'dwi.nii.gz',
                       data_path + 'dwi.bvecs',
                       data_path + 'dwi.bvals',
                       model_coeffs,
@@ -1051,7 +1151,7 @@ def test_CanonicalTensorModel():
     mask_array[1:3, 1:3, 1:3] = 1
     # Fit this on some real dwi data
     for mode in ['signal_attenuation', 'relative_signal', 'normalize', 'log']:
-        for params_file in [None, tempfile.NamedTemporaryFile().name]:
+        for params_file in [None, tempfile.NamedTemporaryFile().name, 'temp']:
             CTM = ozm.CanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                        data_path + 'dwi.bvecs',
                                        data_path + 'dwi.bvals',
@@ -1061,7 +1161,10 @@ def test_CanonicalTensorModel():
 
             # XXX Smoke testing only:
             npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
-
+            npt.assert_equal(CTM.principal_diffusion_direction.shape,
+                             CTM.signal.shape[:3] + (3,))
+            npt.assert_equal(CTM.fractional_anisotropy.shape,
+                             CTM.signal.shape[:3])
         # Test over-sampling:
         for over_sample in [362, 246]: # Over-sample from dipy and from
                                        # camino-points
@@ -1075,6 +1178,8 @@ def test_CanonicalTensorModel():
 
             # XXX Smoke testing only:
             npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+
+            
 
     # This shouldn't be possible, because we don't have a sphere with 151
     # samples handy:
@@ -1108,16 +1213,38 @@ def test_CanonicalTensorModelOpt():
     mask_array[1:3, 1:3, 1:3] = 1
 
     # Fit this on some real dwi data
-    CTM = ozm.CanonicalTensorModelOpt(data_path+'small_dwi.nii.gz',
-                                      data_path + 'dwi.bvecs',
-                                      data_path + 'dwi.bvals',
-                                      mask=mask_array,
-        params_file=tempfile.NamedTemporaryFile().name)
+    for model_form in ['flexible', 'constrained', 'ball_and_stick']:
+        for mode in ['relative_signal', 'signal_attenuation']:
+            CTM = ozm.CanonicalTensorModelOpt(data_path+'small_dwi.nii.gz',
+                                              data_path + 'dwi.bvecs',
+                                              data_path + 'dwi.bvals',
+                                              model_form = model_form,
+                                              mode = mode,
+                                              mask=mask_array,
+                params_file=tempfile.NamedTemporaryFile().name)
+        
+        # XXX Smoke testing for now:
+        npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
-    # XXX Smoke testing for now:
-    npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
+    # Normalize doesn't make sense for the optimization, so we raise an error
+    npt.assert_raises(ValueError,
+                     ozm.CanonicalTensorModelOpt,
+                     data_path+'small_dwi.nii.gz',
+                     data_path + 'dwi.bvecs',
+                     data_path + 'dwi.bvals',
+                     mode='normalize',
+                     mask=mask_array,
+                     params_file=tempfile.NamedTemporaryFile().name)
 
-
+    npt.assert_raises(ValueError,
+                      ozm.CanonicalTensorModelOpt,
+                      data_path+'small_dwi.nii.gz',
+                      data_path + 'dwi.bvecs',
+                      data_path + 'dwi.bvals',
+                      model_form='crazy_model',
+                      mode='normalize',
+                      mask=mask_array,
+                      params_file=tempfile.NamedTemporaryFile().name)
 def test_MultiCanonicalTensorModel():
     """
     Test fitting of the MultiCanonicalTensorModel
@@ -1133,12 +1260,20 @@ def test_MultiCanonicalTensorModel():
         CTM = ozm.MultiCanonicalTensorModel(data_path+'small_dwi.nii.gz',
                                        data_path + 'dwi.bvecs',
                                        data_path + 'dwi.bvals',
+                                       mode=mode,
                                        mask=mask_array,
             params_file=tempfile.NamedTemporaryFile().name)
 
         # XXX Smoke testing for now:
         npt.assert_equal(CTM.fit.shape, CTM.signal.shape)
 
+    # Smoke testing: 
+    npt.assert_equal(CTM.predict_all.shape[3], len(CTM.rot_idx))
+    npt.assert_equal(CTM.principal_diffusion_direction.shape,
+                     CTM.signal.shape[:3] + (3,))
+    npt.assert_equal(CTM.fit_angle.shape,
+                     CTM.signal.shape[:3])
+        
 def test_relative_rmse():
     """
     Test the calculation of relative RMSE from two model objects
