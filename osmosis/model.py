@@ -3587,22 +3587,23 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                                       mode=mode,
                                       verbose=verbose)
         
-        # For now, the default is ElasticNet:
-        if solver is None:
-            self.solver = sklearn_solvers['ElasticNet']
-        # Assume it's a key into the dict: 
-        elif isinstance(solver, str):
-            self.solver = sklearn_solvers[solver]
-        # Assume it's a class: 
-        else:
-            self.solver = solver
-        
+        # Name the params file, if needed: 
         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
         self.params_file = params_file_resolver(self,
                                                 this_class,
                                                 params_file=params_file)
 
-
+        # Deal with the solver stuff: 
+        # For now, the default is ElasticNet:
+        if solver is None:
+            this_solver = sklearn_solvers['ElasticNet']
+        # Assume it's a key into the dict: 
+        elif isinstance(solver, str):
+            this_solver = sklearn_solvers[solver]
+        # Assume it's a class: 
+        else:
+            this_solver = solver
+        
         # This will be passed as kwarg to the solver initialization:
         if solver_params is None:
             """
@@ -3626,6 +3627,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                                       positive=True)
         else:
             self.solver_params = solver_params
+
+        # We reuse the same class instance in all voxels: 
+        self.solver = this_solver(**self.solver_params)
 
     @desc.auto_attr
     def model_params(self):
@@ -3663,12 +3667,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             # One basis function per column (instead of rows):
             design_matrix = design_matrix.T
             
-            # Reuse the same solver again and again:
-            solver = self.solver(**self.solver_params)
             for vox in xrange(self._flat_signal.shape[0]):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
-                params[vox] = solver.fit(design_matrix, sig).coef_
+                # Use the solver you created upon initialization:
+                params[vox] = self.solver.fit(design_matrix, sig).coef_
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
 
