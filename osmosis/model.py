@@ -857,7 +857,7 @@ def coeff_of_determination(model1, model2):
     out[model1.mask] = fit2_R_sq
 
     return out
-   
+
 
 def pdd_reliability(model1, model2):
     """
@@ -914,7 +914,25 @@ def model_params_reliability(model1, model2):
     out = ozu.nans(vol_shape)
     out[model1.mask] = out_flat
     return out
+
+
+def goodness_of_fit(model):
+    """
+    A uni-model goodness-of-fit measure, based on a relative RMSE measure
+    between the RMSE of the fit and the actual signal and the RMS of the b0
+    measurements.
     
+    """
+    # Get the RMSE of the model relative to the actual data: 
+    rmse_model = ozu.rmse(model.fit, model.signal, axis=-1)
+
+    # Normalize that to the variance in the b0, which is an estimate of data
+    # reliability:
+    rms_b0 = ozu.rms(model.data[...,model.b0_idx]-
+                     np.mean(model.S0)[...,np.newaxis])
+
+    return rmse_model/rms_b0
+
 
 # The following is a pattern used by many different classes, so we encapsulate
 # it in one general function that everyone can use (DRY!):
