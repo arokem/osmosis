@@ -34,9 +34,9 @@ from nipy.labs.datasets import as_volume_img
 import osmosis.model as ozm
 
 if __name__=="__main__":
-    seg_path = sys.argv[0]
-    dwi_path = sys.argv[1] # This should lead to nii.gz, bvecs and bvals
-    out_path = sys.argv[2]
+    seg_path = sys.argv[1]
+    dwi_path = sys.argv[2] # This should lead to nii.gz, bvecs and bvals
+    out_path = sys.argv[3]
     
     # Load the classification information: 
     seg_ni = ni.load(seg_path)
