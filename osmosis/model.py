@@ -599,6 +599,24 @@ class BaseModel(DWI):
             
         return out
 
+    @desc.auto_attr
+    def rRMSE(self):
+        """
+        This is a measure of goodness of fit, based on a relative RMSE measure
+        between the RMSE of the fit residuals and the actual signal and the RMS
+        of the (mean-removed) b0 measurements.
+    
+        """
+        
+        # Get the RMSE of the model relative to the actual data: 
+        rmse_model = np.sqrt(np.mean(self.residuals**2, -1))
+
+        # Normalize that to the variance in the b0, which is an estimate of data
+        # reliability:
+        rms_b0 = ozu.rms(self.data[...,self.b0_idx]-
+                         np.mean(self.S0)[...,np.newaxis])
+
+        return rmse_model/rms_b0
 
 def overfitting_index(model1, model2):
     """
@@ -725,6 +743,7 @@ def relative_rmse(model1, model2):
     out[model1.mask] = rel_rmse
 
     return out
+
 
 def noise_ceiling(model1, model2, n_sims=1000, alpha=0.05):
     """
@@ -857,7 +876,7 @@ def coeff_of_determination(model1, model2):
     out[model1.mask] = fit2_R_sq
 
     return out
-   
+
 
 def pdd_reliability(model1, model2):
     """
@@ -914,7 +933,7 @@ def model_params_reliability(model1, model2):
     out = ozu.nans(vol_shape)
     out[model1.mask] = out_flat
     return out
-    
+
 
 # The following is a pattern used by many different classes, so we encapsulate
 # it in one general function that everyone can use (DRY!):
