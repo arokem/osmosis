@@ -74,6 +74,6 @@ if __name__=="__main__":
     vol[cutoff_idx] = 0
 
     # Now, let's save some output:
-    ni.Nifti1Image(vol, dwi_ni.get_affine).to_filename(out_path)
+    ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
     
     
