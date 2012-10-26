@@ -46,7 +46,7 @@ if __name__=="__main__":
     vimg = as_volume_img(seg_ni)
     # This does the magic - resamples using nearest neighbor interpolation:
     seg_resamp_vimg = vimg.as_volume_img(affine=dwi_ni.get_affine(),
-                                         shape=dwi_ni.get_shape()[:-1],
+                                         shape=dwi_ni.shape[:-1],
                                          interpolation='nearest')
 
     seg_resamp = seg_resamp_vimg.get_data()
