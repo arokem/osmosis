@@ -2,6 +2,7 @@
 A variety of utility functions
 
 """
+import sys
 import warnings
 
 import numpy as np
@@ -16,6 +17,7 @@ try:
 except ImportError: 
     has_numexpr = False
 
+# IPython is needed if you want to use the progress bar: 
 try:
     from IPython.core.display import clear_output
     have_ipython = True
