@@ -73,7 +73,6 @@ import osmosis.fibers as ozf
 import osmosis.tensor as ozt
 import osmosis.utils as ozu
 import osmosis.boot as boot
-import osmosis.viz as viz
 from osmosis.leastsqbound import leastsqbound
 
 # Global constants for this module:
@@ -1589,7 +1588,7 @@ class SphericalHarmonicsModel(BaseModel):
         """
         if self.verbose:
             print("Predicting signal from SphericalHarmonicsModel")
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -1975,7 +1974,7 @@ class CanonicalTensorModel(BaseModel):
             params = np.empty((self._flat_signal.shape[0],3))
             if self.verbose:
                 print("Fitting CanonicalTensorModel:")
-                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
             # Find the best OLS solution in each voxel:
@@ -2245,7 +2244,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
 
         if self.verbose:
             print('Fitting CanonicalTensorModelOpt:')
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -2546,7 +2545,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
             if self.verbose:
                 print("Fitting MultiCanonicalTensorModel:")
-                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -2633,7 +2632,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
         if self.verbose:
             print("Predicting all signals for MultiCanonicalTensorModel:")
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -2673,7 +2672,7 @@ class MultiCanonicalTensorModel(CanonicalTensorModel):
 
         if self.verbose:
             print("Predicting signal from MultiCanonicalTensorModel")
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
             
@@ -2957,7 +2956,7 @@ class CalibratedCanonicalTensorModel(CanonicalTensorModel):
         
         if self.verbose:
             print('Calibrating for AD/RD')
-            prog_bar = viz.ProgressBar(self.calibration_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self.calibration_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3368,7 +3367,7 @@ class FiberModel(BaseModel):
                          np.max([f.coords.shape[-1] for f in self.FG])))
 
         if self.verbose:
-            prog_bar = viz.ProgressBar(self.FG.n_fibers)
+            prog_bar = ozu.ProgressBar(self.FG.n_fibers)
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3401,7 +3400,7 @@ class FiberModel(BaseModel):
         """
 
         if self.verbose:
-            prog_bar = viz.ProgressBar(self.FG.n_fibers)
+            prog_bar = ozu.ProgressBar(self.FG.n_fibers)
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3451,7 +3450,7 @@ class FiberModel(BaseModel):
         keep_ct2 = 0
 
         if self.verbose:
-            prog_bar = viz.ProgressBar(len(vox_coords))
+            prog_bar = ozu.ProgressBar(len(vox_coords))
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3685,7 +3684,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             if self.verbose:
                 print("Fitting SparseDeconvolutionModel:")
-                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3840,7 +3839,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         if self.verbose:
             print("Calculating quantitative anisotropy:")
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -3978,7 +3977,7 @@ class SparseKernelModel(BaseModel):
 
             if self.verbose:
                 print("Fitting params for SparseKernelModel")
-                prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+                prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -4013,7 +4012,7 @@ class SparseKernelModel(BaseModel):
         """
         if self.verbose:
             print("Predicting signal from SparseKernelModel")
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -4064,7 +4063,7 @@ class SparseKernelModel(BaseModel):
         _verts = self.odf_verts[0] # These are the vertices on which we estimate
                                    # the ODF 
         if self.verbose:
-            prog_bar = viz.ProgressBar(self._flat_signal.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
