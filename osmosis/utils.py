@@ -16,6 +16,11 @@ try:
 except ImportError: 
     has_numexpr = False
 
+try:
+    from IPython.core.display import clear_output
+    have_ipython = True
+except ImportError:
+    have_ipython = False
 
 import osmosis as oz
 
