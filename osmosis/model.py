@@ -60,7 +60,6 @@ import scipy.optimize as opt
 import dipy.reconst.dti as dti
 import dipy.core.geometry as geo
 import dipy.data as dpd
-from dipy.core.triangle_subdivide import create_half_unit_sphere
 import dipy.reconst.recspeed as recspeed
 import dipy.core.sphere as sphere
 
@@ -3932,8 +3931,11 @@ class SparseKernelModel(BaseModel):
 
         self.sh_order = sh_order
         self.quad_points = quad_points
+
         # This will soon be replaced by an import from dipy:
         import kernel_model
+        from dipy.core.triangle_subdivide import create_half_unit_sphere
+        
         self.kernel_model = kernel_model
         self.verts_level = verts_level
 
