@@ -3934,7 +3934,7 @@ class SparseKernelModel(BaseModel):
 
         # This will soon be replaced by an import from dipy:
         import kernel_model
-        from dipy.core.subdivide_octahedron import create_half_unit_sphere
+        from dipy.core.subdivide_octahedron import create_unit_hemisphere
         
         self.kernel_model = kernel_model
         self.verts_level = verts_level
@@ -4052,7 +4052,7 @@ class SparseKernelModel(BaseModel):
         """
         The vertices on which to estimate the odf
         """
-        verts, edges, sides = create_half_unit_sphere(self.verts_level)
+        verts, edges, sides = create_unit_hemisphere(self.verts_level)
 
         return verts, edges
 
