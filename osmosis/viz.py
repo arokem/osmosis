@@ -7,12 +7,6 @@ Visualization functions.
 
 import sys, time
 from itertools import cycle
-
-try:
-    from IPython.core.display import clear_output
-    have_ipython = True
-except ImportError:
-    have_ipython = False
     
 import matplotlib
 
@@ -423,61 +417,6 @@ def plot_ellipse_mpl(Dxx, Dyy, Dzz, rstride=4, cstride=4, color='b'):
     return fig
 
 
-class ProgressBar:
-    def __init__(self, iterations):
-        """
-        Progress bar for tracking the progress of long calculations.
-
-        Parameters
-        ----------
-
-        iterations: int
-            How many iterations does this calculation have before it's done? 
-
-        Examples
-        --------
-        >>> p = ProgressBar(1000)
-        >>> for i in range(1001):
-                p.animate(i)
-
-        """
-        self.iterations = iterations
-        self.prog_bar = '[]'
-        self.fill_char = '*'
-        self.width = 40
-        self.__update_amount(0)
-        if have_ipython:
-            self.animate = self.animate_ipython
-        else:
-            e_s = "No progress bar implementation without IPython" 
-            raise NotImplementedError(e_s)
-
-    def animate_ipython(self, iter, f_name=None):
-        try:
-            clear_output()
-        except Exception:
-            # terminal IPython has no clear_output
-            pass
-        print '\r', f_name, self, 
-        sys.stdout.flush()
-        self.update_iteration(iter + 1)
-
-    def update_iteration(self, elapsed_iter):
-        self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)
-        self.prog_bar += '  %d of %s complete '%(elapsed_iter, self.iterations)
-
-    def __update_amount(self, new_amount):
-        percent_done = int(round((new_amount / 100.0) * 100.0))
-        all_full = self.width - 2
-        num_hashes = int(round((percent_done / 100.0) * all_full))
-        self.prog_bar = '[' + self.fill_char * num_hashes + ' ' * (all_full - num_hashes) + ']'
-        pct_place = (len(self.prog_bar) / 2) - len(str(percent_done))
-        pct_string = '%d%%' % percent_done
-        self.prog_bar = self.prog_bar[0:pct_place] + \
-            (pct_string + self.prog_bar[pct_place + len(pct_string):])
-
-    def __str__(self):
-        return str(self.prog_bar)
 
 
 def probability_hist(data, bins=100, fig=None, cumsum=False, **kwargs):
