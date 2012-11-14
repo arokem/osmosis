@@ -19,7 +19,7 @@ import numpy as np
 import dipy.core.geometry as geo
 from dipy.data import get_sphere
 from dipy.utils.spheremakers import sphere_vf_from
-from dipy.core.triangle_subdivide import (create_unit_sphere,
+from dipy.core.subdivide_octahedron import (create_unit_sphere,
                                           create_half_unit_sphere)
 from dipy.core.sphere import Sphere, interp_rbf
 
