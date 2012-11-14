@@ -73,7 +73,7 @@ import nibabel.trackvis as tv
 
 import osmosis as oz
 import osmosis.fibers as ozf
-from .viz import ProgressBar
+from .utils import ProgressBar
 
 # XXX The following functions are way too long. Break 'em up!
 def fg_from_pdb(file_name, verbose=True):
