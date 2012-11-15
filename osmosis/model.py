@@ -945,7 +945,8 @@ def fit_reliability(model1, model2):
     out_flat = np.empty(fit1.shape[0])
     
     for vox in xrange(out_flat.shape[0]):
-        out_flat[vox]= np.rad2deg(ozu.vector_angle(fit1[vox], fit2[vox]))
+        out_flat[vox]= ozu.coeff_of_determination(fit1[vox], fit2[vox])
+        
 
     out = ozu.nans(vol_shape)
     out[model1.mask] = out_flat
