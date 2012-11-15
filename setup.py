@@ -1,8 +1,19 @@
 #!/usr/bin/env python
 """Setup file for osmosis"""
 
+import urllib
+import zipfile 
 import os
 import sys
+
+
+# You might need to get the data if it's not there
+print ("Downloading test-data from arokem.org...")
+# Get the test data and put it in the right place
+f=urllib.urlretrieve("http://arokem.org/data/osmosis_test_data.zip")[0]
+zf = zipfile.ZipFile(f)
+zf.extractall(path='./osmosis/')    
+
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
 # update it when the contents of directories change.
