@@ -5,6 +5,8 @@ import numpy.testing as npt
 
 import osmosis as oz
 from osmosis.model.dti import TensorModel
+from osmosis.model.base import SphereModel
+
 import osmosis.model.analysis as ozm
 
 data_path = os.path.split(oz.__file__)[0] + '/data/'
@@ -102,3 +104,25 @@ def test_model_params_reliability():
     reliab = ozm.model_params_reliability(TM1, TM2)
     npt.assert_equal(reliab, np.zeros(reliab.shape))
 
+        
+def test_relative_rmse():
+    """
+    Test the calculation of relative RMSE from two model objects
+
+    While you're at it, test the SphereModel class as well.
+    
+    """
+    Model1 = SphereModel(data_path+'small_dwi.nii.gz',
+                             data_path + 'dwi.bvecs',
+                             data_path + 'dwi.bvals',)
+
+    Model2 = SphereModel(data_path+'small_dwi.nii.gz',
+                             data_path + 'dwi.bvecs',
+                             data_path + 'dwi.bvals',)
+
+    # Since we have exactly the same data in both models, the rmse between them
+    # is going to be 0 everywhere, which means that the relative rmse is
+    # infinite... 
+    npt.assert_equal(ozm.relative_rmse(Model1, Model2),
+                     np.inf * np.ones(Model1.shape[:-1]))
+    
