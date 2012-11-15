@@ -681,12 +681,22 @@ def plot_ellipsoid_mpl(Tensor, n=60):
 def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
                    colorbar=False, figure=None, vmin=None, vmax=None,
                    file_name=None):
+    """
 
+    """
+    try:
+        from mayavi import mlab as maya
+        import mayavi.tools as maya_tools
+        EM = maya_tools.engine_manager.EngineManager()
+    except ImportError:
+        e_s = "You can't use this function, unless you have mayavi installed"
+        raise ValueError(e_s)
+        
     if figure is None:
         # Adding the engine to a figure will subsequently give you control
         # through the mayavi GUI:
         engine = EM.new_engine()
-        figure = maya.figure(engine)    
+        figure = maya.figure(engine)
     else:
         figure, engine = figure
 
@@ -785,14 +795,20 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     ----------
     signal:
 
-    bvecs: the x,y,z locations where the signal was measured 
+    bvecs: array (3,n)
+        the x,y,z locations where the signal was measured 
+
+    offset : float
+        where to place the plotted voxel (on the z axis)
+
     
     """
 
     s0 = Sphere(xyz=bvecs.T)
-    s1 = create_unit_sphere(6)
+    s1 = create_unit_sphere(7)
 
     interp_signal = interp_rbf(signal, s0, s1)
+    interp_signal[interp_signal<0] = 0 
     vertices = s1.vertices
 
     if maya:
@@ -822,7 +838,24 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                                  ax=None, vmin=None, vmax=None,
                                  cmap=matplotlib.cm.hot, cbar=True, tri=False,
                                  boundary=True)
-    
+
+def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
+                    colorbar=False, figure=None, vmin=None, vmax=None,
+                    offset=0):
+    """
+    Plot an interpolated odf, while making sure to mirror reflect it, due to
+    the symmetry of all things diffusion. 
+
+    """
+    bvecs_new = np.hstack([bvecs, -bvecs])
+    new_odf = np.hstack([odf, odf])
+        
+    # In the end we call out to plot_signal_interp, which does the job with
+    # this shiny new signal/bvecs: 
+    return plot_signal_interp(bvecs_new, new_odf,
+                        maya=maya, cmap=cmap, file_name=file_name,
+                        colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
+                        offset=offset)
 
 def plot_cut_planes(vol,
                     overlay=None,
