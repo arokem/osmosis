@@ -52,7 +52,8 @@ MINOR = _version_minor
 MICRO = _version_micro
 VERSION = __version__
 PACKAGES = ['osmosis',
-            'osmosis.tests']
+            'osmosis.tests',
+            'osmosis.leastsqbound']
 PACKAGE_DATA = {"osmosis": ["LICENSE", "data/*.pdb", "data/*.mat",
                             "data/*.nii.gz", "data/*.trk","data/*.bvals",
                             "data/*.bvecs", "camino_pts/*.txt"]}
