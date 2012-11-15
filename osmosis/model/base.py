@@ -3,6 +3,33 @@
 Base classes for the model module.
 
 """
+import warnings
+
+import numpy as np
+import scipy.stats as stats
+
+# We want to try importing numexpr for some array computations, but we can do
+# without:
+try:
+    import numexpr
+    has_numexpr = True
+except ImportError:
+    e_s = "Could not import numexpr. Get it! "
+    warnings.warn(e_s)
+    has_numexpr = False
+
+import nibabel as ni
+
+import osmosis.boot as boot
+import osmosis.descriptors as desc
+import osmosis.utils as ozu
+from osmosis.model.io import params_file_resolver
+
+
+# This converts b values from , so that it matches the units of ADC we use in
+# the Stejskal/Tanner equation: 
+SCALE_FACTOR = 1000
+
 
 class DWI(desc.ResetMixin):
     """

@@ -3,6 +3,8 @@ File handling for the model module.
 
 """
 
+import os
+
 def params_file_resolver(object, file_name_root, params_file=None):
     """
     Helper function for resolving what the params file name should be for

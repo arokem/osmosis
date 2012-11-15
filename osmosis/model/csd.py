@@ -4,6 +4,22 @@ Analyze the CSD model
 
 """
 
+import inspect
+
+import numpy as np
+from scipy.special import sph_harm
+
+import nibabel as ni
+import dipy.core.geometry as geo
+import dipy.reconst.recspeed as recspeed
+import dipy.core.sphere as sphere
+
+import osmosis.tensor as ozt
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+
+from osmosis.model.base import BaseModel, SCALE_FACTOR
+from osmosis.model.canonical_tensor import AD,RD
 
 class _SphericalHarmonicResponseFunction(object):
     """

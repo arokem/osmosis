@@ -3,7 +3,9 @@
 Functions for analyzing one model or (usually) more.
 
 """
+import numpy as np
 
+import osmosis.utils as ozu
 
 def overfitting_index(model1, model2):
     """
@@ -260,7 +262,7 @@ def coeff_of_determination(model1, model2):
     # Average in each element:
     fit_R_sq = np.mean([fit1_R_sq, fit2_R_sq],0)
 
-    out[model1.mask] = fit2_R_sq
+    out[model1.mask] = fit_R_sq
 
     return out
 

@@ -1,3 +1,28 @@
+
+import os
+import inspect
+
+import numpy as np
+import scipy.optimize as opt
+
+import nibabel as ni
+import dipy.core.geometry as geo
+import dipy.data as dpd
+
+import osmosis as oz
+import osmosis.utils as ozu
+import osmosis.tensor as ozt
+import osmosis.descriptors as desc
+from osmosis.model.base import BaseModel
+from osmosis.model.io import params_file_resolver
+from osmosis.model.base import SCALE_FACTOR
+
+
+# Global constants for this module:
+AD = 1.5
+RD = 0.5
+
+
 class CanonicalTensorModel(BaseModel):
     """
     This is a simplified bi-tensor model, where one tensor is constrained to be a

@@ -1,4 +1,5 @@
-from base import BaseModel
+
+from osmosis.model.base import BaseModel, SCALE_FACTOR
 
 
 class SphericalKernelModel(BaseModel):

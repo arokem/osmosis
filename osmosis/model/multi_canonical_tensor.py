@@ -1,3 +1,18 @@
+
+import inspect
+import itertools
+import os
+
+import numpy as np
+
+import nibabel as ni
+
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+from osmosis.model.canonical_tensor import CanonicalTensorModel, AD, RD
+from osmosis.model.base import SCALE_FACTOR
+
+
 class MultiCanonicalTensorModel(CanonicalTensorModel):
     """
     This model extends CanonicalTensorModel with the addition of another

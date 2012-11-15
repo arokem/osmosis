@@ -1,3 +1,55 @@
+"""
+
+Sparse spherical deconvolution
+
+"""
+
+
+import os
+import inspect
+import warnings
+
+import numpy as np
+# Get stuff from sklearn, if that's available:
+try:
+    # Get both the sparse version of the Lasso: 
+    from sklearn.linear_model.sparse import Lasso as spLasso
+    # And the dense version:
+    from sklearn.linear_model import Lasso, LassoCV
+    # Get other stuff from sklearn.linear_model:
+    from sklearn.linear_model import ElasticNet, Lars, Ridge, ElasticNetCV
+    # Get OMP:
+    from sklearn.linear_model.omp import OrthogonalMatchingPursuit as OMP
+     
+    has_sklearn = True
+
+    # Make a dict with solvers to be used for choosing among them:
+    sklearn_solvers = dict(Lasso=Lasso,
+                           OMP=OMP,
+                           ElasticNet=ElasticNet,
+                           ElasticNetCV=ElasticNetCV,
+                           Lars=Lars)
+
+except ImportError:
+    e_s = "Could not import sklearn. Download and install from XXX"
+    warnings.warn(e_s)
+    has_sklearn = False    
+
+
+import nibabel as ni
+import dipy.reconst.recspeed as recspeed
+import dipy.core.sphere as sphere
+
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+
+from osmosis.model.canonical_tensor_model import CanonicalTensorModel, AD, RD
+from osmosis.model.base import SCALE_FACTOR
+from osmosis.model.io import params_file_resolver
+
+
+
+
 class SparseDeconvolutionModel(CanonicalTensorModel):
     """
     Use the lasso to do spherical deconvolution with a canonical tensor basis

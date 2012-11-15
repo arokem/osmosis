@@ -1,3 +1,16 @@
+
+import inspect
+
+import numpy as np
+import scipy.sparse as sparse
+
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+import osmosis.sgd as sgd
+from osmosis.model.base import BaseModel, SCALE_FACTOR
+from osmosis.model.canonical_tensor import AD,RD
+
+
 def _tensors_from_fiber(f, bvecs, bvals, ad, rd):
         """
         Helper function to get the tensors for each fiber
@@ -153,7 +166,6 @@ class FiberModel(BaseModel):
         vox_coords = self.fg_idx_unique.T
         n_vox = self.fg_idx_unique.shape[-1]
         n_bvecs = self.b_idx.shape[0]
-        n_fibers = self.FG.n_fibers
         v2f,v2fn = self.voxel2fiber
 
         # How many fibers in each voxel (this will determine how many
@@ -218,9 +230,9 @@ class FiberModel(BaseModel):
         
         # Allocate the sparse matrices, using the more memory-efficient 'csr'
         # format: 
-        fiber_matrix = sps.coo_matrix((f_matrix_sig,
+        fiber_matrix = sparse.coo_matrix((f_matrix_sig,
                                        [f_matrix_row, f_matrix_col])).tocsr()
-        iso_matrix = sps.coo_matrix((i_matrix_sig,
+        iso_matrix = sparse.coo_matrix((i_matrix_sig,
                                        [i_matrix_row, i_matrix_col])).tocsr()
 
         if self.verbose:

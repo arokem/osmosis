@@ -3,6 +3,18 @@
 
 """
 
+import os
+import inspect
+
+import numpy as np
+
+import nibabel as ni
+import dipy.reconst.recspeed as recspeed
+
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+from osmosis.model.base import BaseModel, SCALE_FACTOR
+
 
 class SparseKernelModel(BaseModel):
     """

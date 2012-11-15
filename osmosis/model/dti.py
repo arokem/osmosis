@@ -1,4 +1,17 @@
 
+import os
+
+import numpy as np
+
+import nibabel as ni
+import dipy.reconst.dti as dti
+
+from osmosis.model.base import BaseModel, SCALE_FACTOR
+import osmosis.descriptors as desc
+import osmosis.utils as ozu
+import osmosis.tensor as ozt
+import osmosis.boot as boot
+
 
 class TensorModel(BaseModel):
 

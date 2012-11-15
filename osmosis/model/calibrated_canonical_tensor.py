@@ -1,3 +1,18 @@
+import inspect
+
+import numpy as np
+import scipy.optimize as opt
+
+import nibabel as ni
+import dipy.core.geometry as geo
+
+import osmosis.tensor as ozt
+import osmosis.utils as ozu
+import osmosis.descriptors as desc
+from osmosis.model.canonical_tensor_model import CanonicalTensorModel
+from osmosis.model.base import SCALE_FACTOR
+
+
 class CalibratedCanonicalTensorModel(CanonicalTensorModel):
     """
     This is another extension of the CanonicalTensorModel, which extends the
