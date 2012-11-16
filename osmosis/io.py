@@ -642,11 +642,11 @@ def get_wm_mask(wm=data_path + 'FP_wm_mask.nii.gz', resample=None):
     """
     Get me a white matter mask. Resample if need be
     """
-    bm_nii = ni.load(bm)
+    bm_nii = ni.load(wm)
     if resample is not None:
-        return ozv.resample_volume(bm, resample).get_data()
+        return ozv.resample_volume(wm, resample).get_data()
     else:
-        return ni.load(bm).get_data()
+        return ni.load(wm).get_data()
 
 
 def get_ad_rd(b):
