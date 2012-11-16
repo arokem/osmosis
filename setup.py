@@ -7,6 +7,8 @@ import os
 import sys
 
 
+
+# XXX Make this an optional thing:
 # You might need to get the data if it's not there
 print ("Downloading test-data from arokem.org...")
 # Get the test data and put it in the right place

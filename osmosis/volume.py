@@ -10,6 +10,7 @@ import os
 
 import numpy as np
 import nibabel as ni
+from nipy.labs.datasets import as_volume_img
 
 import osmosis.fibers as ozf
 import osmosis.utils as ozu
@@ -138,56 +139,21 @@ def fg2volume(fg, stat, nii=None, shape=None, affine=None):
 
 def resample_volume(source, target):
     """
-    Given two nifti files, resample the source to the same resolution and to
-    the same spatial orientation as the target (using their affines):
+    Resample the file in file_orig (full path string) to the resolution and
+    affine of file_target (also a full path string)
     
     """
-
     if not isinstance(source, ni.Nifti1Image):
         source = ni.load(source)
 
     if not isinstance(target, ni.Nifti1Image):
         target = ni.load(target)
 
-    target_aff = target.get_affine()
-    source_aff = source.get_affine()
+    source_vimg = as_volume_img(source)    
+    # This does the magic - resamples using nearest neighbor interpolation:
+    source_resamp_vimg = source_vimg.as_volume_img(affine=target.get_affine(),
+                                         shape=target.shape[:3],
+                                         interpolation='nearest')
 
-    # Let's resample the source data into a volume the size of the target data
-    source_idx = np.array(np.where(source.get_data()))
-    # Make an index array with all ones in the fourth row, for multiplication
-    # with an affine:
-    source_idx = np.vstack([source_idx,
-                            np.ones(source_idx.shape[-1])]).astype(int)
-
-    new_vol = np.zeros(target.shape[:3])
-    # We're going to need to count, if we're going to average: 
-    count_vol = np.zeros(new_vol.shape)
-
-    # This combined affine takes us from the source space to the common space
-    # and then back (through the inverse) into the target space:
-    combined_aff = np.dot(np.matrix(target_aff).getI(),
-                          np.matrix(source_aff))
-
-    new_idx = np.dot(combined_aff, source_idx)
-    new_idx = np.array(new_idx[:3]).astype(int)
-    new_idx.shape
-    source_data = source.get_data()
-    
-    for c,i in enumerate(new_idx.T):
-        # This can only be done within the bounding box of the target:
-        if (i[0]>=0 and i[0]<new_vol.shape[0] and i[1]>=0 and
-            i[1]<new_vol.shape[1] and i[2]>=0 and i[2]<new_vol.shape[2]):
-            new_vol[i[0], i[1], i[2]] += source_data[source_idx[0,c],
-                                                    source_idx[1,c],
-                                                    source_idx[2,c]]
-            count_vol[i[0], i[1], i[2]] += 1
-
-    # Average: 
-    new_vol/=count_vol
-
-    # Set inf's to nan's:
-    new_vol[np.isinf(new_vol)] = np.nan
-
-    return ni.Nifti1Image(new_vol, combined_aff)
-    
+    return ni.Nifti1Image(source_resamp_vimg.get_data(), target.get_affine())
 

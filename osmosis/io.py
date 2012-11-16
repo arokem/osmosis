@@ -64,16 +64,24 @@ import struct
 import os
 import inspect
 import warnings
+import urllib
+import zipfile    
 
 import numpy as np
 import scipy.io as sio
+import scipy.stats as stats
 
 import nibabel as ni
 import nibabel.trackvis as tv
 
+
 import osmosis as oz
 import osmosis.fibers as ozf
+import osmosis.model.dti as dti
 from .utils import ProgressBar
+
+osmosis_path =  os.path.split(oz.__file__)[0]
+data_path = osmosis_path + '/data/'
 
 # XXX The following functions are way too long. Break 'em up!
 def fg_from_pdb(file_name, verbose=True):
@@ -535,6 +543,7 @@ def freesurfer_labels():
 
     return label_dict
 
+
 def nii_from_volume(vol, file_name, affine=None):
     """
     Create a nifti file from some volume
@@ -559,3 +568,170 @@ def nii_from_volume(vol, file_name, affine=None):
         affine = np.eye(4)
 
     ni.Nifti1Image(vol,affine).to_filename(file_name)
+
+
+
+def make_data_set(root):
+    """
+    Create the full paths to the data given a root
+    """ 
+    exts = ['.nii.gz', '.bvecs', '.bvals']
+    dwi, bvecs, bvals = [data_path + root + ext for ext in exts]
+    return dwi, bvecs, bvals 
+
+def get_dwi_data(b):
+    """
+    A function that gets you file-names to a data-set with a certain b value
+    provided as input
+    """
+    data_files = {1000:[make_data_set(
+    '0009_01_DWI_2mm150dir_2x_b1000_aligned_trilin'),
+    make_data_set(
+    '0011_01_DWI_2mm150dir_2x_b1000_aligned_trilin')],
+    2000:[make_data_set(
+    '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin'),
+    make_data_set(
+    '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin')],
+    4000:[make_data_set(
+    '0005_01_DWI_2mm150dir_2x_b4000_aligned_trilin'),
+    make_data_set(
+    '0007_01_DWI_2mm150dir_2x_b4000_aligned_trilin')]}
+    return data_files[b]
+
+
+def download_data():
+    """
+    This function downloads the data from arokem.org
+
+    Needs to be run once before running any of the analyses that require the
+    main DWI data set
+    
+    """
+    print ("Downloading the data from arokem.org...")
+    f=urllib.urlretrieve("http://arokem.org/data/osmosis_data.zip")[0]
+    zf = zipfile.ZipFile(f)
+    zf.extractall(path=osmosis_path)
+
+
+def get_t1(t1=data_path + 'FP_t1.nii.gz', resample=None):
+    """
+    Get the high-res T1-weighted anatomical scan. If requested, resample it to
+    the resolution of a nifti file for which the name is provided as input
+    """
+
+    t1_nii = ni.load(t1)
+    if resample is not None:
+        return ozv.resample_volume(t1, resample).get_data()
+    else:
+        return ni.load(t1).get_data()
+
+
+def get_brain_mask(bm=data_path + 'brainMask.nii.gz',resample=None):
+    """
+    Get the brain mask (derived from DWI using mrDiffusion) and resample if
+    needed
+    """
+    bm_nii = ni.load(bm)
+    if resample is not None:
+        return ozv.resample_volume(bm, resample).get_data()
+    else:
+        return ni.load(bm).get_data()
+
+
+def get_wm_mask(wm=data_path + 'FP_wm_mask.nii.gz', resample=None):
+    """
+    Get me a white matter mask. Resample if need be
+    """
+    bm_nii = ni.load(bm)
+    if resample is not None:
+        return ozv.resample_volume(bm, resample).get_data()
+    else:
+        return ni.load(bm).get_data()
+
+
+def get_ad_rd(b):
+    """
+    This is a short-cut to get the axial and radial diffusivity values that we
+    have extracted from the data with the notebook GetADandRD.
+    """
+    # These are based on the calculations in GetADandRD
+    diffusivities = {1000:[dict(AD=1.7139,  RD=0.3887),
+                           dict(AD=1.6986, RD=0.3760)],
+                     2000:[dict(AD=1.4291, RD=0.3507),
+                           dict(AD=1.4202, RD=0.3357)],
+                     4000:[dict(AD=0.8403, RD=0.2369),
+                           dict(AD=0.8375, RD=0.2379)]}
+    return diffusivities[b]
+
+
+def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
+                 n_IQR=2):
+    """
+
+    Function that makes a white-matter mask from an itk-gray class file and DWI
+    data, at the resolution of the DWI data.
+
+    Parameters
+    ----------
+    seg_path : str
+       Full path to an itk-gray segmentation
+
+       
+    dwi_path : str
+        Full path to some DWI data (used to determine the mean diffusivity in
+        each voxel, see below)
+
+    out_path : str (optional)
+        Where to put the resulting file
+        
+    n_IQR: float (optional)
+        How many IQRs away for the definition of MD outliers (see below) 
+    
+
+    Note
+    ----
+
+    This follows [Jeurissen2012]_. First, we resample a segmentation based on a
+    T1-weighted image. Then, we calculate the mean diffusivity in a
+    coregistered DWI image. We then also exclude from the segmentation white
+    matter voxels that have
+
+         MD > median (MD) + n_IQR * IQR (MD)
+
+    Where IQR is the interquartile range. Note that per default we take a
+    slightly more restrictive criterion (of 2 * IQR, instead of 1.5 * IQR),
+    based on some empirical looking at data. Not so sure why there would be a
+    difference.
+
+    [Jeurissen2012]Jeurissen B, Leemans A, Tournier, J-D, Jones, DK and Sijbers
+    J (2012). Investigating the prevalence of complex fiber configurations in
+    white matter tissue with diffusion magnetic resonance imaging. Human Brain
+    Mapping. doi: 10.1002/hbm.2209
+
+    """
+    dwi_nii, dwi_bvecs, dwi_bvals = make_data_set(dwi_path) 
+    # Resample the segmentation image to the DWI resolution:
+    seg_resamp = ozv.resample_volume(seg_path, dwi_nii)
+    # Find WM voxels (this is ITK gray coding 3=LHWM, 4=RHWM)
+    wm_idx = np.where(np.logical_or(seg_resamp==3, seg_resamp==4))
+    vol = np.zeros(seg_resamp.shape)
+    vol[wm_idx] = 1
+
+    # OK - now we need to find and exclude MD outliers: 
+    TM = ozm.TensorModel(dwi_nii, dwi_bvecs, dwi_bvals, mask=vol,
+                         params_file='temp')    
+
+    MD = TM.mean_diffusivity
+    
+    IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
+          stats.scoreatpercentile(MD[np.isfinite(MD)],25))
+    cutoff = np.median(MD[np.isfinite(MD)]) + n_IQR * IQR
+    cutoff_idx = np.where(MD > cutoff)
+
+    # Null 'em out
+    vol[cutoff_idx] = 0
+
+    # Now, let's save some output:
+    ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
+
+

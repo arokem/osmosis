@@ -53,9 +53,13 @@ MICRO = _version_micro
 VERSION = __version__
 PACKAGES = ['osmosis',
             'osmosis.tests',
-            'osmosis.leastsqbound']
+            'osmosis.leastsqbound',
+            'osmosis.viz',
+            'osmosis.model']
+            
 PACKAGE_DATA = {"osmosis": ["LICENSE", "data/*.pdb", "data/*.mat",
                             "data/*.nii.gz", "data/*.trk","data/*.bvals",
                             "data/*.bvecs", "camino_pts/*.txt"]}
 
-REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel"]
+REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel", "dipy", "mayavi",
+            "sklearn"]
