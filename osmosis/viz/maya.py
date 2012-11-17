@@ -3,7 +3,6 @@ import numpy as np
 try:
     from mayavi import mlab as maya
     import mayavi.tools as maya_tools
-    EM = maya_tools.engine_manager.EngineManager()
 except ImportError:
     e_s = "You can't use 3d visualization functions, "
     e_s += "unless you have mayavi installed."
@@ -24,26 +23,14 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     """
         
     if figure is None:
-        # Adding the engine to a figure will subsequently give you control
-        # through the mayavi GUI:
-        engine = EM.new_engine()
-        figure = maya.figure(engine)
+        figure = maya.figure()
     else:
-        figure, engine = figure
-
-    if len(engine.scenes)==0:
-        engine.new_scene()
+        figure = figure
 
     tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
                               colormap=cmap, figure=figure)
     if colorbar:
         maya.colorbar(tm, orientation='vertical')
-
-    scene = figure.scene
-    scene.background = (1,1,1)
-
-    # Set it to be aligned along the negative dimension of the y axis: 
-    scene.y_minus_view()
 
     # Take care of the color-map:
     if vmin is None:
@@ -51,23 +38,24 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     if vmax is None:
         vmax = np.max(scalars)
 
+    scene = figure.scene
+    scene.background = (1,1,1)
     scene.parallel_projection=True
+    scene.light_manager.light_mode = 'vtk'
     
-    poly_data_normals = engine.scenes[0].children[0].children[0]
-    poly_data_normals.filter.feature_angle = 80 # Extra smooth
-    module_manager = poly_data_normals.children[0]
+    # Set it to be aligned along the negative dimension of the y axis: 
+    scene.y_minus_view()
+    
+    module_manager = tm.parent
     module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
     module_manager.scalar_lut_manager.number_of_labels = 6
-
-    # Take care of the lighting:
-    scene.light_manager.light_mode = 'vtk'
 
     
     scene.render()
     if file_name is not None:
         scene.save(file_name)
 
-    return figure,engine
+    return figure
 
 
 def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
@@ -100,9 +88,10 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
 
     # Call and return straightaway:
-    return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces, v, cmap=cmap,
-                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
-                         file_name=file_name)
+    return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces, v,
+                               cmap=cmap, colorbar=colorbar, figure=figure,
+                               vmin=vmin, vmax=vmax,
+                               file_name=file_name)
     
 
 
@@ -204,15 +193,9 @@ def plot_cut_planes(vol,
     """ 
 
     if figure is None:
-        # Adding the engine to a figure will subsequently give you control
-        # through the mayavi GUI:
-        engine = EM.new_engine()
-        figure = maya.figure(engine)    
+        figure = maya.figure()    
     else:
-        figure, engine = figure
-
-    if len(engine.scenes)==0:
-        engine.new_scene()
+        figure = figure
 
     # Count yer slices as an indication for how many planes are needed: 
     n_planes = len(np.where(np.array([slice_coronal,
@@ -256,7 +239,7 @@ def plot_cut_planes(vol,
     if outline: 
         maya.outline()
 
-    scene = engine.scenes[0]
+    scene = figure.scene
     scene.scene.background = (0.7529411764705882,
                               0.7529411764705882,
                               0.7529411764705882)
@@ -271,15 +254,6 @@ def plot_cut_planes(vol,
             lut[0, -1] = 0
             module_manager.scalar_lut_manager.lut.table = lut
 
-   # module_manager.scalar_lut_manager.show_scalar_bar = True
-   # module_manager.scalar_lut_manager.show_legend = True
-   # module_manager.scalar_lut_manager.scalar_bar.number_of_labels = 5
-   # module_manager.scalar_lut_manager.number_of_labels = 5
-   # module_manager.scalar_lut_manager.scalar_bar.title = ''
-   # module_manager.scalar_lut_manager.scalar_bar_representation.position = np.array([1,0])
-    #scene.scene.camera.clipping_range = [170, 480]
-    #scene.scene.camera.position = [297, 150, 190]
-
     maya.view(view_azim, view_elev)
 
     scene.render()
@@ -288,5 +262,5 @@ def plot_cut_planes(vol,
     if file_name is not None:
         scene.save(file_name)
 
-    return figure, engine
+    return figure
     
