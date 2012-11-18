@@ -27,29 +27,30 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     else:
         figure = figure
 
-    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
-                              colormap=cmap, figure=figure)
-    if colorbar:
-        maya.colorbar(tm, orientation='vertical')
-
     # Take care of the color-map:
     if vmin is None:
         vmin = np.min(scalars)
     if vmax is None:
         vmax = np.max(scalars)
 
+    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
+                              colormap=cmap, figure=figure, vmin=vmin,
+                              vmax=vmax)
+    if colorbar:
+        maya.colorbar(tm, orientation='vertical')
+
+
     scene = figure.scene
     scene.background = (1,1,1)
     scene.parallel_projection=True
-    scene.light_manager.light_mode = 'vtk'
+    #scene.light_manager.light_mode = 'vtk'
     
     # Set it to be aligned along the negative dimension of the y axis: 
     scene.y_minus_view()
     
-    module_manager = tm.parent
-    module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
-    module_manager.scalar_lut_manager.number_of_labels = 6
-
+    #module_manager = tm.parent
+    #module_manager.scalar_lut_manager.data_range = np.array([vmin, vmax])
+    #module_manager.scalar_lut_manager.number_of_labels = 6
     
     scene.render()
     if file_name is not None:
