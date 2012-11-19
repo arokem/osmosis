@@ -14,7 +14,6 @@ from nipy.labs.datasets import as_volume_img
 
 import osmosis.fibers as ozf
 import osmosis.utils as ozu
-import osmosis.io as io
 
 
 def nii2fg(fg, nii, data_node=0, stat_name=None):
@@ -54,9 +53,6 @@ def nii2fg(fg, nii, data_node=0, stat_name=None):
             
     if not isinstance(nii, ni.Nifti1Image):
         nii = ni.load(nii)
-
-    if not isinstance(fg, ozf.FiberGroup):
-        fg = io.fg_from_pdb(fg)
 
     affine = np.matrix(nii.get_affine()).getI()
     data = nii.get_data()
