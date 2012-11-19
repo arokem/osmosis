@@ -3,6 +3,9 @@ import numpy as np
 try:
     from mayavi import mlab as maya
     import mayavi.tools as maya_tools
+    # Monkey patch away the blocking UI show
+    maya.show = lambda: None 
+
 except ImportError:
     e_s = "You can't use 3d visualization functions, "
     e_s += "unless you have mayavi installed."
@@ -240,9 +243,9 @@ def plot_cut_planes(vol,
         maya.outline()
 
     scene = figure.scene
-    scene.scene.background = (0.7529411764705882,
-                              0.7529411764705882,
-                              0.7529411764705882)
+    scene.background = (0.7529411764705882,
+                        0.7529411764705882,
+                        0.7529411764705882)
 
     # If there are nan values in there, we want to make sure that they get an
     # alpha value of 0:
