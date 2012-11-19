@@ -249,8 +249,8 @@ def plot_cut_planes(vol,
 
     # If there are nan values in there, we want to make sure that they get an
     # alpha value of 0:
-    for child in scene.children[n_planes:]:
-        module_manager = child.children[0]
+    for op in overlay_planes:
+        module_manager = op.parent
         module_manager.scalar_lut_manager.reverse_lut = invert_cmap
         if nans_exist:
             lut = module_manager.scalar_lut_manager.lut.table.to_array()
