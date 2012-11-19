@@ -79,6 +79,7 @@ import osmosis as oz
 import osmosis.fibers as ozf
 import osmosis.model.dti as dti
 from .utils import ProgressBar
+import osmosis.volume as ozv
 
 osmosis_path =  os.path.split(oz.__file__)[0]
 data_path = osmosis_path + '/data/'
