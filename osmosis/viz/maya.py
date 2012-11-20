@@ -20,7 +20,7 @@ import osmosis.tensor as ozt
 
 def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
                    colorbar=False, figure=None, vmin=None, vmax=None,
-                   file_name=None):
+                   file_name=None, azimuth=90, elevation=90):
     """
     Helper function to show data from a voxel in a mayavi figure
     """
@@ -49,7 +49,9 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     scene.light_manager.light_mode = 'vtk'
     
     # Set it to be aligned along the negative dimension of the y axis: 
-    scene.y_minus_view()
+    #scene.y_minus_view()
+
+    maya.view(azimuth=azimuth, elevation=elevation)
     
     module_manager = tm.parent
     module_manager.scalar_lut_manager.number_of_labels = 6
@@ -62,7 +64,8 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
 
 
 def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
-                   colorbar=False, figure=None, vmin=None, vmax=None, offset=0):
+                   colorbar=False, figure=None, vmin=None, vmax=None, offset=0,
+                   azimuth=90, elevation=90):
 
     """
 
@@ -93,14 +96,14 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
     # Call and return straightaway:
     return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces, v,
                                cmap=cmap, colorbar=colorbar, figure=figure,
-                               vmin=vmin, vmax=vmax,
-                               file_name=file_name)
+                               vmin=vmin, vmax=vmax, file_name=file_name,
+                               azimuth=azimuth, elevation=elevation)
     
 
 
 def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
-                        offset=0):
+                        offset=0, azimuth=90, elevation=90):
 
     """
 
@@ -137,13 +140,53 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces,
                                interp_signal,
                                cmap=cmap, colorbar=colorbar, figure=figure,
-                               vmin=vmin, vmax=vmax, file_name=file_name)
+                               vmin=vmin, vmax=vmax, file_name=file_name,
+                               azimuth=azimuth, elevation=elevation)
+
+
+
+def plot_signal(bvecs, signal, maya=True, cmap='jet', file_name=None,
+                        colorbar=False, figure=None, vmin=None, vmax=None,
+                        offset=0, azimuth=90, elevation=90):
+
+    """
+
+    Interpolate a measured signal, using RBF interpolation.
+
+    Parameters
+    ----------
+    signal:
+
+    bvecs: array (3,n)
+        the x,y,z locations where the signal was measured 
+
+    offset : float
+        where to place the plotted voxel (on the z axis)
+
+    
+    """
+
+    s0 = Sphere(xyz=bvecs.T)
+    vertices = s0.vertices    
+    faces = s0.faces
+    x,y,z = vertices.T 
+
+    r, phi, theta = geo.cart2sphere(x,y,z)
+    x_plot, y_plot, z_plot = geo.sphere2cart(signal, phi, theta)
+
+
+    # Call and return straightaway:
+    return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces,
+                               signal,
+                               cmap=cmap, colorbar=colorbar, figure=figure,
+                               vmin=vmin, vmax=vmax, file_name=file_name,
+                               azimuth=azimuth, elevation=elevation)
 
 
 
 def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
                     colorbar=False, figure=None, vmin=None, vmax=None,
-                    offset=0):
+                    offset=0, azimuth=90, elevation=90):
     """
     Plot an interpolated odf, while making sure to mirror reflect it, due to
     the symmetry of all things diffusion. 
@@ -157,7 +200,7 @@ def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
     return plot_signal_interp(bvecs_new, new_odf,
                         maya=maya, cmap=cmap, file_name=file_name,
                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
-                        offset=offset)
+                        offset=offset, azimuth=azimuth, elevation=elevation)
 
 def plot_cut_planes(vol,
                     overlay=None,
