@@ -126,7 +126,7 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     s1 = create_unit_sphere(7)
 
     interp_signal = interp_rbf(signal, s0, s1)
-    interp_signal[interp_signal<0] = 0 
+    #interp_signal[interp_signal<0] = 0 
     vertices = s1.vertices
     
     faces = s1.faces
