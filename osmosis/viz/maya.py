@@ -202,6 +202,26 @@ def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
                         offset=offset, azimuth=azimuth, elevation=elevation)
 
+
+def plot_odf(bvecs, odf, maya=True, cmap='jet', file_name=None,
+                    colorbar=False, figure=None, vmin=None, vmax=None,
+                    offset=0, azimuth=90, elevation=90):
+    """
+    Plot an interpolated odf, while making sure to mirror reflect it, due to
+    the symmetry of all things diffusion. 
+
+    """
+    bvecs_new = np.hstack([bvecs, -bvecs])
+    new_odf = np.hstack([odf, odf])
+        
+    # In the end we call out to plot_signal_interp, which does the job with
+    # this shiny new signal/bvecs: 
+    return plot_signal(bvecs_new, new_odf,
+                        maya=maya, cmap=cmap, file_name=file_name,
+                        colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
+                        offset=offset, azimuth=azimuth, elevation=elevation)
+
+
 def plot_cut_planes(vol,
                     overlay=None,
                     slice_coronal=None,
