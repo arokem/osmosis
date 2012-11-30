@@ -2,11 +2,11 @@ Equations related to diffusion and dwi:
 
 The basic signal equation:
 
-S = S_0 e^{-b ADC}
+S(\theta) = S_0 e^{-b A(\theta)}
 
 Where:
 
-ADC = \vec{b}^t Q \vec{b}
+A(\theta) = \theta Q \theta^t
 
 And:
 
@@ -169,7 +169,7 @@ RMSE:
 
 RMSE_{x \rightarrow y} = \sqrt{\frac{\sum_i^N(x_i-y_i)^2}{N}}
 
-RMSE_{relative} = \frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}
+rRMSE = \frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}
 
 
 Coefficient of determination:
