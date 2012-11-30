@@ -126,7 +126,6 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     s1 = create_unit_sphere(7)
 
     interp_signal = interp_rbf(signal, s0, s1)
-    #interp_signal[interp_signal<0] = 0 
     vertices = s1.vertices
     
     faces = s1.faces
@@ -201,6 +200,7 @@ def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
                         maya=maya, cmap=cmap, file_name=file_name,
                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
                         offset=offset, azimuth=azimuth, elevation=elevation)
+
 
 
 def plot_odf(bvecs, odf, maya=True, cmap='jet', file_name=None,
