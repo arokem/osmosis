@@ -240,6 +240,26 @@ class SphericalHarmonicsModel(BaseModel):
         return out
 
     @desc.auto_attr
+    def odf_peak_directions(self):
+        """
+        Derive the directions of the odf peaks
+
+        """
+        peaks_flat = self.odf_peaks[self.mask]
+        out_flat = np.nans(peaks_flat.shape + (3,))
+        for vox in xrange(peaks_flat.shape[0]):
+           non_zeros = np.where(peaks_flat[vox]>0)
+           idx = np.argsort(peaks_flat[vox])[:len(non_zeros)]
+           out_flat[vox]= self.bvecs[:, self.b_idx][:, idx].T
+
+        out = np.zeros(self.odf_peaks.shape + (3,))
+        out[self.mask] = out_flat
+        return out
+       
+
+
+
+    @desc.auto_attr
     def crossing_index(self):
         """
         Calculate an index of crossing in each voxel. This index is an analogue
@@ -325,7 +345,7 @@ class SphericalHarmonicsModel(BaseModel):
         out = ozu.nans(self.signal.shape)
         out[self.mask] = pred_sig  
         return out
-    
+        
         
     def _calculate_L(self,n):
         """
