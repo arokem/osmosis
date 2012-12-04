@@ -216,7 +216,7 @@ class SphericalHarmonicsModel(BaseModel):
         convolved with a "response function", a canonical tensor, to calculate
         back the estimated signal. 
         """
-        out = np.empty(self.signal.shape)
+        out = ozu.nans(self.signal.shape)
         # multiply these two matrices together for the estimated odf:  
         out[self.mask] = np.dot(self.model_coeffs[self.mask], self.sph_harm_set)
 
@@ -232,9 +232,10 @@ class SphericalHarmonicsModel(BaseModel):
         odf_flat = self.odf[self.mask]
         out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
-            peaks, inds = recspeed.local_maxima(odf_flat[vox], faces)
-            out_flat[vox][inds] = peaks 
-
+            if np.all(np.isfinite(odf_flat[vox])):
+                peaks, inds = recspeed.local_maxima(odf_flat[vox], faces)
+                out_flat[vox][inds] = peaks
+            
         out = np.zeros(self.odf.shape)
         out[self.mask] = out_flat
         return out
@@ -246,11 +247,11 @@ class SphericalHarmonicsModel(BaseModel):
 
         """
         peaks_flat = self.odf_peaks[self.mask]
-        out_flat = np.nans(peaks_flat.shape + (3,))
+        out_flat = np.zeros(peaks_flat.shape + (3,))
         for vox in xrange(peaks_flat.shape[0]):
-           non_zeros = np.where(peaks_flat[vox]>0)
-           idx = np.argsort(peaks_flat[vox])[:len(non_zeros)]
-           out_flat[vox]= self.bvecs[:, self.b_idx][:, idx].T
+           non_zeros = np.where(peaks_flat[vox]>0)[0]
+           idx = np.argsort(peaks_flat[vox])[::-1][:len(non_zeros)]
+           out_flat[vox, :len(idx)] = self.bvecs[:, self.b_idx][:, idx].T
 
         out = np.zeros(self.odf_peaks.shape + (3,))
         out[self.mask] = out_flat
@@ -387,7 +388,7 @@ class SphericalHarmonicsModel(BaseModel):
             this_odf = flat_odf[vox]
             
             out_flat[vox] =\
-                self.bvecs[:, self.b_idx].T[np.argmax(this_odf)]
+                self.bvecs[:, self.b_idx][:, np.argmax(this_odf)]
 
         out = ozu.nans(self.shape[:3] + (3,))
         out[self.mask] = out_flat
