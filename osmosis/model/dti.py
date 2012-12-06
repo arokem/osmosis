@@ -226,6 +226,25 @@ class TensorModel(BaseModel):
         out[self.mask] = adc_flat
         return out
 
+    def predict_adc(self, sphere):
+        """
+
+        The ADC predicted on a sphere (containing points other than the bvecs)
+        
+        """
+        out = ozu.nans(self.signal.shape[:3] + (sphere.shape[-1],))
+        tensors_flat = self.tensors[self.mask].reshape((-1,3,3))
+        adc_flat = np.empty((np.sum(self.mask), sphere.shape[-1]))
+
+        for ii in xrange(len(adc_flat)):
+            adc_flat[ii] = ozt.apparent_diffusion_coef(sphere,
+                                                       tensors_flat[ii])
+
+        out[self.mask] = adc_flat
+
+        return out
+        
+
     @desc.auto_attr
     def fiber_volume_fraction(self):
         """
@@ -270,6 +289,35 @@ class TensorModel(BaseModel):
 
         out[self.mask] = fit_flat
         return out
+
+    def predict(self, sphere):
+        """
+        Predict the values of the signal on a novel sphere (not neccesarily
+        measured points) in every voxel
+
+        Parameters
+        ----------
+        sphere : 3 x n array
+        
+        """
+        if self.verbose:
+            print("Predicting signal from TensorModel")
+
+        pred_adc_flat = self.predict_adc(sphere)[self.mask]
+        predict_flat = np.empty(adc_flat.shape)
+
+        out = ozu.nans(self.signal.shape[:3] + (sphere.shape[-1], ))
+        # We will assume one b-value use that one below for all the bvecs:
+        bval = self.bvals[:, self.b_idx][0]
+        for ii in xrange(len(predict_flat)):
+            predict_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
+                                               bval*np.ones(adc_flat.shape[-1]),
+                                               pred_adc_flat[ii])
+
+        out[self.mask] = predict_flat
+        return out
+        
+    
 def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
                 average=True):
     """

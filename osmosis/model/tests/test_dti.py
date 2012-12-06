@@ -782,3 +782,15 @@ def test_tensor_stats():
     # Dispersion should be 0 everywhere: 
     d = tensor_dispersion([TM1, TM2])
     npt.assert_almost_equal(d,np.zeros(d.shape))
+
+def test_predict():
+    """
+    Test prediction on new directions
+    """
+    bvecs = TM1.bvecs[:, TM1.b_idx]
+    # We take a subset of these and pass them to the predict method:
+    new_bvecs = bvecs[:, :4]
+    prediction = TM1.predict(new_bvecs)
+
+    # Then verify that the prediction is equal to the fit in these directions:
+    npt.assert_array_equal(prediction, TM1.fit[...,:4])
