@@ -130,3 +130,22 @@ def test_CanonicalTensorModelOpt():
                       mode='normalize',
                       mask=mask_array,
                       params_file=tempfile.NamedTemporaryFile().name)
+
+def test_predict():
+    """
+    Test the CanonicalTensorModel predict method
+    """
+    # 1000 'voxels' with constant data in each one in all directions (+b0): 
+    data = (np.random.rand(10 * 10 * 10).reshape(10 * 10 * 10, 1) +
+            np.zeros((10 * 10 * 10, 160))).reshape(10,10,10,160)
+
+    CTM = CanonicalTensorModel(data,
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+        params_file=tempfile.NamedTemporaryFile().name)
+
+    bvecs = CTM.bvecs[:, CTM.b_idx]
+    new_bvecs = bvecs[:,:4]
+    prediction = CTM.predict(new_bvecs)
+
+    npt.assert_array_equal(prediction, CTM.fit[...,:4])
