@@ -210,9 +210,15 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape)
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_relative = (np.dot(flat_params[vox], design_matrix.T) + 
-                            np.mean(fit_to.T[vox]))
-            if self.mode == 'relative_signal' or self.mode=='normalize':
+
+            if self.mode == 'log':
+                this_relative=np.exp(np.dot(flat_params[vox], design_matrix.T)+
+                                     np.mean(fit_to.T[vox]))
+            else:     
+                this_relative = (np.dot(flat_params[vox], design_matrix.T) + 
+                                 np.mean(fit_to.T[vox]))
+            if (self.mode == 'relative_signal' or self.mode=='normalize' or
+                self.mode=='log'):
                 this_pred_sig = this_relative * self._flat_S0[vox]
             elif self.mode == 'signal_attenuation':
                 this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
@@ -225,7 +231,49 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
 
         return out
-    
+
+
+    def predict(self, vertices):
+        """
+        Predict the signal on a new set of vertices
+        """
+        if self.verbose:
+            msg = "Predicting signal from SparseDeconvolutionModel"
+            msg += " with %s"%self.solver
+            print(msg)
+
+        design_matrix = self._calc_rotations(vertices)
+        design_matrix = design_matrix - np.mean(design_matrix, 0)
+        design_matrix = design_matrix.T
+        
+        iso_regressor, tensor_regressor, fit_to = self.regressors
+
+        out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if self.mode == 'log':
+                this_relative=np.exp(np.dot(flat_params[vox], design_matrix.T)+
+                                     np.mean(fit_to.T[vox]))
+            else:     
+                this_relative = (np.dot(flat_params[vox], design_matrix.T) + 
+                                 np.mean(fit_to.T[vox]))
+            if (self.mode == 'relative_signal' or self.mode=='normalize' or
+                self.mode=='log'):
+                this_pred_sig = this_relative * self._flat_S0[vox]
+            elif self.mode == 'signal_attenuation':
+                this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
+
+            # Fit scale and offset:
+            #a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
+            # out_flat[vox] = a*this_pred_sig + b
+            out_flat[vox] = this_pred_sig 
+
+        out = ozu.nans(self.signal.shape[:3]+ (vertices.shape[-1],))
+        out[self.mask] = out_flat
+
+        return out
+
+        
 
     @desc.auto_attr
     def fit_angle(self):
