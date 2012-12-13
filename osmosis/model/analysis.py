@@ -86,6 +86,39 @@ def rsquared(model1, model2):
     out[model1.mask] = out_flat
     return out
     
+def cross_predict(model1, model2):
+    """
+    Given two model objects, fit to the measurements conducted in one, and then
+    predict the measurements in the other model's rotational coordinate frame
+    (b vectors). Calculate relative RMSE on that prediction, relative to the
+    noise in the measurement due to the rotation. Average across both
+    directions of this operation.
+
+    """
+
+    out = ozu.nans(model1.shape[:-1])
+    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    # Cross predict, using the parameters from one model to predict the
+    # measurements in the other model's b vectors:
+    predict1 = model1.predict(model2.bvecs[:, model2.b_idx])[model1.mask]
+    predict2 = model2.predict(model1.bvecs[:, model1.b_idx])[model2.mask]
+
+    signal_rmse = ozu.rmse(sig1, sig2)
+    predict1_rmse = ozu.rmse(predict1, sig2)
+    predict2_rmse = ozu.rmse(predict2, sig1)
+
+    # Average in each element:
+    predict_rmse = (predict1_rmse + predict2_rmse) / 2.
+    rel_rmse = predict_rmse/signal_rmse
+
+    out[model1.mask] = rel_rmse
+
+    return out
+
+
+
 
 def relative_rmse(model1, model2):
     """
