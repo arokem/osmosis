@@ -386,9 +386,11 @@ class SphericalHarmonicsModel(BaseModel):
         out_flat = np.empty((flat_odf.shape[0], 3))
         for vox in xrange(out_flat.shape[0]):
             this_odf = flat_odf[vox]
-            
-            out_flat[vox] =\
+            if np.all(np.isfinite(this_odf)):
+                out_flat[vox] =\
                 self.bvecs[:, self.b_idx][:, np.argmax(this_odf)]
+            else:
+                out_flat[vox] = [np.nan, np.nan, np.nan]
 
         out = ozu.nans(self.shape[:3] + (3,))
         out[self.mask] = out_flat
