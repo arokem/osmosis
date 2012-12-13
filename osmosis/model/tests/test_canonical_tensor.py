@@ -147,5 +147,4 @@ def test_predict():
     bvecs = CTM.bvecs[:, CTM.b_idx]
     new_bvecs = bvecs[:,:4]
     prediction = CTM.predict(new_bvecs)
-
     npt.assert_array_equal(prediction, CTM.fit[...,:4])

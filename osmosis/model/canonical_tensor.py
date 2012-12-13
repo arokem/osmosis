@@ -198,27 +198,33 @@ class CanonicalTensorModel(BaseModel):
         bvals = self.bvals[self.b_idx]
         return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]), bvecs, bvals)
 
-     
-    @desc.auto_attr
-    def rotations(self):
+
+    def _calc_rotations(self, vertices):
         """
-        These are the canonical tensors pointing in the direction of each of
-        the bvecs in the sampling scheme. If an over-sample number was
-        provided, we use the camino points to make canonical tensors pointing
-        in all these directions (over-sampling the sphere above the resolution
-        of the measurement). 
+        Given the rot_vecs of the object and a set of vertices (for the fitting
+        these are the b-vectors of the measurement), calculate the rotations to
+        be used as a design matrix
+
         """
-        out = np.empty((self.rot_vecs.shape[-1], self.b_idx.shape[0]))
+        out = np.empty((self.rot_vecs.shape[-1], vertices.shape[-1]))
         
         # We will use the eigen-value/vectors from the response function
         # and rotate them around to each one of these vectors, calculating
         # the predicted signal in the bvecs of the actual measurement (even
         # when over-sampling):
+
+        # If we have as many vertices as b-vectors, we can take the
+        # b-values from the measurement
+        if vertices.shape[0] == len(self.b_idx): 
+            bvals = self.bvals[self.b_idx]
+        # Otherwise, we have to assume a constant b-value
+        else:
+            bvals = np.ones(vertices.shape[-1]) * self.bvals[self.b_idx][0]
+            
         evals, evecs = self.response_function.decompose
         for idx, bvec in enumerate(self.rot_vecs.T):
             pred_sig = ozt.rotate_to_vector(bvec, evals, evecs,
-                        self.bvecs[:, self.b_idx],
-                        self.bvals[self.b_idx]).predicted_signal(1)
+                                            vertices, bvals).predicted_signal(1) 
 
             if self.mode == 'signal_attenuation':
                 # Fit to 1 - S/S0 
@@ -234,6 +240,18 @@ class CanonicalTensorModel(BaseModel):
                 out[idx] = np.log(pred_sig)
             
         return out
+
+
+    @desc.auto_attr
+    def rotations(self):
+        """
+        These are the canonical tensors pointing in the direction of each of
+        the bvecs in the sampling scheme. If an over-sample number was
+        provided, we use the camino points to make canonical tensors pointing
+        in all these directions (over-sampling the sphere above the resolution
+        of the measurement). 
+        """
+        return self._calc_rotations(self.bvecs[:, self.b_idx])
 
     @desc.auto_attr
     def regressors(self):
@@ -425,6 +443,49 @@ class CanonicalTensorModel(BaseModel):
 
         return out
 
+
+    def predict(self, vertices):
+        """
+        Predict the signal on a novel set of vertices
+
+        Parameters
+        ----------
+        vertices : an n by 3 array
+
+        """
+        # Start by generating the values of the rotations we use in these
+        # coordinates on the sphere 
+        rotations = self._calc_rotations(vertices)
+        
+        if self.verbose:
+            print("Predicting signal from CanonicalTensorModel")
+            
+        out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox, 1]):
+                if self.mode == 'log':
+                    this_relative = np.exp(flat_params[vox,1] *
+                                rotations[flat_params[vox,0]] +
+                                self.regressors[0][0] * flat_params[vox,2]) 
+                else: 
+                    this_relative = (flat_params[vox,1] *
+                                rotations[flat_params[vox,0]] +
+                                self.regressors[0][0] * flat_params[vox,2]) 
+        
+                    if self.mode == 'signal_attenuation':
+                        this_relative = 1 - this_relative
+
+                out_flat[vox]= this_relative * self._flat_S0[vox]
+            else:
+                out_flat[vox] = np.nan
+                
+        out = ozu.nans(self.signal.shape[:3] + (vertices.shape[-1], ))
+        out[self.mask] = out_flat
+
+        return out
+        
+        
     @desc.auto_attr
     def principal_diffusion_direction(self):
         """
