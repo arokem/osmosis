@@ -9,7 +9,7 @@ import dipy.core.geometry as geo
 import osmosis.tensor as ozt
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
-from osmosis.model.canonical_tensor_model import CanonicalTensorModel
+from osmosis.model.canonical_tensor import CanonicalTensorModel
 from osmosis.model.base import SCALE_FACTOR
 
 

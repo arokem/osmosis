@@ -776,8 +776,8 @@ class ProgressBar:
         Examples
         --------
         >>> p = ProgressBar(1000)
-        >>> for i in range(1001):
-                p.animate(i)
+        >>> for i in range(1001): #doctest: +SKIP
+        ...     p.animate(i)
 
         """
         self.iterations = iterations

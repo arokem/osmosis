@@ -4,12 +4,11 @@ import nibabel as ni
 
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
-from osmosis.model.canonical_tensor_model import CanonicalTensorModel, AD, RD
+from osmosis.model.canonical_tensor import CanonicalTensorModel, AD, RD
 from osmosis.model.base import SCALE_FACTOR
-from osmosis.io import params_file_resolver
+from osmosis.model.io import params_file_resolver
+                       
 
-
-    
 class TissueFractionModel(CanonicalTensorModel):
     """
     This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
