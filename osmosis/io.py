@@ -82,6 +82,7 @@ from .utils import ProgressBar
 import osmosis.volume as ozv
 
 osmosis_path =  os.path.split(oz.__file__)[0]
+
 data_path = osmosis_path + '/data/'
 
 # XXX The following functions are way too long. Break 'em up!
@@ -572,31 +573,50 @@ def nii_from_volume(vol, file_name, affine=None):
 
 
 
-def make_data_set(root):
+def make_data_set(root, subject):
     """
     Create the full paths to the data given a root
     """ 
     exts = ['.nii.gz', '.bvecs', '.bvals']
-    dwi, bvecs, bvals = [data_path + root + ext for ext in exts]
+    dwi, bvecs, bvals = [os.path.join(data_path, subject, root + ext)
+                         for ext in exts]
     return dwi, bvecs, bvals 
 
-def get_dwi_data(b):
+def get_dwi_data(b, subject):
     """
     A function that gets you file-names to a data-set with a certain b value
     provided as input
     """
-    data_files = {1000:[make_data_set(
-    '0009_01_DWI_2mm150dir_2x_b1000_aligned_trilin'),
-    make_data_set(
-    '0011_01_DWI_2mm150dir_2x_b1000_aligned_trilin')],
-    2000:[make_data_set(
-    '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin'),
-    make_data_set(
-    '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin')],
-    4000:[make_data_set(
-    '0005_01_DWI_2mm150dir_2x_b4000_aligned_trilin'),
-    make_data_set(
-    '0007_01_DWI_2mm150dir_2x_b4000_aligned_trilin')]}
+    if subject == 'FP':
+        data_files = {
+            1000:[make_data_set(
+                 '0009_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject),
+                 make_data_set(
+                 '0011_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject)],
+            2000:[make_data_set(
+                '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin', subject),
+            make_data_set(
+                '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin', subject)],
+            4000:[make_data_set(
+                '0005_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject),
+                make_data_set(
+                '0007_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject)]}
+
+    elif subject == 'HT':
+        data_files = {
+            1000:[make_data_set(
+                '0006_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject),
+                make_data_set(
+                '0008_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject)],
+            2000:[make_data_set(
+                '0015_01_DTI_2mm_b2000_150dir_aligned_trilin', subject),
+                make_data_set(
+                '0017_01_DTI_2mm_b2000_150dir_aligned_trilin', subject)],
+            4000:[make_data_set(
+                '0009_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject),
+                make_data_set(
+                '0010_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject)]}
+        
     return data_files[b]
 
 
@@ -650,18 +670,27 @@ def get_wm_mask(wm=data_path + 'FP_wm_mask.nii.gz', resample=None):
         return ni.load(wm).get_data()
 
 
-def get_ad_rd(b):
+def get_ad_rd(subject, b):
     """
     This is a short-cut to get the axial and radial diffusivity values that we
     have extracted from the data with the notebook GetADandRD.
     """
-    # These are based on the calculations in GetADandRD
-    diffusivities = {1000:[dict(AD=1.7139,  RD=0.3887),
-                           dict(AD=1.6986, RD=0.3760)],
-                     2000:[dict(AD=1.4291, RD=0.3507),
-                           dict(AD=1.4202, RD=0.3357)],
-                     4000:[dict(AD=0.8403, RD=0.2369),
-                           dict(AD=0.8375, RD=0.2379)]}
+    if subject == 'FP':
+        diffusivities = {1000:[dict(AD=1.6769,  RD=0.3196),
+                           dict(AD=1.6643, RD=0.3177)],
+                     2000:[dict(AD=1.3798, RD=0.2561),
+                           dict(AD=1.3802, RD=0.2580)],
+                     4000:[dict(AD=0.8494, RD=0.2066),
+                           dict(AD=0.8478, RD=0.2046)]}
+
+    elif subject == 'HT':
+        diffusivities = {1000:[dict(AD=1.7646,  RD=0.4296),
+                           dict(AD=1.7509, RD=0.4299)],
+                     2000:[dict(AD=1.4670, RD=0.5156),
+                           dict(AD=1.4710, RD=0.5163)],
+                     4000:[dict(AD=0.8288, RD=0.2970),
+                           dict(AD=0.8234, RD=0.3132)]}
+
     return diffusivities[b]
 
 
