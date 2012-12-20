@@ -1,9 +1,8 @@
-#!/usr/bin/python
 """
 make_wm_mask
 
-Script to make a white-matter mask from an itk-gray class file and DWI data, at
-the resolution of the DWI data. 
+This is a module used to make a white-matter mask from an itk-gray class file
+and DWI data, at the resolution of the DWI data.
 
 This follows [Jeurissen2012]_. First, we resample a segmentation based on a
 T1-weighted image. Then, we calculate the mean diffusivity in a coregistered
@@ -33,42 +32,56 @@ from nipy.labs.datasets import as_volume_img
 
 import osmosis.model as ozm
 
-if __name__=="__main__":
-    seg_path = sys.argv[1]
-    dwi_path = sys.argv[2] # This should lead to nii.gz, bvecs and bvals
-    out_path = sys.argv[3]
+def make_wm_mask(seg_path, dwi_path, out_path, TensorModel):
+  """
+  Function to make a conservative WM mask, excluding partial volumed
+  voxels
+
+  Parameters
+  ----------
+  seg_path : the full path to a white matter segmentation generated with the
+  itkGray conventions (in particular, 3 and 4 are the classification for WM in
+  left and right hemispheres).
+  
+  """
+
+## if __name__=="__main__":
+##     seg_path = sys.argv[1]
+##     dwi_path = sys.argv[2] # This should lead to nii.gz, bvecs and bvals
+##     out_path = sys.argv[3]
     
-    # Load the classification information: 
-    seg_ni = ni.load(seg_path)
-    seg_vimg = as_volume_img(seg_ni)
-    dwi_ni = ni.load(dwi_path + '.nii.gz')
+  # Load the classification information: 
+  seg_ni = ni.load(seg_path)
+  seg_vimg = as_volume_img(seg_ni)
+  dwi_ni = ni.load(dwi_path + '.nii.gz')
+  
+  vimg = as_volume_img(seg_ni)
+  # This does the magic - resamples using nearest neighbor interpolation:
+  seg_resamp_vimg = vimg.as_volume_img(affine=dwi_ni.get_affine(),
+                                       shape=dwi_ni.shape[:-1],
+                                       interpolation='nearest')
 
-    vimg = as_volume_img(seg_ni)
-    # This does the magic - resamples using nearest neighbor interpolation:
-    seg_resamp_vimg = vimg.as_volume_img(affine=dwi_ni.get_affine(),
-                                         shape=dwi_ni.shape[:-1],
-                                         interpolation='nearest')
+  seg_resamp = seg_resamp_vimg.get_data()
 
-    seg_resamp = seg_resamp_vimg.get_data()
+  # We know that WM is classified as 3 and 4 (for the two different
+  # hemispheres):
+  wm_idx = np.where(np.logical_or(seg_resamp==3, seg_resamp==4))
+  vol = np.zeros(seg_resamp.shape)
+  vol[wm_idx] = 1
 
-    # We know that WM is classified as 3 and 4 (for the two different
-    # hemispheres):
-    wm_idx = np.where(np.logical_or(seg_resamp==3, seg_resamp==4))
-    vol = np.zeros(seg_resamp.shape)
-    vol[wm_idx] = 1
-
+  if TensorModel is None:
     # OK - now we need to find and exclude MD outliers: 
-    TM = ozm.TensorModel(dwi_path + '.nii.gz',
-                         dwi_path + '.bvecs',
-                         dwi_path + '.bvals', mask=vol,
-                         params_file='temp')    
+    TensorModel = ozm.TensorModel(dwi_path + '.nii.gz',
+                       dwi_path + '.bvecs',
+                       dwi_path + '.bvals', mask=vol,
+                       params_file='temp')    
 
-    MD = TM.mean_diffusivity
+  MD = TensorModel.mean_diffusivity
     
-    IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
-          stats.scoreatpercentile(MD[np.isfinite(MD)],25))
-    cutoff = np.median(MD[np.isfinite(MD)]) + 2 * IQR
-    cutoff_idx = np.where(MD > cutoff)
+  IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
+         stats.scoreatpercentile(MD[np.isfinite(MD)],25))
+  cutoff = np.median(MD[np.isfinite(MD)]) + 2 * IQR
+  cutoff_idx = np.where(MD > cutoff)
 
     # Null 'em out:
     vol[cutoff_idx] = 0
