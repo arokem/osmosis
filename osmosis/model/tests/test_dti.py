@@ -793,4 +793,4 @@ def test_predict():
     prediction = TM1.predict(new_bvecs)
 
     # Then verify that the prediction is equal to the fit in these directions:
-    npt.assert_array_equal(prediction, TM1.fit[...,:4])
+    npt.assert_array_almost_equal(prediction, TM1.fit[...,:4])

@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 try:
     from mayavi import mlab as maya
@@ -9,7 +10,7 @@ try:
 except ImportError:
     e_s = "You can't use 3d visualization functions, "
     e_s += "unless you have mayavi installed."
-    raise ValueError(e_s)
+    warnings.warn(e_s)
 
 from dipy.core.subdivide_octahedron import create_unit_sphere
 import dipy.core.geometry as geo
