@@ -10,7 +10,7 @@ import osmosis.model.sparse_deconvolution as ssd
 import osmosis.model.analysis as ozm
 import osmosis.io as oio
 
-data_path = os.path.join(oio.data_path, 'data_osmosis_raw')
+data_path = oio.data_path
 
 rrmse_dti = {}
 rrmse_ssd = {}
