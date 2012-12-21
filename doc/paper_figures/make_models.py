@@ -32,7 +32,7 @@ for subject in ['FP', 'HT']:
         print b
         rmse_mask = rrmse_dti[subject][b][wm_idx]
         print "DTI: %s voxels above 1"%(len(np.where(rmse_mask>1)[0])/float(len(rmse_mask)))
-        # 
+        print "Median rRMSE: %s"%np.median(rmse_mask)
         ad_rd = oio.get_ad_rd(subject, b)
         SD1 = ssd.SparseDeconvolutionModel(*data_1, mask=wm_mask,
             axial_diffusivity=ad_rd[0]['AD'],
@@ -43,6 +43,7 @@ for subject in ['FP', 'HT']:
         rrmse_ssd[subject][b] = ozm.cross_predict(SD1, SD2)
         rmse_mask = rrmse_ssd[subject][b][wm_idx]
         print "SSD: %s voxels above 1"%(len(np.where(rmse_mask>1)[0])/float(len(rmse_mask)))
+        print "Median rRMSE: %s"%np.median(rmse_mask)
         rmse_mask = rrmse_ssd[subject][b][wm_idx]
 
         
