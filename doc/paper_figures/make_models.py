@@ -41,6 +41,7 @@ for subject in ['FP', 'HT']:
             axial_diffusivity=ad_rd[1]['AD'],
             radial_diffusivity=ad_rd[1]['RD'])
         rrmse_ssd[subject][b] = ozm.cross_predict(SD1, SD2)
+        rmse_mask = rrmse_ssd[subject][b][wm_idx]
         print "SSD: %s voxels above 1"%(len(np.where(rmse_mask>1)[0])/float(len(rmse_mask)))
         rmse_mask = rrmse_ssd[subject][b][wm_idx]
 
