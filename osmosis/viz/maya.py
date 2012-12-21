@@ -21,7 +21,7 @@ import osmosis.tensor as ozt
 
 def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
                    colorbar=False, figure=None, vmin=None, vmax=None,
-                   file_name=None, azimuth=90, elevation=90):
+                   file_name=None, azimuth=60, elevation=90, roll=0):
     """
     Helper function to show data from a voxel in a mayavi figure
     """
@@ -53,7 +53,7 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     #scene.y_minus_view()
 
     maya.view(azimuth=azimuth, elevation=elevation)
-    
+    maya.roll(roll)
     module_manager = tm.parent
     module_manager.scalar_lut_manager.number_of_labels = 6
     
@@ -66,7 +66,7 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
 
 def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
                    colorbar=False, figure=None, vmin=None, vmax=None, offset=0,
-                   azimuth=90, elevation=90):
+                   azimuth=60, elevation=90, roll=0):
 
     """
 
@@ -104,7 +104,7 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
 
 def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
-                        offset=0, azimuth=90, elevation=90):
+                        offset=0, azimuth=60, elevation=90, roll=0):
 
     """
 
@@ -147,7 +147,7 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
 
 def plot_signal(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
-                        offset=0, azimuth=90, elevation=90):
+                        offset=0, azimuth=60, elevation=90, roll=0):
 
     """
 
@@ -186,7 +186,7 @@ def plot_signal(bvecs, signal, maya=True, cmap='jet', file_name=None,
 
 def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
                     colorbar=False, figure=None, vmin=None, vmax=None,
-                    offset=0, azimuth=90, elevation=90):
+                    offset=0, azimuth=60, elevation=90, roll=0):
     """
     Plot an interpolated odf, while making sure to mirror reflect it, due to
     the symmetry of all things diffusion. 
@@ -206,7 +206,7 @@ def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
 
 def plot_odf(bvecs, odf, maya=True, cmap='jet', file_name=None,
                     colorbar=False, figure=None, vmin=None, vmax=None,
-                    offset=0, azimuth=90, elevation=90):
+                    offset=0, azimuth=60, elevation=90, roll=0):
     """
     Plot an interpolated odf, while making sure to mirror reflect it, due to
     the symmetry of all things diffusion. 
