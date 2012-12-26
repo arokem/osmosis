@@ -2,9 +2,6 @@
 
 Submissions on an SGE, over ssh
 
-Warning: some of this will not work in IPython for the time being, until
-getpass issues are resolved.
-
 """
 
 import os
@@ -51,12 +48,8 @@ class SSH(object):
    """
    def __init__(self, hostname=None, username=None, password=None, port=22):
       """
-      Initialize an ssh connection
+      Initialize an ssh connection. Don't connect yet.
       """
-      hostname, username, password = self._get_credentials(hostname,
-                                                           username,
-                                                           password)
-
       self.hostname = hostname
       self.username = username
       self.password = password
@@ -64,8 +57,25 @@ class SSH(object):
       self.client = paramiko.SSHClient()
       self.client.load_system_host_keys()
       self.client.set_missing_host_key_policy(paramiko.WarningPolicy)
+      # Until the connection is opened, this is set to False:
+      self._open = False
+      
+   def connect(self):
+      """
+      Open the connection
+      """
+      # Defer getting the credentials to this point:
+      hostname, username, password = self._get_credentials(self.hostname,
+                                                           self.username,
+                                                           self.password)
+      # Update these attrs if need be: 
+      self.hostname = hostname
+      self.username = username
+      self.password = password
+      
       self.client.connect(self.hostname, self.port, self.username, self.password)
       self._open = True
+      print ("Connected to %s"%hostname)
 
    def _get_credentials(self, hostname=None, username=None, password=None):
       # Get your hostname and credentials:
@@ -100,23 +110,40 @@ class SSH(object):
       return hostname, username, password
     
    def exec_command(self, command):
-      stdin, out, err = self.client.exec_command(command)
+      """
+      Execute a command over ssh.
 
-      stdout = ''
-      for line in out:
-         stdout += line
-         
-      stderr = ''
-      for line in err:
-         stderr += line
+      If the connection is closed, execute it locally
+      """
+      if self._open:
+         stdin, out, err = self.client.exec_command(command)
+         stdout = ''
+         for line in out:
+            stdout += line
+
+         stderr = ''
+         for line in err:
+            stderr += line
+      else:
+         #print command
+         status = os.system(command)
+         stdin = False
+         stdout = False
+         # In this case, we just signal whether there was an error in executing
+         # the command, without returning stdout/stderr as string:
+         if status == 0:
+            stderr = False
+         else:
+            stderr = True 
 
       return stdin, stdout, stderr
 
 
-   def close(self):
+   def disconnect(self):
       try:
          self.client.close()
          self._open = False
+         print ("Disconnected from %s"%self.hostname)
       except:
          pass
 
@@ -243,7 +270,7 @@ def py_cmd(ssh, cmd, file_name='~/pycmd/cmd.py', python=None):
    ssh.exec_command('chmod 755 %s'%file_name)
 
 
-def write_file_ssh(ssh, line_list, file_name, executable=True, append=True):
+def write_file_ssh(ssh, line_list, file_name, executable=True, clobber=True):
    """
    Write a file made out of the lines in line_list on a remote machine
 
@@ -252,17 +279,26 @@ def write_file_ssh(ssh, line_list, file_name, executable=True, append=True):
    This will clobber existing files! Need to figure out a way to be more
    careful with that.
    """
-   ssh.exec_command('touch %s'%file_name)
-   s = ''
 
-   for line in line_list:
-      s = s + line + '\n'
+   if clobber:
+      # Does this overwrite existing files? 
+      touch_cmd = 'touch %s'%file_name
+      i, o, e = ssh.exec_command(touch_cmd)
+      if e:
+         raise ValueError('error executing "%s"'%touch_cmd)
    
-   # This will append to the file, if it exists:
-   if append: 
-      ssh.exec_command("echo '%s' >> %s"%(s, file_name))
-   # This will over-write
-   else:
-      ssh.exec_command("echo '%s' >> %s"%(s, file_name))
+   for line in line_list:
+      # From here on out append ('>>')
+      echo_cmd = "echo '%s' >> %s"%(line, file_name)
+      i,o,e = ssh.exec_command(echo_cmd)
+      if e:
+         raise ValueError('error executing "%s"'%echo_cmd)
+
    if executable:
-      ssh('chmod 755 %s'%file_name, hostname, username, password)
+      chmod_cmd = 'chmod 755 %s'%file_name
+      i,o,e = ssh.exec_command(chmod_cmd)
+      if e:
+         raise ValueError('error executing "%s"'%chmod_cmd)
+      
+      
+
