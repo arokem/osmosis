@@ -12,6 +12,9 @@ import getpass
 import inspect
 import traceback
 
+# We need to know whether we have a Qt shell on our hands:
+import IPython.zmq.zmqshell as zmqshell
+
 # This does ssh:
 import paramiko
 
@@ -40,70 +43,84 @@ def getsourcelines(object):
         for x in lines:
             ss += x
 
-    return ss, 0
-        
+    return ss, 0   
 
-def _get_credentials(hostname=None, username=None, password=None):
-    # Get your hostname and credentials:
-    if hostname is None:
-        hostname = raw_input('Hostname: ')
+class SSH(object):
+   """
+   A class for representing and using ssh connections via paramiko
+   """
+   def __init__(self, hostname=None, username=None, password=None, port=22):
+      """
+      Initialize an ssh connection
+      """
+      hostname, username, password = self._get_credentials(hostname,
+                                                           username,
+                                                           password)
 
-    if username is None:
-        default_username = getpass.getuser()
-        username = raw_input('Username [%s]: ' % default_username)
-        if len(username) == 0:
+      self.hostname = hostname
+      self.username = username
+      self.password = password
+      self.port = port
+      self.client = paramiko.SSHClient()
+      self.client.load_system_host_keys()
+      self.client.set_missing_host_key_policy(paramiko.WarningPolicy)
+      self.client.connect(self.hostname, self.port, self.username, self.password)
+      self._open = True
+
+   def _get_credentials(self, hostname=None, username=None, password=None):
+      # Get your hostname and credentials:
+      if hostname is None:
+         hostname = raw_input('Hostname: ')
+
+      if username is None:
+         default_username = getpass.getuser()
+         username = raw_input('Username [%s]: ' % default_username)
+         if len(username) == 0:
             username = default_username
 
-    # We need to check whether we are in an ipython session, to know how to get
-    # the password:
-    if password is None: 
-        try:
-           ip = get_ipython()
-           is_ip = True
-        except NameError: 
-           is_ip = False
-        if is_ip:
-           password = raw_input('Password for %s@%s: ' % (username, hostname))
-        else:
-           password = getpass.getpass('Password for %s@%s: ' % (username,
-                                                                hostname))
+      # We need to check whether we are in an ipython session, to know how to
+      # get the password:
+      if password is None: 
+         try:
+            ip = get_ipython()
+            is_ip = True
+              
+         except NameError: 
+            is_ip = False
 
-    return hostname, username, password
+         # In the Qt terminal, we have to use raw_input:
+         if is_ip and isinstance(ip, zmqshell.ZMQInteractiveShell):
+            password = raw_input('Password for %s@%s: ' % (username,
+                                                              hostname))
+         # Otherwise, we can use getpass(preferable, no echo)
+         else:
+            password = getpass.getpass('Password for %s@%s: ' % (username,
+                                                                 hostname))
 
-def ssh(command, hostname=None, username=None, password=None, port=22):
-    """
-    Send a command over ssh to a host, stdout will be posted back to your local
-    terminal 
-    """
-    hostname, username, password = _get_credentials(hostname, username, password)
-    try:
-        client = paramiko.SSHClient()
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.WarningPolicy)
-        client.connect(hostname, port, username, password)
-        stdin, out, err = client.exec_command(command)
-        stdout = ''
-        for line in out:
-            stdout += line
-
-        stderr = ''
-        for line in err:
-            stderr += line
-
-        client.close()
+      return hostname, username, password
     
-    except Exception, e:
-        print '*** Caught exception: %s: %s' % (e.__class__, e)
-        traceback.print_exc()
-        try:
-            client.close()
-        except:
-            pass
-        stdin = False
-        stout = False
-        stderr = False
+   def exec_command(self, command):
+      stdin, out, err = self.client.exec_command(command)
 
-    return stdin, stdout, stderr
+      stdout = ''
+      for line in out:
+         stdout += line
+         
+      stderr = ''
+      for line in err:
+         stderr += line
+
+      return stdin, stdout, stderr
+
+
+   def close(self):
+      try:
+         self.client.close()
+         self._open = False
+      except:
+         pass
+
+      
 
 def add_params(s, params_dict):
     """
@@ -150,32 +167,83 @@ def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
                                                                      call)
 
 
-def py_cmd(cmd, hostname=None, username=None, password=None, python=None,
-           cmd_file='~/pycmd/cmd.py'):
-    """
 
-    This generates the python script on the cluster.
+def _sftp(local_path, remote_path, hostname=None, username=None, password=None,
+          port=22, get_or_put='put'):
+   """
+   Helper function for getting and putting stuff over paramiko sftp
+   """
+   hostname, username, password = _get_credentials(hostname, username, password)
+
+
+   transport = paramiko.Transport((hostname, port))
+   transport.connect(username = username, password = password)
+   sftp = paramiko.SFTPClient.from_transport(transport)
+
+   if get_or_put == 'put' or get_or_put=='up':
+      sftp.put(local_path, remote_path)
+   elif get_or_put == 'get' or get_or_put=='down':
+      sftp.get(remote_path, local_path)
+   else:
+      raise ValueError("You can either 'get' or 'put', or 'up' or 'down'")
+
+   # Close up:
+   sftp.close()
+   transport.close()
+   
+def sftp_up(local_path, remote_path, hostname=None, username=None, password=None,
+            port=22):
+   """
+   Upload a file over ftp
+   """
+   _sftp(local_path, local_path, hostname=hostname, username=hostname,
+         password=password, port=port, get_or_put='put')
+
+
+def sftp_down(remote_path, local_path, hostname=None, username=None,
+              password=None, port=22):
+   """
+   Download a file over ftp
+   """
+   _sftp(local_path, remote_path, hostname=hostname, username=hostname,
+         password=password, port=port, get_or_put='get')
+
+
+def py_cmd(ssh, cmd, file_name='~/pycmd/cmd.py', python=None):
+   """
+   This generates a python script on the cluster side from the string
+   contained in cmd + a hash-bang header.
     
-    """
-    hostname, username, password = _get_credentials(hostname, username, password)
-    if python is None:
-       python = ssh('which python', hostname, username, password)[1].strip('\n')
-    #print python
-    hdr_line = '#!%s'%python
+   Parameters
+   ----------
+   ssh : an SSH class instance, with an open connection
+   
+   cmd : string
+       The stuff that goes into the script, can often be multiple lines
 
-    ssh('touch %s'%cmd_file, hostname, username, password)
-    ssh("echo '%s' > %s"%(hdr_line, cmd_file), hostname, username, password)
-
-    # Make sure quotes get correctly escaped in:
-    cmd.replace('"', '\"')
-    cmd.replace("'", "\'")
+   file_name : string
+        The name of the file on the cluster.
     
-    ssh("echo '%s' >> %s"%(cmd, cmd_file), hostname, username, password)
-    stdin, stdout, stderr = ssh('chmod 755 %s'%cmd_file, hostname, username,
-                                password)
+   python : str
+       The hash-bang. If none, no hash-bang inserted
+   """
+   if python is None:
+      hdr_line = ''
+   else:
+      hdr_line = '#!%s'%python
+   ssh.exec_command('touch %s'%file_name)
+   # The following line over-writes whatever was in that file before: 
+   ssh.exec_command("echo '%s' > %s"%(hdr_line, file_name))
 
-def write_file_ssh(line_list, file_name, hostname=None, username=None,
-                   password=None, executable=True):
+   # Make sure quotes get correctly escaped in:
+   cmd.replace('"', '\"')
+   cmd.replace("'", "\'")
+    
+   ssh.exec_command("echo '%s' >> %s"%(cmd, file_name))
+   ssh.exec_command('chmod 755 %s'%file_name)
+
+
+def write_file_ssh(ssh, line_list, file_name, executable=True, append=True):
    """
    Write a file made out of the lines in line_list on a remote machine
 
@@ -184,14 +252,17 @@ def write_file_ssh(line_list, file_name, hostname=None, username=None,
    This will clobber existing files! Need to figure out a way to be more
    careful with that.
    """
-   hostname, username, password = _get_credentials(hostname, username, password)
-   ssh('touch %s'%file_name, hostname, username, password)
+   ssh.exec_command('touch %s'%file_name)
    s = ''
 
    for line in line_list:
       s = s + line + '\n'
-
-   ssh("echo '%s' >> %s"%(s, file_name), hostname, username, password ) 
    
+   # This will append to the file, if it exists:
+   if append: 
+      ssh.exec_command("echo '%s' >> %s"%(s, file_name))
+   # This will over-write
+   else:
+      ssh.exec_command("echo '%s' >> %s"%(s, file_name))
    if executable:
       ssh('chmod 755 %s'%file_name, hostname, username, password)

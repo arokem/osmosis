@@ -11,8 +11,7 @@ rhos = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis/'
 
-credentials = sge._get_credentials(hostname='proclus.stanford.edu',
-                                   username='arokem')
+ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 batch_sge = []
 for subject in ['FP', 'HT']:
@@ -24,11 +23,11 @@ for subject in ['FP', 'HT']:
     for b in [1000, 2000, 4000]:
         ad_rd = oio.get_ad_rd(subject, b)
         for data_i, data in enumerate(oio.get_dwi_data(b, subject)):
-            file_stem = (data_path + '%s/'%subject +
+            file_stem = ('/hsgs/u/arokem/tmp/' + '%s/'%subject +
                          data[0].split('/')[-1].split('.')[0])
             for rho in rhos:
                 for alpha in alphas:
-                    for i in range(int(n_wm_vox/1000)+2):
+                    for i in range(int(n_wm_vox/10000)+2):
                         params_dict =  dict(
                             data_path=data_path,
                             i=i,
@@ -50,27 +49,20 @@ for subject in ['FP', 'HT']:
                             subject, b, data_i+1, rho, alpha, i)
                         cmd_file = '/home/arokem/pycmd/%s.py'%name
                         print("Generating: %s"%cmd_file)
-
-                        sge.py_cmd(code,
-                                   hostname = credentials[0],
-                                   username = credentials[1],
-                                   password = credentials[2],
-                                   python='/home/arokem/anaconda/bin/python',
-                                   cmd_file=cmd_file)
+                        
+                        sge.py_cmd(ssh,
+                                   code,
+                                   file_name=cmd_file,
+                                   python='/home/arokem/anaconda/bin/python')
                                                  
                         batch_sge.append(sge.qsub_cmd('bashcmd.sh /home/arokem/pycmd/%s.py'%name, name))
 
 # Add some header stuff:
-#batch_sge = ['export PATH=$PATH:/hsgs/software/oge2011.11p1/bin/linux-x64/'] + batch_sge
-#batch_sge = ['export SGE_ROOT=/hsgs/software/oge2011.11p1'] + batch_sge
+batch_sge = ['export PATH=$PATH:/hsgs/software/oge2011.11p1/bin/linux-x64/'] + batch_sge
+batch_sge = ['export SGE_ROOT=/hsgs/software/oge2011.11p1'] + batch_sge
 batch_sge = ['#!/bin/bash'] + batch_sge
 
-sge.write_file_ssh(batch_sge, 'batch_sge.sh',
-                   hostname = credentials[0],
-                   username = credentials[1],
-                   password = credentials[2])
+sge.write_file_ssh(ssh, batch_sge, 'batch_sge.sh')
+stdin, stdout, stderr = ssh.exec_command('./batch_sge.sh')
 
-    #stdin, stdout, stderr = sge.ssh('./batch_sge.sh',
-    #                           hostname = credentials[0],
-    #                           username = credentials[1],
-    #                           password = credentials[2])
+ssh.close()

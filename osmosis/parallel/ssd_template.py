@@ -21,9 +21,9 @@ if __name__=="__main__":
     wm_data = wm_nifti.get_data()
     wm_idx = np.where(wm_data==1)
 
-    low = i*1000
+    low = i*10000
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 1000, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 10000, int(np.sum(wm_data))])
 
     # Preserve memory by getting rid of this data:
     del wm_data
