@@ -158,6 +158,7 @@ def add_params(s, params_dict):
 
     """
     for k,v in params_dict.items():
+       # Keep quotes on strings:
        if isinstance(v, str):
           s = '%s="%s"\n'%(k,v) + s
        else: 
@@ -165,27 +166,52 @@ def add_params(s, params_dict):
 
     return s
 
-def python_call(cmd):
-    """
-    Assemble a call to python to execute a command string (This can probably be
-    rather long thing, if you want)
-    """
-    return "python -c'%s'"%cmd
 
 def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
              email='$USER@stanford.edu', mem_usage=4, priority=0,
              flags='', output_dir='sgeoutput'):
-    """
-    This puts together the qsub command.
+   """
+   This puts together the qsub command.
 
-    Parameters
-    ----------
-    The call
-    
-    
-    """
-    return "qsub -N %s -m abe -M %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
-    %(name,
+   Parameters
+   ----------
+   call : string
+       The call to execute. For python scripts, this will take the form:
+       "bashcm.sh %s"%python_script_name, because of bash weirdnesses
+
+   name : string
+       A name to assign to the job on the sge and in the output directory.
+
+   working_dir : str
+      Where to execute the call. Default: 'cwd' will execute the call directly
+      in the home directory
+
+   shell : str
+      The path to the shell used to execute the call (can this be '/bin/python?')
+
+   email : str
+       Address to send messages to.
+
+   mem_usage  : int
+      How much maximal memory to allocate to the job (in GB). Default 4 GB.
+
+   priority : int
+      A number between -1024 (lowest priority) and 1023 (highest priority) to
+      set the relative priority of different jobs, if there is one. 
+
+   flags : str
+      Additional flags to qsub
+
+   output_dir : str
+      Where to put the .o and .e files.
+
+   Returns
+   -------
+   A nicely formatted qsub call packed into a conveniently shaped string.
+   
+   """
+   return "qsub -N %s -m a -M %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
+      %(name,
       email,
       output_dir,
       output_dir,
