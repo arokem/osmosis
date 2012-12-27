@@ -11,12 +11,12 @@ template = sge.getsourcelines(ssd_template)[0]
 alphas = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05]
 rhos = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
-data_path = '/tmp/arokem/data/osmosis'#'/biac4/wandell/biac2/wandell6/data/arokem/osmosis/'
+data_path = '/hsgs/u/arokem/tmp/'
 
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 batch_sge = []
-for subject in ['FP']:#, 'HT']:
+for subject in ['FP', 'HT']:
     subject_path = os.path.join(oio.data_path, subject)
     wm_mask_file = os.path.join(subject_path, '%s_wm_mask.nii.gz'%subject)
     wm_nifti = ni.load(wm_mask_file)
@@ -27,7 +27,7 @@ for subject in ['FP']:#, 'HT']:
     for b in [1000, 2000, 4000]:
         ad_rd = oio.get_ad_rd(subject, b)
         for data_i, data in enumerate(oio.get_dwi_data(b, subject)):
-            file_stem = ('/tmp/arokem/data/osmosis' + '%s/'%subject +
+            file_stem = (data_path + '%s/'%subject +
                          data[0].split('/')[-1].split('.')[0])
             for rho in rhos:
                 for alpha in alphas:
@@ -54,7 +54,7 @@ for subject in ['FP']:#, 'HT']:
                         code = sge.add_params(template,params_dict)
                         name = 'ssd_%s_b%s_data%s_rho%s_alpha%s_%03d'%(
                             subject, b, data_i+1, rho, alpha, i)
-                        cmd_file = 'tmp/%s.py'%name
+                        cmd_file = '/home/arokem/pycmd/%s.py'%name
                         print("Generating: %s"%cmd_file)
                         
                         sge.py_cmd(ssh,
@@ -63,19 +63,19 @@ for subject in ['FP']:#, 'HT']:
                                    python='/home/arokem/anaconda/bin/python')
 
                         cmd_file = '/home/arokem/pycmd/%s.py'%name
-                        batch_sge.append(sge.qsub_cmd('bashcmd.sh %s'%cmd_file,
-                                                      name))
+                        batch_sge.append(sge.qsub_cmd(
+                            '/home/arokem/bashcmd.sh %s'%cmd_file,name))
 
 # Add some header stuff:
 #batch_sge = ['export PATH=$PATH:/hsgs/software/oge2011.11p1/bin/linux-x64/'] + batch_sge
 #batch_sge = ['export SGE_ROOT=/hsgs/software/oge2011.11p1'] + batch_sge
 batch_sge = ['#!/bin/bash'] + batch_sge
+sge.write_file_ssh(ssh, batch_sge, '/home/arokem/batch_sge.sh')
 
-sge.write_file_ssh(ssh, batch_sge, 'tmp/batch_sge.sh')
 
-stat = os.system('scp -c blowfish -C tmp/* %s:~/pycmd/.'%ssh.hostname)
-if stat != 0:
-    print "what what!"
+#stat = os.system('scp -c blowfish -C tmp/* %s:~/pycmd/.'%ssh.hostname)
+#if stat != 0:
+#    print "what what!"
 
 #ssh.exec_command('./batch_sge.sh')
 #ssh.disconnect()
