@@ -11,7 +11,7 @@ rhos = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 data_path = '/hsgs/u/arokem/tmp/'
 
-for subject in ['FP', 'HT']:
+for subject in ['FP']:#, 'HT']:
     subject_path = os.path.join(oio.data_path, subject)
     wm_mask_file = os.path.join(subject_path, '%s_wm_mask.nii.gz'%subject)
     wm_nifti = ni.load(wm_mask_file)
@@ -28,6 +28,11 @@ for subject in ['FP', 'HT']:
             for rho in rhos:
                 for alpha in alphas:
                     new_vol = ozu.nans(wm_data.shape)
+                    
+                    new_fname = "%s_SSD_rho%s_alpha%s.nii.gz"%(file_stem,
+                                                               rho,
+                                                               alpha)
+                    print("Reassmbleing %s"%new_fname)
                     for i in range(int(n_wm_vox/10000)+2):
                         params_file="%s_SSD_rho%s_alpha%s_%03d.nii.gz"%(
                             file_stem,
@@ -45,7 +50,6 @@ for subject in ['FP', 'HT']:
                         #Kill your cruft:
                         os.system('rm %s'%params_file)
 
-                    ni.Nifti1Image(new_vol, wm_aff).to_filename(
-                    "%s_SSD_rho%s_alpha%s.nii.gz"%(file_stem, rho, alpha)
+                    ni.Nifti1Image(new_vol, wm_aff).to_filename(new_fname)
                     
                     
