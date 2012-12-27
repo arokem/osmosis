@@ -32,24 +32,28 @@ for subject in ['FP']:#, 'HT']:
                     new_fname = "%s_SSD_rho%s_alpha%s.nii.gz"%(file_stem,
                                                                rho,
                                                                alpha)
-                    print("Reassmbleing %s"%new_fname)
-                    for i in range(int(n_wm_vox/10000)+2):
-                        params_file="%s_SSD_rho%s_alpha%s_%03d.nii.gz"%(
-                            file_stem,
-                            rho,
-                            alpha,
-                            i)
-                        low = i*10000
-                        # Make sure not to go over the edge of the mask:
-                        high = np.min([(i+1) * 10000, int(np.sum(wm_data))])
-                        this_idx = (wm_idx[0][low:high],
-                                    wm_idx[1][low:high],
-                                    wm_idx[2][low:high])
-                        this_data = ni.load(params_file).get_data()[this_idx]
-                        new_vol[this_idx] = this_data
-                        #Kill your cruft:
-                        os.system('rm %s'%params_file)
+                    if !os.path.exists(new_fname):
+                        print("Reassembling %s"%new_fname)
+                        for i in range(int(n_wm_vox/10000)+2):
+                            params_file="%s_SSD_rho%s_alpha%s_%03d.nii.gz"%(
+                                file_stem,
+                                rho,
+                                alpha,
+                                i)
+                            low = i*10000
+                            # Make sure not to go over the edge of the mask:
+                            high = np.min([(i+1)*10000,int(np.sum(wm_data))])
+                            this_idx = (wm_idx[0][low:high],
+                                        wm_idx[1][low:high],
+                                        wm_idx[2][low:high])
 
-                    ni.Nifti1Image(new_vol, wm_aff).to_filename(new_fname)
+                            this_data = ni.load(
+                                params_file).get_data()[this_idx]
+                            
+                            new_vol[this_idx] = this_data
+                            #Kill your cruft:
+                            os.system('rm %s'%params_file)
+
+                        ni.Nifti1Image(new_vol, wm_aff).to_filename(new_fname)
                     
                     
