@@ -4,6 +4,7 @@
 import os
 import nibabel as ni
 import osmosis.utils as ozu
+import osmosis.io as oio
 import numpy as np
 
 alphas = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05]
@@ -27,7 +28,7 @@ for subject in ['FP']:#, 'HT']:
                          data[0].split('/')[-1].split('.')[0])
             for rho in rhos:
                 for alpha in alphas:
-                    new_vol = ozu.nans(wm_data.shape)
+                    new_vol = ozu.nans(wm_data.shape + (150,))
                     
                     new_fname = "%s_SSD_rho%s_alpha%s.nii.gz"%(file_stem,
                                                                rho,
