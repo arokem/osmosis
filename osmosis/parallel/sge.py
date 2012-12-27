@@ -184,14 +184,16 @@ def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
     
     
     """
-    return "qsub -N %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"%(name,
-                                                                     output_dir,
-                                                                     output_dir,
-                                                                     mem_usage,
-                                                                     priority,
-                                                                     flags,
-                                                                     shell,
-                                                                     call)
+    return "qsub -N %s -m abe -M %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
+    %(name,
+      email
+      output_dir,
+      output_dir,
+      mem_usage,
+      priority,
+      flags,
+      shell,
+      call)
 
 
 
