@@ -175,3 +175,6 @@ rRMSE = \frac{RMSE_{model \rightarrow signal}}{RMSE_{signal \rightarrow signal}}
 Coefficient of determination:
 
 R^2 = 1 - \frac{\sum_i{x_i-\hat{x}}}{\sum_i{x_i-\bar{x}}}
+
+
+\sum_{i}^{n}{(s_i - \hat{s_i})^2} + \lambda \sum_{j}^{m}{(\alpha w_{j}^2 + (1-\alpha) |w_j|)}
