@@ -39,6 +39,7 @@ class Voxel(object):
                  bvecs,
                  bvals,
                  odf,
+                 iso=False,
                  scaling_factor=SCALE_FACTOR,
                  axial_diffusivity=AD,
                  radial_diffusivity=RD):
@@ -64,9 +65,10 @@ class Voxel(object):
             to directions of fibers within the voxel (not necessarily the
             same...) 
 
-        S0: float (optional)
-            The signal measured in the non diffusion-weighted scans. Default: 1
-
+        iso : float (optional)
+            Whether and how much of an isotropic component to add to the
+            signal. Default: False - no isotropic component
+            
         scaling_factor: float (optional)
             To get the right units on the ADC, sometimes the b value needs to
             be scaled. Typically, divided by 1000 (default).
@@ -86,6 +88,7 @@ class Voxel(object):
                            [0, 0, radial_diffusivity]])
         self.response_function = ozt.Tensor(self.Q, self.bvecs, self.bvals)
 
+        self.iso = iso
 
     def signal(self, S0=1):
         """
@@ -106,8 +109,17 @@ class Voxel(object):
             this_signal = (self.odf.weights[odf_idx] *
                           this_response.predicted_signal(S0))
             signal += this_signal
-
-        return signal / np.sum(self.odf.weights)
+            
+        if self.iso:
+            # The iso component has the diffusivity of the tensor:
+            md = np.mean(np.diag(self.Q))
+            iso_signal = self.iso * ozt.stejskal_tanner(S0, self.bvals, md) 
+            signal += iso_signal
+            signal /=  np.sum(np.hstack([self.odf.weights, self.iso]))
+        else:
+            signal /=  np.sum(self.odf.weights, self.iso)
+            
+        return signal
 
     def adc(self):
         """
