@@ -324,6 +324,34 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
 
     @desc.auto_attr
+    def odf_peak_angles(self):
+        """
+        Calculate the angle between the two largest peaks in the odf peak
+        distribution
+        """
+        out_flat = np.empty(self._flat_signal.shape[0])
+        flat_odf_peaks = self.odf_peaks[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_odf_peaks[vox][0]):
+                idx1 = np.argsort(flat_odf_peaks[vox])[-1]
+                idx2 = np.argsort(flat_odf_peaks[vox])[-2]
+                ang = np.rad2deg(ozu.vector_angle(
+                    self.bvecs[:,self.b_idx].T[idx1],
+                    self.bvecs[:,self.b_idx].T[idx2]))
+
+                ang = np.min([ang, 180-ang])
+                
+                out_flat[vox] = ang
+                
+        else:
+            out_flat[vox] = np.nan
+        
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = out_flat
+
+        
+
+    @desc.auto_attr
     def n_peaks(self):
         """
         How many peaks in the ODF of each voxel
