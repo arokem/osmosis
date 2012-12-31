@@ -286,7 +286,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = np.empty(self._flat_signal.shape[0])
         flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(this_params[0]):
+            if ~np.isnan(flat_params[vox][0]):
                 idx1 = np.argsort(flat_params[vox])[-1]
                 idx2 = np.argsort(flat_params[vox])[-2]
                 ang = np.rad2deg(ozu.vector_angle(
