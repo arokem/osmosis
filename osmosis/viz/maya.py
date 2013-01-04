@@ -20,8 +20,9 @@ import osmosis.tensor as ozt
 
 
 def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
-                   colorbar=False, figure=None, vmin=None, vmax=None,
-                   file_name=None, azimuth=60, elevation=90, roll=0):
+                        colorbar=False, figure=None, vmin=None, vmax=None,
+                        file_name=None, azimuth=60, elevation=90, roll=0,
+                        points=False, cmap_points=None, scale_points=False):
     """
     Helper function to show data from a voxel in a mayavi figure
     """
@@ -37,9 +38,34 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
     if vmax is None:
         vmax = np.max(scalars)
 
-    tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
-                              colormap=cmap, figure=figure, vmin=vmin,
-                              vmax=vmax)
+    # Plot the sample points as spheres:
+    if points:
+        # Unless you specify it, use the same colormap for the points as for
+        # the surface:
+        if cmap_points is None:
+            cmap_points = cmap
+
+        if scale_points is False:
+            tm = maya.points3d(x_plot, y_plot, z_plot, color=(0.4,0.4,0.8),
+                               figure=figure,  mode='sphere',
+                               scale_factor = 0.07)
+        else:
+            if scale_points is True:
+                pass  # just use the scalars to scale
+            elif scale_points:
+                # If it's a sequence:
+                if hasattr(scale_points, '__len__'):
+                    scalars = scale_points
+                else:
+                    scalars = np.ones(scalars.shape) * scale_points
+            tm = maya.points3d(x_plot, y_plot, z_plot, scalars, 
+                               colormap=cmap_points, figure=figure, vmin=vmin,
+                               vmax=vmax)            
+
+    else:
+        tm = maya.triangular_mesh(x_plot, y_plot, z_plot, faces, scalars=scalars,
+                                  colormap=cmap, figure=figure, vmin=vmin,
+                                  vmax=vmax)
     if colorbar:
         maya.colorbar(tm, orientation='vertical')
 
@@ -62,6 +88,7 @@ def _display_maya_voxel(x_plot, y_plot, z_plot, faces, scalars, cmap='jet',
         scene.save(file_name)
 
     return figure
+
 
 
 def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
@@ -104,7 +131,8 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
 
 def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
-                        offset=0, azimuth=60, elevation=90, roll=0):
+                        offset=0, azimuth=60, elevation=90, roll=0,
+                        points=False, cmap_points=None, scale_points=False):
 
     """
 
@@ -120,7 +148,7 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     offset : float
         where to place the plotted voxel (on the z axis)
 
-    
+    points : whether to show the sampling points on the 
     """
 
     s0 = Sphere(xyz=bvecs.T)
@@ -135,6 +163,17 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
 
+
+    if points:
+        r, phi, theta = geo.cart2sphere(s0.x, s0.y, s0.z)
+        x_p, y_p, z_p =  geo.sphere2cart(signal, phi, theta)
+        figure = _display_maya_voxel(x_p, y_p, z_p+offset, faces,
+                                       signal,  cmap=cmap,
+                                       colorbar=colorbar, figure=figure,
+                                       vmin=vmin, vmax=vmax, file_name=file_name,
+                                       azimuth=azimuth, elevation=elevation,
+                                       points=True, cmap_points=cmap_points,
+                                       scale_points=scale_points)
 
     # Call and return straightaway:
     return _display_maya_voxel(x_plot, y_plot, z_plot+offset, faces,
@@ -292,7 +331,8 @@ def plot_cut_planes(vol,
     if overlay is not None:
         if np.any(np.isnan(overlay)):
             nans_exist = True
-            
+            temp_overlay = np.copy(overlay)
+            temp_overlay[np.where(np.isnan(temp))] = 0
         overlay_planes = []
         for i in range(n_planes):
             overlay_planes.append(maya.pipeline.image_plane_widget(
