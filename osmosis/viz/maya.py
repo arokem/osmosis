@@ -132,7 +132,9 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
 def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
                         colorbar=False, figure=None, vmin=None, vmax=None,
                         offset=0, azimuth=60, elevation=90, roll=0,
-                        points=False, cmap_points=None, scale_points=False):
+                        points=False, cmap_points=None, scale_points=False,
+                        non_neg=False,
+                        interp_kwargs=dict(function='multiquadric', smooth=0)):
 
     """
 
@@ -154,9 +156,13 @@ def plot_signal_interp(bvecs, signal, maya=True, cmap='jet', file_name=None,
     s0 = Sphere(xyz=bvecs.T)
     s1 = create_unit_sphere(7)
 
-    interp_signal = interp_rbf(signal, s0, s1)
+    interp_signal = interp_rbf(signal, s0, s1, **interp_kwargs)
     vertices = s1.vertices
-    
+
+
+    if non_neg:
+        interp_signal[interp_signal<0] = 0
+        
     faces = s1.faces
     x,y,z = vertices.T 
 
@@ -225,7 +231,9 @@ def plot_signal(bvecs, signal, maya=True, cmap='jet', file_name=None,
 
 def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
                     colorbar=False, figure=None, vmin=None, vmax=None,
-                    offset=0, azimuth=60, elevation=90, roll=0):
+                    offset=0, azimuth=60, elevation=90, roll=0,
+                    points=False, cmap_points=None, scale_points=False,
+                    non_neg=False):
     """
     Plot an interpolated odf, while making sure to mirror reflect it, due to
     the symmetry of all things diffusion. 
@@ -235,11 +243,16 @@ def plot_odf_interp(bvecs, odf, maya=True, cmap='jet', file_name=None,
     new_odf = np.hstack([odf, odf])
         
     # In the end we call out to plot_signal_interp, which does the job with
-    # this shiny new signal/bvecs: 
+    # this shiny new signal/bvecs. We use linear interpolation, instead of
+    # multiquadric, because it works better for functions with large
+    # discontinuities, such as this one. 
     return plot_signal_interp(bvecs_new, new_odf,
                         maya=maya, cmap=cmap, file_name=file_name,
                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
-                        offset=offset, azimuth=azimuth, elevation=elevation)
+                        offset=offset, azimuth=azimuth, elevation=elevation,
+                        non_neg=True, points=points, cmap_points=cmap_points,
+                        scale_points=scale_points,
+                        interp_kwargs=dict(function='linear', smooth=0))
 
 
 
@@ -259,7 +272,8 @@ def plot_odf(bvecs, odf, maya=True, cmap='jet', file_name=None,
     return plot_signal(bvecs_new, new_odf,
                         maya=maya, cmap=cmap, file_name=file_name,
                         colorbar=colorbar, figure=figure, vmin=vmin, vmax=vmax,
-                        offset=offset, azimuth=azimuth, elevation=elevation)
+                        offset=offset, azimuth=azimuth, elevation=elevation,
+                        non_neg=True)
 
 
 def plot_cut_planes(vol,
@@ -331,12 +345,12 @@ def plot_cut_planes(vol,
     if overlay is not None:
         if np.any(np.isnan(overlay)):
             nans_exist = True
-            temp_overlay = np.copy(overlay)
-            temp_overlay[np.where(np.isnan(temp))] = 0
+            overlay_copy = np.copy(overlay)
+            overlay_copy[np.isnan(overlay_copy)] = 0
         overlay_planes = []
         for i in range(n_planes):
             overlay_planes.append(maya.pipeline.image_plane_widget(
-                maya.pipeline.scalar_field(overlay),
+                maya.pipeline.scalar_field(overlay_copy),
                 plane_orientation=oris[i],
                 slice_index=translator[oris[i]],
                 colormap=overlay_cmap,
