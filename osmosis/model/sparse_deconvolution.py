@@ -49,7 +49,6 @@ from osmosis.model.io import params_file_resolver
 
 
 
-
 class SparseDeconvolutionModel(CanonicalTensorModel):
     """
     Use the lasso to do spherical deconvolution with a canonical tensor basis
@@ -316,7 +315,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out_flat = ozu.nans(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
             if ~np.any(np.isnan(odf_flat[vox])):
-                peaks, inds = recspeed.local_maxima(odf_flat[vox], faces)
+                this_odf = odf_flat[vox].copy()
+                peaks, inds = recspeed.local_maxima(this_odf, faces)
                 out_flat[vox][inds] = peaks 
 
         out = ozu.nans(self.model_params.shape)
@@ -330,26 +330,24 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Calculate the angle between the two largest peaks in the odf peak
         distribution
         """
-        out_flat = np.empty(self._flat_signal.shape[0])
+        out_flat = ozu.nans(self._flat_signal.shape[0])
         flat_odf_peaks = self.odf_peaks[self.mask]
         for vox in xrange(out_flat.shape[0]):
             if ~np.isnan(flat_odf_peaks[vox][0]):
                 idx1 = np.argsort(flat_odf_peaks[vox])[-1]
                 idx2 = np.argsort(flat_odf_peaks[vox])[-2]
-                ang = np.rad2deg(ozu.vector_angle(
-                    self.bvecs[:,self.b_idx].T[idx1],
-                    self.bvecs[:,self.b_idx].T[idx2]))
+                if idx1 != idx2:
+                    ang = np.rad2deg(ozu.vector_angle(
+                        self.bvecs[:,self.b_idx].T[idx1],
+                        self.bvecs[:,self.b_idx].T[idx2]))
 
-                ang = np.min([ang, 180-ang])
+                    ang = np.min([ang, 180-ang])
                 
-                out_flat[vox] = ang
-                
-        else:
-            out_flat[vox] = np.nan
-        
+                    out_flat[vox] = ang
+                        
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = out_flat
-
+        return out
         
 
     @desc.auto_attr
@@ -366,12 +364,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Gives you not only the principal, but also the 2nd, 3rd, etc
         """
         out_flat = ozu.nans(self._flat_signal.shape + (3,))
-        flat_params = self.model_params[self.mask]
+        flat_peaks = self.odf_peaks[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            coeff_idx = np.where(flat_params[vox]>0)[0]
+            coeff_idx = np.where(flat_peaks[vox]>0)[0]
             for i, idx in enumerate(coeff_idx):
                 out_flat[vox, i] = self.bvecs[:,self.b_idx].T[idx]
-
         
         out = ozu.nans(self.signal.shape + (3,))
         out[self.mask] = out_flat
