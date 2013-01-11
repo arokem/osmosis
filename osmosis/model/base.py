@@ -26,8 +26,8 @@ import osmosis.utils as ozu
 from osmosis.model.io import params_file_resolver
 
 
-# This converts b values from , so that it matches the units of ADC we use in
-# the Stejskal/Tanner equation: 
+# This converts b values from s/mm^2 to ms/um^2 so that it matches the units
+# of ADC we use in the Stejskal/Tanner equation: 
 SCALE_FACTOR = 1000
 
 
@@ -317,14 +317,14 @@ class DWI(desc.ResetMixin):
         Extract and average the signal for volumes in which no b weighting was
         used (b0 scans)
         """
-        return np.mean(self.data[...,self.b0_idx],-1).squeeze()
+        return np.mean(self.data[...,self.b0_idx],-1)
         
     @desc.auto_attr
     def signal(self):
         """
         The signal in b-weighted volumes
         """
-        return self.data[...,self.b_idx].squeeze()
+        return self.data[...,self.b_idx]
 
     @desc.auto_attr
     def relative_signal(self):
