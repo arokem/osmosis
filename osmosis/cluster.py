@@ -13,7 +13,7 @@ import dipy.core.geometry as geo
 
 import osmosis.utils as ozu
 
-def spkm(data, k, seeds=None, antipodal=True):
+def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
    """
    Spherical k means. 
 
@@ -35,6 +35,9 @@ def spkm(data, k, seeds=None, antipodal=True):
       together points that are pointing close to *opposite* directions. In that
       case, correlations between putative centroids and each data point treats
       correlation and anti-correlation in equal vein.
+
+   max_iter : int
+       If you run this many iterations without convergence, warn and exit.
     
    """
    # 1. Initialization:
@@ -52,6 +55,7 @@ def spkm(data, k, seeds=None, antipodal=True):
    mu = seeds
    is_changing = True
    last_y_n = False
+   iter = 0
    while is_changing:
       # 2. Data assignment:
       # Calculate all the correlations in one swoop:
@@ -76,7 +80,12 @@ def spkm(data, k, seeds=None, antipodal=True):
          is_changing = False
       else:
          last_y_n = y_n
-
+         
+      # Another stopping condition is if this has gone on for a while 
+      iter += 1
+      if iter>max_iter:
+         break
+      
    return mu, y_n
     
 def ospkm():
