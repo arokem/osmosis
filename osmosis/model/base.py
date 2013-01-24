@@ -297,6 +297,28 @@ class DWI(desc.ResetMixin):
 
         return out 
 
+    def relative_signal_rmse(self, DWI2):
+        """
+        Calculate the voxel-by-voxel RMSE between the relative signal of two
+        measurements
+
+        Parameters
+        ----------
+        DWI2 : a second DWI class instance.
+        
+        """
+        
+        flat_sig1 = self._flat_relative_signal
+        flat_sig2 = DWI2._flat_relative_signal
+        rmse = np.empty(flat_sig2.shape[0])
+        for vox in xrange(flat_sig1.shape[0]):
+            rmse[vox] = ozu.rmse(flat_sig1[vox], flat_sig2[vox])
+            
+        # Re-package it into a volume:
+        out = ozu.nans(self.shape[:3])
+        out[self.mask] = rmse
+        return out
+
     @desc.auto_attr
     def b_idx(self):
         """
