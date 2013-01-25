@@ -38,8 +38,14 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
 
    max_iter : int
        If you run this many iterations without convergence, warn and exit.
-    
+
+   Returns
+   -------
+   mu : the estimated centroid 
+   y_n : assignments of each data point to a centroid
+   corr : the correlation between the centroids and the data
    """
+
    # 1. Initialization:
    if seeds is None:
       # Choose random seeds
@@ -63,7 +69,6 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
       # In cases where antipodal symmetry is assumed, 
       if antipodal==True:
          corr = np.abs(corr)
-      
       # This chooses the centroid for each one:
       y_n = np.argmax(corr, -1)
       # 3. Centroid estimation:
@@ -86,7 +91,7 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
       if iter>max_iter:
          break
       
-   return mu, y_n
+   return mu, y_n, corr
     
 def ospkm():
     """
