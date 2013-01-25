@@ -409,3 +409,34 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds = np.zeros(qa.shape)
         inds[self.mask] = inds_flat
         return qa, inds
+
+    def cluster_fodf(self):
+        """
+        Use k-means clustering to find the peaks in the fodf
+        """
+        # Make sure that the bvecs are all pointing into the same hemisphere: 
+        new_bv = ozu.vecs2hemi(self.bvecs[:, self.b_idx])
+        # Scale them by the model params: 
+        scaled_bv = new_bv * self.model_params
+        # We use the AIC to calculate when to stop:
+        last_aic = np.inf
+        # We do k means and stop when adding more clusters stops being helpful:
+        for k in range(len(self.b_idx)):
+            # Here's what we think:
+            centroids, labels = slc.k_means(scaled_bv, k)
+            # Calculate the sum of squared errors for this:
+            ss = 0
+            for l in range(len(np.unique(labels)))
+                l_idx = np.where(labels==l)
+                ss += np.sum((scaled_bv[l_idx] - centroids[l_idx])**2)
+            # Calculate whether adding more 'parameters' was worth it, using
+            # the AIC:
+            aic = ozu.aic(ss, new_bv.shape[-1], k)
+            # Break when AIC doesn't improve from one step to the next (we
+            # might need to robustify this later one):
+            if aic>last_aic:
+                break
+            else:
+                last_aic = aic
+                
+        return centroids

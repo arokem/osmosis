@@ -9,6 +9,8 @@ import numpy as np
 import scipy
 import scipy.linalg as la
 
+import dipy.core.geometry as geo
+
 # We want to try importing numexpr for some array computations, but we can do
 # without:
 try:
@@ -725,6 +727,45 @@ def nans(shape):
     out = np.empty(shape)
     out.fill(np.nan)
     return out
+
+def vecs2hemi(vecs):
+    """
+    Take vecs in x,y,z and make sure that they are all pointing towards the
+    same hemisphere, rotating those that are not to their antipodal as necessary.
+
+    Parameters
+    ----------
+    vecs : float array
+        Vectors in 3 space
+
+
+    Returns
+    -------
+    new_vecs : the vectors, with all vectors pointing towards positive y values
+    
+    """
+    r, theta, phi = geo.cart2sphere(vecs[0], vecs[1], vecs[2])
+
+    # Select to make sure all the phi's are in the same hemisphere: 
+    anti_idx = np.where(phi<0)
+    new_vecs = np.copy(vecs)
+    new_vecs[:, anti_idx] *= -1  # Invert antipodally
+    return new_vecs
+
+
+def aic(ss, n_measurements, n_params):
+    """
+    Calculate the Akaike information criterion
+
+    Parameters
+    ----------
+    ss : the sum of the squares of the errors in model predictions
+
+    
+    
+    """
+    return n_measurements * np.log(ss/n_measurements) + 2 * (n_params + 1)
+
     
 def start_parallel(imports_str=None):
     """
@@ -817,3 +858,6 @@ class ProgressBar:
 
     def __str__(self):
         return str(self.prog_bar)
+
+
+    
