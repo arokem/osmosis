@@ -440,3 +440,26 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 last_aic = aic
                 
         return centroids
+
+    def diffusion_distance(self, vertices=None):
+        """
+        Calculate the diffusion distance on a set of vertices. Default to using
+        the vertices of the measurement (the bvecs)
+        """
+        # If none are provided, use the measurement points:
+        if vertices is None:
+            vertices = self.bvecs[:, self.b_idx]
+
+        design_matrix = self._calc_rotations(vertices, mode='distance')
+        
+        out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            this_params = flat_params[vox]
+            this_params[np.isnan(this_params)] = 0.0 
+            out_flat[vox] = np.dot(this_params, design_matrix.T)
+            
+        out = ozu.nans(self.signal.shape[:3]+ (vertices.shape[-1],))
+        out[self.mask] = out_flat
+
+        return out

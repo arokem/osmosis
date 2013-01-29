@@ -199,13 +199,17 @@ class CanonicalTensorModel(BaseModel):
         return ozt.Tensor(np.diag([self.ad, self.rd, self.rd]), bvecs, bvals)
 
 
-    def _calc_rotations(self, vertices):
+    def _calc_rotations(self, vertices, mode=None):
         """
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
         be used as a design matrix
 
         """
+        # unless we ask to change it, just use the mode of the object
+        if mode is None:
+            mode = self.mode
+
         out = np.empty((self.rot_vecs.shape[-1], vertices.shape[-1]))
         
         # We will use the eigen-value/vectors from the response function
@@ -223,19 +227,25 @@ class CanonicalTensorModel(BaseModel):
             
         evals, evecs = self.response_function.decompose
         for idx, bvec in enumerate(self.rot_vecs.T):
-            pred_sig = ozt.rotate_to_vector(bvec, evals, evecs,
-                                            vertices, bvals).predicted_signal(1) 
+            this_rot = ozt.rotate_to_vector(bvec, evals, evecs,
+                                            vertices, bvals)
+            pred_sig = this_rot.predicted_signal(1) 
 
-            if self.mode == 'signal_attenuation':
+            if mode == 'distance':
+                # This is the special case where we use the diffusion distance
+                # calculation, instead of the predicted signal:
+                out[idx] = this_rot.diffusion_distance
+            # Otherwise, we do one of these with the predicted signal: 
+            elif mode == 'signal_attenuation':
                 # Fit to 1 - S/S0 
                 out[idx] = 1 - pred_sig
-            elif self.mode == 'relative_signal':
+            elif mode == 'relative_signal':
                 # Fit to S/S0 using the predicted diffusion attenuated signal:
                 out[idx] = pred_sig
-            elif self.mode == 'normalize':
+            elif mode == 'normalize':
                 # Normalize your regressors to have a maximum of 1:
                 out[idx] = pred_sig / np.max(pred_sig)
-            elif self.mode == 'log':
+            elif mode == 'log':
                 # Take the log and divide out the b value:
                 out[idx] = np.log(pred_sig)
             
@@ -284,7 +294,7 @@ class CanonicalTensorModel(BaseModel):
         tensor_regressor = self.rotations
 
         return iso_regressor, tensor_regressor, fit_to
-
+        
     
     @desc.auto_attr
     def ols(self):
@@ -823,3 +833,38 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             # During fitting, you want to check the fitting bounds:
             pred_sig = self.pred_func(params, check_constraints=True)
             return pred_sig - vox_sig
+
+    
+    def diffusion_distance(self, vertices=None):
+        """
+        Calculate the diffusion distance on a novel set of vertices
+
+        Parameters
+        ----------
+        vertices : an n by 3 array
+
+        """
+        # If none are provided, use the measurement points:
+        if vertices is None:
+            self.bvecs[:, self.b_idx]
+
+        # Start by generating the values of the rotations we use in these
+        # coordinates on the sphere 
+        rotations = self._calc_rotations(vertices, mode='distance')
+        
+        if self.verbose:
+            print("Predicting signal from CanonicalTensorModel")
+            
+        out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
+        flat_params = self.model_params[self.mask]
+        for vox in xrange(out_flat.shape[0]):
+            if ~np.isnan(flat_params[vox, 1]):
+                this_dist = flat_params[vox,1] * rotations[flat_params[vox,0]]
+                out_flat[vox]= this_dist
+            else:
+                out_flat[vox] = np.nan
+                
+        out = ozu.nans(self.signal.shape[:3] + (vertices.shape[-1], ))
+        out[self.mask] = out_flat
+
+        return out
