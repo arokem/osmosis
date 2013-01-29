@@ -12,15 +12,15 @@ import warnings
 import numpy as np
 # Get stuff from sklearn, if that's available:
 try:
-    # Get both the sparse version of the Lasso: 
-    from sklearn.linear_model.sparse import Lasso as spLasso
-    # And the dense version:
     from sklearn.linear_model import Lasso, LassoCV
     # Get other stuff from sklearn.linear_model:
     from sklearn.linear_model import ElasticNet, Lars, Ridge, ElasticNetCV
     # Get OMP:
     from sklearn.linear_model.omp import OrthogonalMatchingPursuit as OMP
-     
+
+    # Get k means for clustering odf peaks:
+    from sklearn.cluster import k_means
+
     has_sklearn = True
 
     # Make a dict with solvers to be used for choosing among them:
@@ -410,33 +410,40 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds[self.mask] = inds_flat
         return qa, inds
 
+    @desc.auto_attr
     def cluster_fodf(self):
         """
         Use k-means clustering to find the peaks in the fodf
         """
         # Make sure that the bvecs are all pointing into the same hemisphere: 
         new_bv = ozu.vecs2hemi(self.bvecs[:, self.b_idx])
-        # Scale them by the model params: 
-        scaled_bv = new_bv * self.model_params
-        # We use the AIC to calculate when to stop:
-        last_aic = np.inf
-        # We do k means and stop when adding more clusters stops being helpful:
-        for k in range(len(self.b_idx)):
-            # Here's what we think:
-            centroids, labels = slc.k_means(scaled_bv, k)
-            # Calculate the sum of squared errors for this:
-            ss = 0
-            for l in range(len(np.unique(labels)))
-                l_idx = np.where(labels==l)
-                ss += np.sum((scaled_bv[l_idx] - centroids[l_idx])**2)
-            # Calculate whether adding more 'parameters' was worth it, using
-            # the AIC:
-            aic = ozu.aic(ss, new_bv.shape[-1], k)
-            # Break when AIC doesn't improve from one step to the next (we
-            # might need to robustify this later one):
-            if aic>last_aic:
-                break
-            else:
-                last_aic = aic
-                
-        return centroids
+        out = []
+        for vox in range(len(self._flat_signal)):
+            # Scale them by the model params: 
+            scaled_bv = new_bv * self.model_params[self.mask][vox]
+            # We use the AIC to calculate when to stop:
+            last_aic = np.inf
+            # We do k means and stop when adding more clusters stops being
+            # helpful:
+            for k in range(1, len(self.b_idx)):
+                # Here's what we think:
+                centroids, labels, inertia = k_means(scaled_bv.T, k)
+                # Calculate the sum of squared errors for this:
+                ss = 0
+                for l in range(len(np.unique(labels))):
+                    l_idx = np.where(labels==l)
+                    dist = np.squeeze(scaled_bv[:, l_idx]).T - centroids[l]
+                    ss += np.sum(dist**2)
+                    
+                # Calculate whether adding more 'parameters' was worth it, using
+                # the AIC:
+                aic = ozu.aic(ss, new_bv.shape[-1], k)
+                # Break when AIC doesn't improve from one step to the next (we
+                # might need to robustify this later one):
+                if aic>last_aic:
+                    break
+                else:
+                    last_aic = aic
+            out.append(centroids)
+
+        return out
