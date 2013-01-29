@@ -447,7 +447,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             out.append(centroids)
         return out
 
-
     def diffusion_distance(self, vertices=None):
         """
         Calculate the diffusion distance on a set of vertices. Default to using
