@@ -385,3 +385,42 @@ def plot_cut_planes(vol,
 
     return figure
     
+def plot_vectors(xyz, figure=None, origin=np.array([0,0,0])):
+    """
+    xyz is a n by 3 array OR an array with 3 items (shape==(3,))    
+    """
+    if figure is None:
+        figure = maya.figure()
+    else:
+        figure = figure
+
+    if len(xyz.shape)>1:
+        for this_vec in xyz:
+            this_vec
+            maya.quiver3d(origin[0],
+                          origin[1],
+                          origin[2],
+                          this_vec[0], this_vec[1], this_vec[2],
+                          figure=figure,
+                          mode='arrow',
+                          scale_mode='vector',
+                          scalars=np.dot(this_vec, this_vec)
+                          )
+
+    else:
+        maya.quiver3d(origin[0],
+                      origin[1],
+                      origin[2],
+                      xyz[0], xyz[1], xyz[2],
+                      figure=figure,
+                      mode='arrow',
+                      scale_mode='vector'
+                      scalars=np.dot(xyz, xyz)
+                      )
+
+    scene = figure.scene
+    scene.background = (1,1,1)
+    scene.parallel_projection=True
+    scene.light_manager.light_mode = 'vtk'
+
+    return figure
