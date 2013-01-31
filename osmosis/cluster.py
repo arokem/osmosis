@@ -13,18 +13,22 @@ import dipy.core.geometry as geo
 
 import osmosis.utils as ozu
 
-def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
+def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
    """
    Spherical k means. 
 
    Parameters
    ----------
-   data : 2d - float array
+   data : 2d float array
         Unit vectors on the hyper-sphere. This array has n data points rows, by
         m feature columns.
 
    k : int
        The number of clusters
+
+   weights : 1d float array 
+       Some data-points may be more important than others, so they will receive
+       more weighting in determining the centroids 
 
    seeds : float array (optional).
         If n by k array is provided, these are used as centroids to initialize
@@ -45,10 +49,17 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
    y_n : assignments of each data point to a centroid
    corr : the correlation between the centroids and the data
    """
-
+   # 0. Preliminaries:
+   # For the calculation of the centroids, we want to make sure that the data
+   # are all pointing into the same hemisphere (expects 3 by n):
+   data = ozu.vecs2hemi(data.T).T
+   # If no weights are provided treat all data points equally:
+   if weights is None:
+      weights = np.ones(data.shape[0])
+   
    # 1. Initialization:
    if seeds is None:
-      # Choose random seeds
+      # Choose random seeds.
       # thetas are uniform [0,pi]:
       theta = np.random.rand(k) * np.pi
       # phis are uniform [0, 2pi]
@@ -65,19 +76,29 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
    while is_changing:
       # 2. Data assignment:
       # Calculate all the correlations in one swoop:
-      corr = np.dot(data, seeds.T)
+      corr = np.dot(data, mu.T)
       # In cases where antipodal symmetry is assumed, 
       if antipodal==True:
          corr = np.abs(corr)
       # This chooses the centroid for each one:
       y_n = np.argmax(corr, -1)
+      # And this one keeps a weighted average of the highest value for each
+      # data-point (this is a proxy of a goodness of fit):
+      gof = np.dot(weights, np.max(corr, -1)) / np.sum(weights)
+
       # 3. Centroid estimation:
       for this_k in range(k):
          idx = np.where(y_n==this_k)
-         this_sum = np.sum(data[idx], axis=0)
+         # The average will be based on a weighted sum of the data points that
+         # are considered in this centroid: 
+         this_sum = np.dot(weights[idx], data[idx])
          # This goes into the volume of the sphere and then renormalizes to the
-         # surface:
-         mu[this_k] = this_sum / ozu.l2_norm(this_sum)
+         # surface (or to the origin):
+         this_norm =  ozu.l2_norm(this_sum)
+         if this_norm > 0: 
+            mu[this_k] = this_sum / this_norm
+         else:
+            mu[this_k] = np.array([0,0,0])
 
       # Did it change?
       if np.all(y_n == last_y_n):
@@ -91,7 +112,7 @@ def spkm(data, k, seeds=None, antipodal=True, max_iter=100):
       if iter>max_iter:
          break
       
-   return mu, y_n, corr
+   return mu, y_n, gof
     
 def ospkm():
     """
