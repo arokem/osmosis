@@ -766,7 +766,20 @@ def aic(ss, n_measurements, n_params):
     """
     return n_measurements * np.log(ss/n_measurements) + 2 * (n_params + 1)
 
-    
+
+def bic(ss, n_measurements, n_params):
+    """
+    Calculate the Bayesian information criterion
+
+    Parameters
+    ----------
+    ss : the sum of the squares of the errors in model predictions
+
+    """
+    return (n_measurements * np.log(ss/n_measurements) +
+            n_measurements * n_params)
+
+
 def start_parallel(imports_str=None):
     """
     This function starts a parallel computing environment 
