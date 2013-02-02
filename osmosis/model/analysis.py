@@ -311,7 +311,7 @@ def rmse(model1, model2):
     sig2 = model2.signal[model2.mask]
     out_flat = np.empty(sig1.shape[0])
     
-    for vox in sig1.shape[0]:
+    for vox in xrange(sig1.shape[0]):
         out_flat[vox] = ozu.rmse(sig1[vox], sig2[vox])
 
     out[model1.mask] = out_flat
