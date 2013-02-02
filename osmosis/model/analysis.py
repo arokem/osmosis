@@ -300,6 +300,24 @@ def coeff_of_determination(model1, model2):
     return out
 
 
+def rmse(model1, model2):
+    """
+    Calculate the voxel-wise RMSE between one model signal and the other model
+    signal. 
+    """
+    out = ozu.nans(model1.shape[:-1])
+    
+    sig1 = model1.signal[model1.mask]
+    sig2 = model2.signal[model2.mask]
+    out_flat = np.empty(sig1.shape[0])
+    
+    for vox in sig1.shape[0]:
+        out_flat[vox] = ozu.coeff_of_determination(sig1, sig2, axis=-1)
+
+    out[model1.mask] = out_flat
+    return out
+
+
 def pdd_reliability(model1, model2):
     """
 
