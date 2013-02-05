@@ -396,27 +396,22 @@ def plot_vectors(xyz, figure=None, origin=np.array([0,0,0])):
 
     if len(xyz.shape)>1:
         for this_vec in xyz:
-            this_vec
-            maya.quiver3d(origin[0],
-                          origin[1],
-                          origin[2],
-                          this_vec[0], this_vec[1], this_vec[2],
-                          figure=figure,
-                          mode='arrow',
-                          scale_mode='vector',
-                          scalars=np.dot(this_vec, this_vec)
-                          )
+            maya.plot3d([origin[0], this_vec[0]+origin[0]],
+                        [origin[1], this_vec[1]+origin[1]],
+                        [origin[2], this_vec[2]+origin[2]],
+                        tube_radius=0.01,
+                        tube_sides=20,
+                        figure=figure,
+                        color=(0.1, 0.0, 1.0))
 
     else:
-        maya.quiver3d(origin[0],
-                      origin[1],
-                      origin[2],
-                      xyz[0], xyz[1], xyz[2],
-                      figure=figure,
-                      mode='arrow',
-                      scale_mode='vector'
-                      scalars=np.dot(xyz, xyz)
-                      )
+        maya.plot3d([origin[0], xyz+origin[0]],
+                    [origin[1], xyz+origin[1]],
+                    [origin[2], xyz+origin[2]],
+                    tube_radius=0.01,
+                    tube_sides=20,
+                    figure=figure,
+                    color=(0.1, 0.0, 1.0))
 
     scene = figure.scene
     scene.background = (1,1,1)
