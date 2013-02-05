@@ -18,9 +18,6 @@ try:
     # Get OMP:
     from sklearn.linear_model.omp import OrthogonalMatchingPursuit as OMP
 
-    # Get k means for clustering odf peaks:
-    from sklearn.cluster import k_means
-
     has_sklearn = True
 
     # Make a dict with solvers to be used for choosing among them:
@@ -42,6 +39,7 @@ import dipy.core.sphere as sphere
 
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
+import osmosis.cluster as ozc
 
 from osmosis.model.canonical_tensor import CanonicalTensorModel, AD, RD
 from osmosis.model.base import SCALE_FACTOR
@@ -410,42 +408,52 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds[self.mask] = inds_flat
         return qa, inds
 
+
     @desc.auto_attr
     def cluster_fodf(self):
         """
         Use k-means clustering to find the peaks in the fodf
         """
-        # Make sure that the bvecs are all pointing into the same hemisphere: 
-        new_bv = ozu.vecs2hemi(self.bvecs[:, self.b_idx])
-        out = []
+        centroid_arr = np.empty(len(self._flat_signal), dtype=object)
+        flat_params = self.model_params[self.mask]
+        
         for vox in range(len(self._flat_signal)):
-            # Scale them by the model params: 
-            scaled_bv = new_bv * self.model_params[self.mask][vox]
-            # We use the AIC to calculate when to stop:
-            last_aic = np.inf
-            # We do k means and stop when adding more clusters stops being
-            # helpful:
-            for k in range(1, len(self.b_idx)):
-                # Here's what we think:
-                centroids, labels, inertia = k_means(scaled_bv.T, k)
-                # Calculate the sum of squared errors for this:
-                ss = 0
-                for l in range(len(np.unique(labels))):
-                    l_idx = np.where(labels==l)
-                    dist = np.squeeze(scaled_bv[:, l_idx]).T - centroids[l]
-                    ss += np.sum(dist**2)
-                    
-                # Calculate whether adding more 'parameters' was worth it, using
-                # the AIC:
-                aic = ozu.aic(ss, new_bv.shape[-1], k)
-                # Break when AIC doesn't improve from one step to the next (we
-                # might need to robustify this later one):
-                if aic>last_aic:
+            this_fodf = flat_params[vox]
+            # Find the bvecs for which the parameters are non-zero:
+            nz_idx = np.where(this_fodf>0)
+            # Get them in the right orientation and shape:
+            bv = self.bvecs[:, self.b_idx].T[nz_idx].T
+            
+            sort_bv = bv[:, np.argsort(this_fodf[nz_idx])[::-1]]
+            # We keep running k means and stop when adding more clusters stops
+            # being helpful, using the BIC to calculate when to stop:
+            last_bic = np.inf
+            choose = np.array([0,0,0])
+            for k in range(1, bv.shape[-1]):
+                # Use the k largest peaks in the data as seeds:
+                seeds = sort_bv[:, :k].T
+                centroids, y_n, corr = ozc.spkm(bv.T, k, seeds=seeds,
+                                        weights=this_fodf[nz_idx])
+
+                # The unexplained variance is the residual sse: 
+                ss_err = 1 - corr**2
+                bic = ozu.bic(ss_err, bv.shape[-1], k)
+                if bic > last_bic:
                     break
                 else:
-                    last_aic = aic
-            out.append(centroids)
+                    choose = centroids
+                    last_bic = bic
+                    
+            centroid_arr[vox] = centroids
+
+        # We'll make a special nan/object array for this: 
+        out = np.ones(self.signal.shape[:3], dtype=object) * np.nan
+        out[self.mask] = centroid_arr
         return out
+        
+
+        return out
+
 
     def diffusion_distance(self, vertices=None):
         """
