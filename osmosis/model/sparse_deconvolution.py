@@ -432,12 +432,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             for k in range(1, bv.shape[-1]):
                 # Use the k largest peaks in the data as seeds:
                 seeds = sort_bv[:, :k].T
-                centroids, y_n, corr = ozc.spkm(bv.T, k, seeds=seeds,
+                centroids, y_n, sse = ozc.spkm(bv.T, k, seeds=seeds,
                                         weights=this_fodf[nz_idx])
 
                 # The unexplained variance is the residual sse: 
-                ss_err = 1 - corr**2
-                bic = ozu.bic(ss_err, bv.shape[-1], k)
+                bic = ozu.bic(sse, bv.shape[-1], k)
                 if bic > last_bic:
                     break
                 else:
