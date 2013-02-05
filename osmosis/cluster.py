@@ -14,7 +14,8 @@ import dipy.core.geometry as geo
 
 import osmosis.utils as ozu
 
-def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
+def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=1000,
+         calc_sse=True):
    """
    Spherical k means. 
 
@@ -36,7 +37,7 @@ def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
         the algorithm. Otherwise, random centroids are chosen
 
    antipodal : bool
-      In cases in which antipodal symmetery can be assumed, we want to cluster
+      In cases in which antipodal symmetry can be assumed, we want to cluster
       together points that are pointing close to *opposite* directions. In that
       case, correlations between putative centroids and each data point treats
       correlation and anti-correlation in equal vein.
@@ -44,11 +45,15 @@ def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
    max_iter : int
        If you run this many iterations without convergence, warn and exit.
 
+   calc_sse : bool
+      Whether to calculate SSE or not. 
+
    Returns
    -------
    mu : the estimated centroid 
    y_n : assignments of each data point to a centroid
-   corr : the correlation between the centroids and the data
+   SSE : the sum of squared error in centroid-to-data-point assignment
+   
    """
    # 0. Preliminaries:
    # For the calculation of the centroids, we want to make sure that the data
@@ -70,37 +75,45 @@ def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
       # et voila:
       seeds = np.array(geo.sphere2cart(theta, phi, r)).T
       
-   mu = seeds
+   mu = seeds.copy()
    is_changing = True
    last_y_n = False
    iter = 0
    while is_changing:
+     
+      # Make sure they're all unit vectors, so that correlation below is scaled
+      # properly: 
+      mu = np.array([ozu.unit_vector(x) for x in mu])
+      data = np.array([ozu.unit_vector(x) for x in data])
+
       # 2. Data assignment:
       # Calculate all the correlations in one swoop:
       corr = np.dot(data, mu.T)
       # In cases where antipodal symmetry is assumed, 
       if antipodal==True:
          corr = np.abs(corr)
+
       # This chooses the centroid for each one:
       y_n = np.argmax(corr, -1)
-      # And this one keeps a weighted average of the highest value for each
-      # data-point (this is a proxy of a goodness of fit):
-      gof = np.dot(weights, np.max(corr, -1)) / np.sum(weights)
-
+      
       # 3. Centroid estimation:
       for this_k in range(k):
          idx = np.where(y_n==this_k)
-         # The average will be based on a weighted sum of the data points that
-         # are considered in this centroid: 
-         this_sum = np.dot(weights[idx], data[idx])
-         # This goes into the volume of the sphere and then renormalizes to the
-         # surface (or to the origin):
-         this_norm =  ozu.l2_norm(this_sum)
-         if this_norm > 0: 
-            mu[this_k] = this_sum / this_norm
-         else:
-            mu[this_k] = np.array([0,0,0])
+         if len(idx[0])>0: 
+            # The average will be based on the data points that are considered
+            # in this centroid with a weighted average: 
+            this_sum = np.dot(weights[idx], data[idx])
 
+            # This goes into the volume of the sphere, so we renormalize to the
+            # surface (or to the origin, if it's 0):
+            this_norm =  ozu.l2_norm(this_sum)
+
+            if this_norm > 0:
+               # Scale by the mean of the weights  
+               mu[this_k] = (this_sum / this_norm) * np.mean(weights[idx]) 
+            elif this_norm < 0:
+               mu[this_k] = np.array([0,0,0])
+               
       # Did it change?
       if np.all(y_n == last_y_n):
          # 4. Stop if there's no change in assignment:
@@ -111,9 +124,20 @@ def spkm(data, k, weights=None, seeds=None, antipodal=True, max_iter=100):
       # Another stopping condition is if this has gone on for a while 
       iter += 1
       if iter>max_iter:
-         break
-      
-   return mu, y_n, gof
+         is_changing=False
+
+      # Once you are done computing 'em all, calculate the resulting SSE: 
+      SSE = 0
+      if calc_sse: 
+         for this_k in range(k):
+            idx = np.where(y_n==this_k)
+            len_idx = len(idx[0])
+            if len_idx > 0:
+               scaled_data = data[idx] * weights[idx].reshape(len_idx,1)
+               SSE += np.sum( (mu[this_k] - scaled_data) ** 2)
+             
+   return mu, y_n, SSE
+
     
 def ospkm():
     """
@@ -130,7 +154,7 @@ from scipy.spatial.distance import cdist  # $scipy/spatial/distance.py
     # http://docs.scipy.org/doc/scipy/reference/spatial.html
 from scipy.sparse import issparse  # $scipy/sparse/csr.py
 
-def kmeans(X, centres, delta=.001, maxiter=10, metric="euclidean", p=2,
+def kmeans(X, seeds=None, delta=.001, maxiter=10, metric="euclidean", p=2,
             verbose=False):
     """ centres, Xtocentre, distances = kmeans( X, initial centres ... )
     in:
@@ -150,6 +174,11 @@ def kmeans(X, centres, delta=.001, maxiter=10, metric="euclidean", p=2,
         distances, N
     see also: kmeanssample below, class Kmeans below.
     """
+    if seeds is None:
+       centres = np.random.sample(X, k)
+    else:
+       centres = seeds
+
     if not issparse(X):
         X = np.asanyarray(X)  # ?
     centres = centres.todense() if issparse(centres) \
