@@ -114,15 +114,15 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             where::
 
-                alpha = a + b and rho = a / (a + b)
+                alpha = a + b and l1_ratio = a / (a + b)
             """
             # Taken from Stefan:
             a = 0.0001
             b = 0.00001
             alpha = a + b
-            rho = a/(a+b)
+            l1_ratio = a/(a+b)
             self.solver_params = dict(alpha=alpha,
-                                      rho=rho,
+                                      l1_ratio=l1_ratio,
                                       fit_intercept=True,
                                       positive=True)
         else:
@@ -310,7 +310,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
         odf_flat = self.model_params[self.mask]
-        out_flat = ozu.nans(odf_flat.shape)
+        out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
             if ~np.any(np.isnan(odf_flat[vox])):
                 this_odf = odf_flat[vox].copy()
