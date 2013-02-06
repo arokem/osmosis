@@ -421,6 +421,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             this_fodf = flat_params[vox]
             # Find the bvecs for which the parameters are non-zero:
             nz_idx = np.where(this_fodf>0)
+
+            # If there's nothing here, just give it the origin and move on: 
+            if len(nz_idx[0]) == 0:
+                centroid_arr[vox] = np.array([0, 0, 0])
+                break
+
             # Get them in the right orientation and shape:
             bv = self.bvecs[:, self.b_idx].T[nz_idx].T
             
@@ -429,19 +435,25 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             # being helpful, using the BIC to calculate when to stop:
             last_bic = np.inf
             choose = np.array([0,0,0])
-            for k in range(1, bv.shape[-1]):
-                # Use the k largest peaks in the data as seeds:
-                seeds = sort_bv[:, :k].T
-                centroids, y_n, sse = ozc.spkm(bv.T, k, seeds=seeds,
-                                        weights=this_fodf[nz_idx])
 
-                # The unexplained variance is the residual sse: 
-                bic = ozu.bic(sse, bv.shape[-1], k)
-                if bic > last_bic:
-                    break
-                else:
-                    choose = centroids
-                    last_bic = bic
+            # Deal with the special case of one model parameter: 
+            if bv.shape[-1] == 1:
+                centroids = bv * this_fodf[nz_idx]
+
+            else: 
+                for k in range(1, bv.shape[-1]):
+                    # Use the k largest peaks in the data as seeds:
+                    seeds = sort_bv[:, :k].T
+                    centroids, y_n, sse = ozc.spkm(bv.T, k, seeds=seeds,
+                                                   weights=this_fodf[nz_idx])
+
+                    # The unexplained variance is the residual sse: 
+                    bic = ozu.bic(sse, bv.shape[-1], k)
+                    if bic > last_bic:
+                        break
+                    else:
+                        choose = centroids
+                        last_bic = bic
                     
             centroid_arr[vox] = centroids
 
