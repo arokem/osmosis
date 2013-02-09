@@ -316,8 +316,25 @@ class TensorModel(BaseModel):
 
         out[self.mask] = predict_flat
         return out
+
+    @desc.auto_attr
+    def model_diffusion_distance(self):
+        """
+
+        The diffusion distance implied by the model parameters
+        """
+        tensors_flat = self.tensors[self.mask]
+        dist_flat = np.empty(self._flat_signal.shape)        
+        for vox in xrange(len(dist_flat)):
+            dist_flat[vox]=ozt.diffusion_distance(self.bvecs[:, self.b_idx],
+                                                  tensors_flat[vox])
+        out = ozu.nans(self.signal.shape)
+        out[self.mask] = dist_flat
+
+        return out
+            
+
         
-    
 def _dyad_stats(tensor_model_list, mask=None, dyad_stat=boot.dyad_coherence,
                 average=True):
     """

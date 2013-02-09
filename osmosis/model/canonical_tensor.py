@@ -235,6 +235,10 @@ class CanonicalTensorModel(BaseModel):
                 # This is the special case where we use the diffusion distance
                 # calculation, instead of the predicted signal:
                 out[idx] = this_rot.diffusion_distance
+            elif mode == 'ADC':
+                # This is another special case, calculating the ADC instead of
+                # using the predicted signal: 
+                out[idx] = this_rot.ADC
             # Otherwise, we do one of these with the predicted signal: 
             elif mode == 'signal_attenuation':
                 # Fit to 1 - S/S0 
@@ -835,9 +839,9 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             return pred_sig - vox_sig
 
     
-    def diffusion_distance(self, vertices=None):
+    def model_diffusion(self, vertices=None, mode='ADC'):
         """
-        Calculate the diffusion distance on a novel set of vertices
+        Calculate the ADC/diffusion distance on a novel set of vertices
 
         Parameters
         ----------
@@ -850,7 +854,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
 
         # Start by generating the values of the rotations we use in these
         # coordinates on the sphere 
-        rotations = self._calc_rotations(vertices, mode='distance')
+        rotations = self._calc_rotations(vertices, mode=mode)
         
         if self.verbose:
             print("Predicting signal from CanonicalTensorModel")
