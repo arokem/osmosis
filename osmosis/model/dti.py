@@ -5,6 +5,7 @@ import numpy as np
 
 import nibabel as ni
 import dipy.reconst.dti as dti
+import dipy.core.gradients as gradients
 
 from osmosis.model.base import BaseModel, SCALE_FACTOR
 import osmosis.descriptors as desc
@@ -83,6 +84,7 @@ class TensorModel(BaseModel):
             fit_method = 'LS'
         
         self.fit_method = fit_method
+        self.gtab = gradients.gradient_table(self.bvals, self.bvecs)
         
     @desc.auto_attr
     def model_params(self):
@@ -95,32 +97,29 @@ class TensorModel(BaseModel):
         evecs (9) + evals (3)
         
         """
-        block = ozu.nans(self.shape[:3] + (12,))
+        out = ozu.nans((self.data.shape[:3] +  (12,)))
+        flat_params = np.empty((self._flat_S0.shape[0], 12))
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
                 print("Loading TensorModel params from: %s" %self.params_file)
-            block[self.mask] = ni.load(self.params_file).get_data()[self.mask]
+            out[self.mask] = ni.load(self.params_file).get_data()[self.mask]
         else:
             if self.verbose:
                 print("Fitting TensorModel params using dipy")
-            mp = dti.Tensor(self.data,
-                            self.bvals,
-                            self.bvecs.T,
-                            self.mask,
-                            fit_method=self.fit_method).model_params 
+            tensor_model = dti.TensorModel(self.gtab,
+                                  fit_method=self.fit_method)
+            for vox, vox_data in enumerate(self.data[self.mask]):
+                flat_params[vox] = tensor_model.fit(vox_data).model_params
 
-            # Make sure it has the right shape (this is necessary because dipy
-            # reshapes things under the hood with its masked interface):
-            block[self.mask] = np.reshape(mp,(-1,12))
-            
+            out[self.mask] = flat_params
             # Save the params for future use: 
-            params_ni = ni.Nifti1Image(block, self.affine)
+            params_ni = ni.Nifti1Image(out, self.affine)
             # If we asked it to be temporary, no need to save anywhere: 
             if self.params_file != 'temp':
                 params_ni.to_filename(self.params_file)
         # And return the params for current use:
-        return block
+        return out
 
     @desc.auto_attr
     def evecs(self):
