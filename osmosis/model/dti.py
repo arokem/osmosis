@@ -270,7 +270,7 @@ class TensorModel(BaseModel):
         of the sphere 
         """
         # It's simply the first eigen-vector
-        return self.evecs[:,:,:,0,:]
+        return self.evecs[...,0]
 
 
     @desc.auto_attr
