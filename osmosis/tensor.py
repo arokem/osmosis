@@ -130,12 +130,9 @@ class Tensor(object):
         """
         Calculate the diffusion distance in the bvecs
         """
+        return diffusion_distance(self.bvecs, self.Q)
 
-        sphADC = np.dot(self.bvecs.T, np.dot(self.Q.getI(), self.bvecs))
-        dist = np.diag(1 / np.sqrt(sphADC))
-
-        return dist
-
+    
     def predicted_signal(self, S0):
         """
         Calculate the signal predicted from the properties of this tensor. 
@@ -231,6 +228,26 @@ class Tensor(object):
                                                 self.bvecs,
                                                 self.bvals))            
         return rot_tensors
+
+
+def diffusion_distance(bvecs, Q):
+    """
+    Calculate the diffusion distance  . This follows a paper by Bihan (which
+    one?).
+
+    Parameters
+    ----------
+    bvecs : 3 by n array
+        Directions in three space for which we want to calculate the
+        diffusion distance
+
+    Q : a 3 by 3 array
+    
+    """
+    sphADC = np.dot(np.dot(bvecs.T, np.matrix(Q).getI()), bvecs)
+    dist = np.diag(1 / np.sqrt(sphADC))
+    
+    return dist
 
 
 def rotate_to_vector(vector, evals, evecs, bvecs, bvals):
