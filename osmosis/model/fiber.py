@@ -53,10 +53,12 @@ class BaseFiber(BaseModel):
                             scaling_factor=scaling_factor,
                             params_file=params_file,
                             sub_sample=sub_sample)
-
-        # The FG is transformed through the provided affine if need be: 
-        self.FG = FG.xform(np.dot(FG.affine,self.affine.getI()), inplace=False)
-
+        
+        if affine is not None:
+            # The FG is transformed through the provided affine if need be: 
+            self.FG = FG.xform(affine.getI(), inplace=False)
+        else:
+            self.FG = FG
 	
     @desc.auto_attr
     def fg_idx(self):
@@ -432,11 +434,12 @@ class FiberStatistic(BaseFiber):
         """
         The weights on the fibers calculated from the linear model
         """
-        L = lm.ElasticNet(l1_ratio=0.01, alpha=0.0005, positive=True)
+        # L = lm.ElasticNet(l1_ratio=0, alpha=0.005, positive=True)
+        # L = lm.ElasticNet(l1_ratio=0.01, alpha=0.0005)
+        L = lm.Ridge(alpha=0.1)
         L.fit(self.design_matrix, self.fiber_data)
         return L.coef_, L.intercept_
-        #return (ozu.ols_matrix(self.design_matrix)).dot(self.fiber_data)
-
+        
 
     @desc.auto_attr
     def coef(self):
