@@ -98,7 +98,9 @@ class DWI(desc.ResetMixin):
         # attributes:
         for name, val in zip(['data', 'bvecs', 'bvals'],
                              [data, bvecs, bvals]): 
-            if isinstance(val, str):
+            if val is None:
+                exec("self.%s = None"%name)
+            elif isinstance(val, str):
                 exec("self.%s_file = '%s'"% (name, val))
             elif isinstance(val, np.ndarray):
                 # This time we need to give it the name-space:
@@ -111,7 +113,8 @@ class DWI(desc.ResetMixin):
 
         # You might have to scale the bvalues by some factor, so that the units
         # come out correctly in the adc calculation:
-        self.bvals = self.bvals.copy() / scaling_factor
+        if self.bvals is not None:
+            self.bvals = self.bvals.copy() / scaling_factor
         
         # You can provide your own affine, if you want and that bypasses the
         # class method provided below as an auto-attr:
