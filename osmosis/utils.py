@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 import scipy
 import scipy.linalg as la
+import scipy.stats as stats
 
 import dipy.core.geometry as geo
 
@@ -779,6 +780,14 @@ def bic(ss, n_measurements, n_params):
     return (n_measurements * np.log(ss/n_measurements) +
             n_measurements * n_params)
 
+def ipr(a,alpha=5):
+    """
+    Calculate the inter-percentile range for the 100-alpha central percentiles
+    """
+    score1 = stats.scoreatpercentile(a, 100 - alpha/2.0)
+    score2 = stats.scoreatpercentile(a, alpha/2.0)
+    return score1 - score2
+    
 
 def start_parallel(imports_str=None):
     """
