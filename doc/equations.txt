@@ -2,11 +2,11 @@ Equations related to diffusion and dwi:
 
 The basic signal equation:
 
-S(\theta) = S_0 e^{-b A(\theta)}
+S(\theta, b) = S_0 e^{-b A(\theta)}
 
 Where:
 
-A(\theta) = \theta Q \theta^t
+A(\theta) = \theta^t Q \theta
 
 And:
 
@@ -67,7 +67,23 @@ Q = \begin{pmatrix} 1 & 0 & 0 \\
 
 General "ball and stick":
 
-\frac{S}{ S_0}= \beta_0 e^{-bD}   + \sum_{i=1}^{N}{\beta_i e^{-b \theta R_i Q \theta^t}}
+{S (\theta, b)}= \beta_0 e^{-bD}   + \sum_{i=1}^{m}{\beta_i e^{-b \theta^t Q_i \theta}}
+
+T_i (\theta, b) = e^{-b \theta^t Q_i \theta}
+
+{S (\theta, b)}=  w_0  + \sum_{i=1}^{m}{w_i (T_i (\theta, b) - \bar{T}_b ) }
+
+S (\theta, b) - \bar{S}_b = \sum_{i=1}^{m}{w_i (T_i (\theta,b) - \bar{T}_b ) }
+
+O_i(\theta,b) = T_i(\theta,b) - \bar{T}_b 
+
+S (\theta, b) = w_0 + \sum_{i=1}^{m}{w_i O_i(\theta,b)}
+
+S (\theta, b) - \bar{S}_b = \sum_{i=1}^{m}{w_i O_i(\theta,b)}
+
+\bar{S}_b = \frac{1}{N} \sum_{j=1}^{n} S(\theta_j, b)
+
+\bar{T}_b = \frac{1}{N}\sum_{j=1}^{n} T(\theta_j, b)
 
 
 
@@ -94,7 +110,6 @@ MultiCanonicalTensor model:
  \begin{pmatrix} w_1 \\ w_2 \\ w_3 \end{pmatrix}
 
 
-
 SparseDeconvolutionModel (non-normed):
 
 \begin{pmatrix} \frac{S_1}{S_0} - \langle\frac{S}{S_0}\rangle \\
@@ -107,6 +122,23 @@ T^1 \rangle & T^2_n - \langle T^2 \rangle & \cdots & T^m_n -  \langle T^m
 \rangle \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_m \end{pmatrix}
 
 
+\begin{pmatrix} S(\theta_1) - \bar{S} \\
+S(\theta_2) - \bar{S} \\ \vdots \\ S(\theta_n) - \bar{S}
+\end{pmatrix} = \begin{pmatrix} T_1(\theta_1) - \bar{T} & T_2(\theta_1) - \bar{T}& \cdots & T_m(\theta_1) - \bar{T}
+\\ T_1(\theta_2) - \bar{T} &  T_2(\theta_2) - \bar{T} & \cdots & T_m(\theta_2) -
+\bar{T}  \\ \vdots & \vdots & \cdots & \vdots \\T_1(\theta_n) - \bar{T} & T_2(\theta_n) - \bar{T} & \cdots & T_m(\theta_n) -  \bar{T} \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_m \end{pmatrix}
+
+\begin{pmatrix} S(\theta_1, b) - \bar{S}_b \\
+S(\theta_2, b) - \bar{S}_b \\ \vdots \\ S(\theta_n, b) - \bar{S}_b
+\end{pmatrix} = \begin{pmatrix} O_1(\theta_1, b) & O_2(\theta_1,b) & \cdots &
+O_m(\theta_1,b) \\ O_1(\theta_2,b) &  O_2(\theta_2,b) & \cdots & O_m(\theta_2,b)  \\ \vdots & \vdots & \cdots & \vdots \\O_1(\theta_n,b) & O_2(\theta_n,b) & \cdots & O_m(\theta_n,b) \end{pmatrix} \begin{pmatrix} w_1 \\ w_2 \\ \vdots \\ w_m \end{pmatrix}
+
+\begin{pmatrix} S(\theta_1) - \bar{S} \\
+S(\theta_2) - \bar{S} \\ \vdots \\ S(\theta_n) - \bar{S}
+\end{pmatrix} = \begin{pmatrix} O_1(\theta_1) & O_2(\theta_1) & \cdots &
+O_m(\theta_1) \\ O_1(\theta_2) &  O_2(\theta_2) & \cdots & O_m(\theta_2)  \\ \vdots & \vdots & \cdots & \vdots \\O_1(\theta_n) & O_2(\theta_n) & \cdots & O_m(\theta_n) \end{pmatrix} \begin{pmatrix} \beta_1 \\ \beta_2 \\ \vdots \\ \beta_m \end{pmatrix}
+
+
  Lasso:
 
  Minimize:
@@ -116,6 +148,19 @@ T^1 \rangle & T^2_n - \langle T^2 \rangle & \cdots & T^m_n -  \langle T^m
  subject to:
 
  \sum_i{|\hat{\beta_i}|} \leq t
+
+Elastic net:
+
+Minimize:
+
+
+
+subject to:
+
+w_j \geq 0
+
+\sum_{i=1}^{n}{(S_i - \hat{S}_i)^2} + \Lambda \sum_{j=1}^{m}(\alpha w^2_j + (1-\alpha)|w_j| )
+
 
  TissueFractionModel:
 
