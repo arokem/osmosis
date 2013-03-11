@@ -4,6 +4,8 @@ import inspect
 import numpy as np
 import scipy.sparse as sparse
 
+import sklearn.linear_model as lm
+
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
 import osmosis.sgd as sgd
@@ -12,42 +14,34 @@ from osmosis.model.canonical_tensor import AD,RD
 
 
 def _tensors_from_fiber(f, bvecs, bvals, ad, rd):
-        """
-        Helper function to get the tensors for each fiber
-        """
-        return f.tensors(bvecs, bvals, ad, rd)
-
-class FiberModel(BaseModel):
     """
-    
-    A class for representing and solving predictive models based on
-    tractography solutions.
-    
+    Helper function to get the tensors for each fiber
+    """
+    return f.tensors(bvecs, bvals, ad, rd)
+
+class BaseFiber(BaseModel):
+    """
+    Base class for different models that deal with fibers
     """
     def __init__(self,
                  data,
-                 bvecs,
-                 bvals,
                  FG,
-                 params_file=None,
-                 axial_diffusivity=AD,
-                 radial_diffusivity=RD,
+                 bvecs=None,
+                 bvals=None,
                  affine=None,
                  mask=None,
-                 mode='relative_signal',
-                 scaling_factor=SCALE_FACTOR,
-                 sub_sample=None):
-        """
-        Parameters
-        ----------
+		 scaling_factor=None,
+		 params_file=None,
+		 sub_sample=None):
+	"""
+	Parameters
+	----------
         
-        FG: a osmosis.fibers.FiberGroup object, or the name of a pdb file
-            containing the fibers to be read in using ozf.fg_from_pdb
+	data : a volume with data (can be diffusion data, but doesn't have to
+	be)
 
-        axial_diffusivity: The axial diffusivity of a single fiber population.
-
-        radial_diffusivity: The radial diffusivity of a single fiber population.
-        
+	FG : a osmosis.fibers.FiberGroup object, or the name of a pdb file
+        containing the fibers to be read in using ozf.fg_from_pdb
         """
         # Initialize the super-class:
         BaseModel.__init__(self,
@@ -59,19 +53,20 @@ class FiberModel(BaseModel):
                             scaling_factor=scaling_factor,
                             params_file=params_file,
                             sub_sample=sub_sample)
-
-        self.axial_diffusivity = axial_diffusivity
-        self.radial_diffusivity = radial_diffusivity
-        self.mode = mode
-        # The FG is transformed through the provided affine is need be: 
-        self.FG = FG.xform(np.dot(FG.affine,self.affine.getI()), inplace=False)
-
+        
+        if affine is not None:
+            # The FG is transformed through the provided affine if need be: 
+            self.FG = FG.xform(affine.getI(), inplace=False)
+        else:
+            self.FG = FG
+	
     @desc.auto_attr
     def fg_idx(self):
         """
         Indices into the coordinates of the fiber-group
         """
         return self.fg_coords.astype(int)
+
     
     @desc.auto_attr
     def fg_coords(self):
@@ -80,12 +75,14 @@ class FiberModel(BaseModel):
         """
         return self.FG.coords
 
+
     @desc.auto_attr
     def fg_idx_unique(self):
         """
         The *unique* voxel indices
         """
         return ozu.unique_rows(self.fg_idx.T).T
+
 
     @desc.auto_attr
     def voxel2fiber(self):
@@ -121,7 +118,7 @@ class FiberModel(BaseModel):
                                     (vv[1] == self.fg_idx_unique[1]) *
                                     (vv[2] == self.fg_idx_unique[2]))[0]
                 # Add that combination to the grid:
-                v2f[voxel_id,f_idx] += 1 
+                v2f[voxel_id, f_idx] += 1 
                 # All the nodes going through this voxel get its number:
                 v2fn[f_idx][np.where((f.coords.astype(int)[0]==vv[0]) *
                                      (f.coords.astype(int)[1]==vv[1]) *
@@ -132,10 +129,56 @@ class FiberModel(BaseModel):
 
         return v2f,v2fn
 
+class FiberModel(BaseFiber):
+    """
+    
+    A class for representing and solving predictive models based on
+    tractography solutions.
+    
+    """
+    def __init__(self,
+                 data,
+                 bvecs,
+                 bvals,
+                 FG,
+                 params_file=None,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 affine=None,
+                 mask=None,
+                 mode='relative_signal',
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None):
+        """
+        Parameters
+        ----------
+        
+        FG: a osmosis.fibers.FiberGroup object, or the name of a pdb file
+            containing the fibers to be read in using ozf.fg_from_pdb
+
+        axial_diffusivity: The axial diffusivity of a single fiber population.
+
+        radial_diffusivity: The radial diffusivity of a single fiber population.
+        
+        """
+        # Initialize the super-class:
+        BaseFiber.__init__(self,
+			   data,
+			   FG,
+			   bvecs,
+			   bvals,
+			   affine=affine,
+			   mask=mask,
+			   scaling_factor=scaling_factor,
+			   params_file=params_file,
+		           sub_sample=sub_sample)
+
+        self.axial_diffusivity = axial_diffusivity
+        self.radial_diffusivity = radial_diffusivity
+        self.mode = mode
 
     @desc.auto_attr
     def fiber_signal(self):
-
         """
         The relative signal predicted along each fiber. 
         """
@@ -302,6 +345,7 @@ class FiberModel(BaseModel):
         # return self._Lasso.predict(self.matrix[0])
         return sgd.spdot(self.matrix[0], self.fiber_weights)
 
+
     @desc.auto_attr
     def _iso_fit(self):
         # We want this to have the size of the original signal which is
@@ -320,3 +364,106 @@ class FiberModel(BaseModel):
         # removed prior to fitting:
         
         return np.array(self._fiber_fit + self._iso_fit).squeeze()
+
+
+class FiberStatistic(BaseFiber):
+    """
+    
+    A class for calculating a fiber statistic based on an additional volume of
+    data also provided, according to the idea that the signal y (this can be
+    any kind of 3D volume, for example the mean diffusivity from a tensor
+    model, or a measurement of MTV, or something like that) can be described in
+    each voxel through which fibers pass as a linear combination of that
+    statistic along the entire length of each of the fibers. That is, 
+
+    y = Aw
+
+    Where A is the binary v2f matrix, that contains 0's everywhere and 1's
+    in the elements representing the voxels (rows) for which that fiber
+    (columns) passes through.
+
+    Solving for w provides the value of the statistic along the entire length
+    of the fiber, given all the other fibers in the FG and the constraints they
+    imply    
+    """
+    def __init__(self,
+                 data,
+                 FG,
+                 affine=None,
+                 mask=None):
+        """
+        Parameters
+        ----------
+        
+        FG: a osmosis.fibers.FiberGroup object, or the name of a pdb file
+            containing the fibers to be read in using ozf.fg_from_pdb        
+
+        data: array, or path to nifti
+        """
+        # Initialize the super-class:
+        BaseFiber.__init__(self,
+			   data,
+			   FG,
+			   affine=affine,
+			   mask=mask)
+
+    @desc.auto_attr
+    def design_matrix(self):
+        """
+        The design matrix based on the fiber coordinates
+        """
+        v2f, v2fn = self.voxel2fiber
+        # Binarize this sucker:
+        v2f = np.array(v2f, dtype=bool).astype(int)
+        # We add a column to account for non-fiber stuff: 
+        return np.hstack([v2f, np.eye(v2f.shape[0])])
+
+    
+    @desc.auto_attr
+    def fiber_data(self):
+        """
+
+        """
+        return self.data[self.fg_idx_unique[0],
+                         self.fg_idx_unique[1],
+                         self.fg_idx_unique[2]]
+
+
+    @desc.auto_attr
+    def model_params(self):
+        """
+        The weights on the fibers calculated from the linear model
+        """
+        # L = lm.ElasticNet(l1_ratio=0, alpha=0.005, positive=True)
+        # L = lm.ElasticNet(l1_ratio=0.01, alpha=0.0005)
+        L = lm.Ridge(alpha=0.1)
+        L.fit(self.design_matrix, self.fiber_data)
+        return L.coef_, L.intercept_
+        
+
+    @desc.auto_attr
+    def coef(self):
+        """
+        """
+        return self.model_params[0]
+
+
+    @desc.auto_attr
+    def intercept(self):
+        """
+        """
+        return self.model_params[1]
+
+    
+    @desc.auto_attr
+    def fit(self):
+        """
+        Predict back the data based on the fiber weights
+        """
+        return(self.coef.dot(self.design_matrix.T) + self.intercept)
+
+        
+
+
+	
+    
