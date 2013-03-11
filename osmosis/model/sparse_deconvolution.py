@@ -49,7 +49,7 @@ from osmosis.model.io import params_file_resolver
 
 class SparseDeconvolutionModel(CanonicalTensorModel):
     """
-    Use the lasso to do spherical deconvolution with a canonical tensor basis
+    Use Elastic Net to do spherical deconvolution with a canonical tensor basis
     set. 
     """
     def __init__(self,
@@ -406,7 +406,19 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds[self.mask] = inds_flat
         return qa, inds
 
+    def anisotropy_index(self):
+        """
+        We calculate an anisotropy index according to the following:
 
+        .. math:
+        
+           AI = \sum_{i=1}^{n}{w_i}/\sum_{i=0}^{n}{w_i}
+
+        Where the 0th index refers to the isotropic weight, defined here to be
+        the mean of $\frac{S}{S_0}$.
+       
+        """
+    
     @desc.auto_attr
     def cluster_fodf(self):
         """
