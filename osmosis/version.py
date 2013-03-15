@@ -63,3 +63,5 @@ PACKAGE_DATA = {"osmosis": ["LICENSE", "data/*.pdb", "data/*.mat",
 
 REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel", "dipy", "mayavi",
             "sklearn"]
+
+BIN='bin/'

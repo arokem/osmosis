@@ -44,6 +44,7 @@ opts = dict(name=NAME,
             packages=PACKAGES,
             package_data=PACKAGE_DATA,
             requires=REQUIRES,
+            scripts=[BIN + x for x in os.listdir(BIN)],
             )
 
 # For some commands, use setuptools.  Note that we do NOT list install here!
