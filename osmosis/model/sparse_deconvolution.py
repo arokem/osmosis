@@ -418,6 +418,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         the mean of $\frac{S}{S_0}$.
        
         """
+        raise NotImplementedError
+
     
     @desc.auto_attr
     def cluster_fodf(self):

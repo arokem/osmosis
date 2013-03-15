@@ -118,8 +118,6 @@ def cross_predict(model1, model2):
     return out
 
 
-
-
 def relative_rmse(model1, model2):
     """
     Given two model objects, compare the model fits to signal-to-signal
@@ -274,7 +272,6 @@ def noise_ceiling(model1, model2, n_sims=1000, alpha=0.05):
     out_ub[model1.mask] = ub_flat
 
     return out_coeffs, out_lb, out_ub
-
 
         
 def coeff_of_determination(model1, model2):

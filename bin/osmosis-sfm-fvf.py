@@ -21,14 +21,14 @@ parser.add_argument('bvals_file', action='store', metavar='File',
 parser.add_argument('out_file', action='store', metavar='File',
                     help='Output file name (.nii.gz)')
 
-parser.add_argument('mask_file', action='store', metavar='File',
+parser.add_argument('--mask_file', action='store', metavar='File',
                     help='Mask file (only the voxels within the binary mask will be analyzed (.nii.gz; default: analyze all) ',
                     default=None)
 
-parser.add_argument('alpha', action='store', metavar='Float',
+parser.add_argument('--alpha', action='store', metavar='Float',
                     help='Regularization parameter : how strong should regularization be (default: 0.0005)', default=0.0005)
 
-parser.add_argument('l1_ratio', action='store', metavar='Float',
+parser.add_argument('--l1_ratio', action='store', metavar='Float',
                     help='Regularization parameter : how L1 weighted should regularization be (default: 0.6)', default=0.6)
 
 params = parser.parse_args()
@@ -49,6 +49,6 @@ if __name__ == "__main__":
                                          params_file='temp')
 
     # Do it and save: 
-    fvf = nib.Nifti1Pair(np.sum(Model.model_params, Model.affine).to_filename(
-                                                               params.out_file)
+    fvf = nib.Nifti1Image(np.sum(Model.model_params, -1),
+                         Model.affine).to_filename(params.out_file)
 

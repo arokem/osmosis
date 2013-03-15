@@ -98,7 +98,9 @@ class TensorModel(BaseModel):
         
         """
         out = ozu.nans((self.data.shape[:3] +  (12,)))
+        
         flat_params = np.empty((self._flat_S0.shape[0], 12))
+        
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
