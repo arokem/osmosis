@@ -8,13 +8,14 @@ import sys
 
 
 
-# XXX Make this an optional thing:
-# You might need to get the data if it's not there
-print ("Downloading test-data from arokem.org...")
-# Get the test data and put it in the right place
-f=urllib.urlretrieve("http://arokem.org/data/osmosis_test_data.zip")[0]
-zf = zipfile.ZipFile(f)
-zf.extractall(path='./osmosis/')    
+# If the data is not already there: 
+if not os.path.exists('./osmosis/data'):
+    # You might need to get the data:
+    print ("Downloading test-data from arokem.org...")
+    # Get the test data and put it in the right place
+    f=urllib.urlretrieve("http://arokem.org/data/osmosis_test_data.zip")[0]
+    zf = zipfile.ZipFile(f)
+    zf.extractall(path='./osmosis/')    
 
 
 # BEFORE importing distutils, remove MANIFEST. distutils doesn't properly
