@@ -26,8 +26,7 @@ parser.add_argument('--mask_file', action='store', metavar='File',
                     default=None)
 
 parser.add_argument('--params_output', action='store', metavar='File',
-                    help='If you want to save the model parameters as a nifti
-                    file, provide a file-name here (default: do not save params)', default=None)
+                    help='If you want to save the model parameters as a nifti file, provide a file-name here (default: do not save params)', default=None)
 
 
 parser.add_argument('--alpha', action='store', metavar='Float',
