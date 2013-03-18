@@ -47,7 +47,7 @@ if __name__ == "__main__":
     if args.params_output is None:
         params_file = 'temp'
     else:
-        params_file = args.params_output
+        params_file = params.params_output
         
     Model = sfm.SparseDeconvolutionModel(params.dwi_file,
                                          params.bvecs_file,
