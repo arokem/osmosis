@@ -44,7 +44,7 @@ if __name__ == "__main__":
                          alpha=params.alpha,
                          fit_intercept=False,
                          positive=True)
-    if args.params_output is None:
+    if params.params_output is None:
         params_file = 'temp'
     else:
         params_file = params.params_output
