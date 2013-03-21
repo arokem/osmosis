@@ -364,9 +364,9 @@ def plot_cut_planes(vol,
     # We'll want to set an alpha of 0 for nans if those exist: 
     nans_exist = False
     if overlay is not None:
+        overlay_copy = np.copy(overlay)
         if np.any(np.isnan(overlay)):
             nans_exist = True
-            overlay_copy = np.copy(overlay)
             overlay_copy[np.isnan(overlay_copy)] = 0
         overlay_planes = []
         for i in range(n_planes):
