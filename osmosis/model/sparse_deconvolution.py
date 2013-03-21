@@ -347,12 +347,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return out
         
 
-    @desc.auto_attr
-    def n_peaks(self):
+    def n_peaks(self,threshold=0.1):
         """
         How many peaks in the ODF of each voxel
         """
-        return np.sum(self.odf_peaks > 0, -1)
+        return np.sum(self.odf_peaks > threshold, -1)
 
 
     @desc.auto_attr
