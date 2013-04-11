@@ -166,18 +166,22 @@ def plot_signal_interp(bvecs, signal, origin=[0,0,0], maya=True, cmap='jet',
     offset : float
         where to place the plotted voxel (on the z axis)
 
-    points : whether to show the sampling points on the 
+    points : bool
+       whether to show the sampling points on the interpolated
+       surface. Default: False.
+    
     """
+
+    #bvecs_new = np.hstack([bvecs, -bvecs])
+    #new_signal = np.hstack([signal, signal])
 
     s0 = Sphere(xyz=bvecs.T)
     s1 = create_unit_sphere(7)
-    signal = np.copy(signal)
 
     signal[np.isnan(signal)] = 0
     
     interp_signal = interp_rbf(signal, s0, s1, **interp_kwargs)
     vertices = s1.vertices
-
 
     if non_neg:
         interp_signal[interp_signal<0] = 0
@@ -187,7 +191,6 @@ def plot_signal_interp(bvecs, signal, origin=[0,0,0], maya=True, cmap='jet',
 
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(interp_signal, phi, theta)
-
 
     if points:
         r, phi, theta = geo.cart2sphere(s0.x, s0.y, s0.z)

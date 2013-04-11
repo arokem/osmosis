@@ -317,10 +317,13 @@ def scale_bvecs_by_sig(bvecs, sig):
     return x,y,z
 
 
-def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r, size=None):
+def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r, size=None,
+                    return_cbar=False, **kwargs):
     """
     Create a scatter plot with density of the data-points at each point on the
     x,y grid coded by the color in the colormap (hot per default)
+
+    **kwargs are passed to matplotlib's matshow
     
     """
 
@@ -347,16 +350,21 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r, size=None):
     
     fig = plt.figure()
     ax = fig.add_subplot(1,1,1)
-    imax = ax.matshow(np.log10(np.flipud(data_arr.T)), cmap=cmap)    
-    fig.colorbar(imax)
+    imax = ax.matshow(np.log10(np.flipud(data_arr.T)), cmap=cmap, **kwargs)    
+    cbar = fig.colorbar(imax)
     ax.set_xticks([0] + [i * res/5.0 for i in range(5)])
     ax.set_yticks([0] + [i * res/5.0 for i in range(5)])
-    ax.set_xticklabels([0] + ['%0.2f'%(i * ((max_x - min_x)/5.0) + min_x) for i in range(5)])
-    ax.set_yticklabels([0] + ['%0.2f'%(i * ((max_y - min_y)/5.0) + min_y) for i in range(5,0,-1)])
+    ax.set_xticklabels([0] + ['%0.2f'%(i * ((max_x - min_x)/5.0) + min_x)
+                               for i in range(5)])
+    ax.set_yticklabels([0] + ['%0.2f'%(i * ((max_y - min_y)/5.0) + min_y)
+                               for i in range(5,0,-1)])
 
     if size is not None:
         fig.set_size_inches(size)
-    return fig
+    if return_cbar:
+        return fig, cbar
+    else: 
+        return fig
 
 
 # XXX Maybe implement the following as a subclass of matplotlib.axes.Axes?
