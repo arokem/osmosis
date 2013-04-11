@@ -130,9 +130,15 @@ class DWI(desc.ResetMixin):
             self.mask = np.array(mask, dtype=bool)
 
         else:
-            # Spatial mask (take only the spatial dimensions):
-            self.mask = np.ones(self.shape[:3], dtype=bool)
-
+            # If only one voxel was provided, we will assume that all the data
+            # in the voxel should be taken
+            if len(self.shape)==1:
+                self.mask = slice(0,None,None)
+            # Otherwise, we make a 3D mask, with all the voxels in the volume: 
+            else:
+                # Spatial mask (take only the spatial dimensions):
+                self.mask = np.ones(self.shape[:3], dtype=bool)
+            
         if sub_sample is not None:
             if np.iterable(sub_sample):
                 idx = sub_sample
@@ -153,6 +159,22 @@ class DWI(desc.ResetMixin):
             self.bvals = np.concatenate([np.zeros(len(self.b0_idx)),
                                          self.bvals[self.b_idx]])
             self.b_idx = np.arange(len(self.b0_idx), len(self.b0_idx) + len(idx))
+
+    @desc.auto_attr
+    def _n_vox(self):
+        """
+        This is the number of voxels in the masked region.
+        
+        Used mainly to differentiate the single-voxel case from the multi-voxel
+        case.  
+        """
+        # We must be prepared to deal with single-voxel case: 
+        if len(self._flat_signal.shape)==1:
+            return 1
+        # Otherwise, we are going to assume this is a 2D thing, once we
+        # have flattened it: 
+        else:
+            return self._flat_signal.shape[0]
 
 
     @desc.auto_attr
@@ -389,6 +411,17 @@ class DWI(desc.ResetMixin):
         """
         return 1-self._flat_relative_signal
     
+    @desc.auto_attr
+    def signal_adc(self):
+        """
+        The empirical ADC in every direction calculated as:
+
+        .. math:: 
+        ADC = \frac{log(\frac{S}{S_0})}{-b} 
+        """
+        log_s_s0 = np.log(self.relative_signal)
+        return log_s_s0/(-self.bvals[self.b_idx][0])
+
 
 class BaseModel(DWI):
     """
