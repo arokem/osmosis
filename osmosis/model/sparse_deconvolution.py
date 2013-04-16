@@ -380,7 +380,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
     def quantitative_anisotropy(self, Np):
         """
         Return the relative size and indices of the Np major param values
-        (canonical tensor) weights  in the ODF 
+        (canonical tensor weights) in the ODF 
         """
         if self.verbose:
             print("Calculating quantitative anisotropy:")
@@ -409,6 +409,41 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds[self.mask] = inds_flat
         return qa, inds
 
+
+    @desc.auto_attr
+    def dispersion_index(self):
+        """
+        Calculate a dispersion index based on the formula:
+
+        .. math::
+        
+            DI = \sum_{i=1}^{n}{\beta_i alpha_i}
+
+        where \beta_i is the weight in each direction, denoted by alpha_i,
+        relative to the direction of the maximal weight.
+        
+        """
+        # Take values up to the number of measurements:
+        qa, inds = self.quantitative_anisotropy(len(self.b_idx))
+        qa_flat = self.model_params[self.mask]
+        inds_flat = inds[self.mask]
+        di = ozu.nans(self.data.shape[:3])
+        di_flat = np.empty(self._n_vox)
+        for vox in xrange(self._n_vox):
+            idx = inds_flat[vox].astype(int)
+            this_dirs = self.bvecs[:, self.b_idx].T[idx]
+            this_qa = qa_flat[vox][idx]
+            this_pdd, dirs = this_dirs[0], this_dirs[1:]
+            angles = np.arccos(np.dot(dirs, this_pdd))
+            angles = np.min(np.vstack([angles, np.pi-angles]), 0)
+            angles = angles/(np.pi/2)
+            di_flat[vox] = np.dot(this_qa[1:]**2/np.sum(this_qa**2), angles)
+        
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = di_flat
+        return out
+
+        
     def anisotropy_index(self):
         """
         We calculate an anisotropy index according to the following:
@@ -500,6 +535,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
         return out
 
+
     @desc.auto_attr
     def model_adc(self):
         """
@@ -512,6 +548,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
         return out
+
 
     @desc.auto_attr
     def non_fiber_iso(self):
