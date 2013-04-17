@@ -410,35 +410,69 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return qa, inds
 
 
-    @desc.auto_attr
-    def dispersion_index(self):
+    def dispersion_index(self, all_to_all=False):
         """
         Calculate a dispersion index based on the formula:
 
         .. math::
         
-            DI = \sum_{i=1}^{n}{\beta_i alpha_i}
+            DI = \frac{\sum_{i=2}^{n}{\beta_i^2 alpha_i}}{\sum{i=1}{n}{\beta_i^2}}
 
-        where \beta_i is the weight in each direction, denoted by alpha_i,
+
+        where $\beta_i$ is the weight in each direction, denoted by $alpha_i$,
         relative to the direction of the maximal weight.
+
+        Or (when `all_to_all` is set to `True`)
+
+        .. math::
+
+           DI = \frac{\sum{i=1}^{n}\sum_{j=1}^{n}{\beta_i \beta_j alpha_ij}}{\sum{i=1}{n}{\beta_i^2}}
+
+        where now $\alpha_i$ now denotes the angle between 
         
         """
         # Take values up to the number of measurements:
         qa, inds = self.quantitative_anisotropy(len(self.b_idx))
-        qa_flat = self.model_params[self.mask]
         inds_flat = inds[self.mask]
-        di = ozu.nans(self.data.shape[:3])
-        di_flat = np.empty(self._n_vox)
-        for vox in xrange(self._n_vox):
-            idx = inds_flat[vox].astype(int)
-            this_dirs = self.bvecs[:, self.b_idx].T[idx]
-            this_qa = qa_flat[vox][idx]
-            this_pdd, dirs = this_dirs[0], this_dirs[1:]
-            angles = np.arccos(np.dot(dirs, this_pdd))
-            angles = np.min(np.vstack([angles, np.pi-angles]), 0)
-            angles = angles/(np.pi/2)
-            di_flat[vox] = np.dot(this_qa[1:]**2/np.sum(this_qa**2), angles)
+        qa_flat = qa[self.mask]
+
+        # We'll use the original weights, not the QA for the calculation of the
+        # index: 
+        mp_flat = self.model_params[self.mask]
         
+        di = ozu.nans(self.data.shape[:3])
+        di_flat = np.zeros(self._n_vox)
+        for vox in xrange(self._n_vox):
+            nonzero_idx = np.where(qa_flat[vox]>0)
+            if len(nonzero_idx[0])>0:
+                # Only look at the non-zero weights:
+                vox_idx = inds_flat[vox][nonzero_idx].astype(int)
+                this_mp = mp_flat[vox][vox_idx]
+                this_dirs = self.bvecs[:, self.b_idx].T[vox_idx]
+                n_idx = len(vox_idx)
+                if all_to_all:
+                    di_s = np.zeros(n_idx)
+                    # Calculate this as all-to-all:
+                    angles = np.arccos(np.dot(this_dirs, this_dirs.T))
+                    for ii in xrange(n_idx):
+                        this_di_s = 0 
+                        for jj in  xrange(ii+1, n_idx): 
+                            ang = angles[ii, jj]
+                            di_s[ii] += ang * ((this_mp[ii]*this_mp[jj])/
+                                               np.sum(this_mp**2))  
+
+                    di_flat[vox] = np.mean(di_s)/n_idx
+                else:
+
+                    #Calculate this from the highest peak to each one of the
+                    #others:
+                    this_pdd, dirs = this_dirs[0], this_dirs[1:] 
+                    angles = np.arccos(np.dot(dirs, this_pdd))
+                    angles = np.min(np.vstack([angles, np.pi-angles]), 0)
+                    angles = angles/(np.pi/2)
+                    di_flat[vox] = np.dot(this_mp[1:]**2/np.sum(this_mp**2),
+                                          angles)
+
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = di_flat
         return out
