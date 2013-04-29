@@ -155,4 +155,104 @@ class Volume(object):
     def __init__(self):
         raise NotImplementedError
 
+
+
+def signal_1d(theta, b, fiber_weights, d_para, d_ortho, phi, iso_weights,
+              d_iso):  
+    """ 
+    Simulate a 1-D diffusion signal 
+
+    Parameters
+    ----------
+    theta : float or 1d array 
+        The direction or directions of measurement
     
+    b : float
+        The b value of measurement 
+    
+    fiber_weights : float or 1d array
+        The weight or weights on fiber components
+    
+    d_para : float or 1d array
+        The axial diffusivity of fiber components 
+        
+    d_ortho : float or 1d array
+        The radial diffusivity of fiber components 
+    
+    phi : float or 1d array
+        Direction or directions of fiber components
+    
+    iso_weights: float or 1d array
+        Weights on isotropic components
+    
+    d_iso : float or 1d array
+        The diffusivity of isotropic components
+
+
+    Notes
+    -----
+    This is based on equations in Dell'acqua et al.(2010).
+
+    Under the assumption of slow exchange between fiber compartments in the
+    voxel, The normalized signal $S(\theta, b) = \frac{S_b(\theta)}{S_0}$ is
+    modeled as:
+
+    .. math::
+    
+         S(\theta,b) = \sum_{i=1}^{m}{f_i e^{-b (\lambda_i cos^2(\theta-\phi_i) + \beta_i sin^2(\theta-\phi_i)}} + \sum_{j=1}^{n}{f_j e ^{-b\beta_j}}
+                                        
+    Where the left side of the equation represents the fiber contributions and
+    the right side represents contributions from isotropic components. Each
+    $\phi_i$ is the direction of a distinct fiber population, $\lambda_i$ and
+    $\beta_i$ represent the axial and radial diffusivity of each fiber response
+    function and $f_i$ represents the weight on that fiber population.  
+
+    This can be re-written more compactly as: 
+
+    .. math::
+
+     S(\theta,b) = \sum_{i=1}^{m}{c_i e^{-b\alpha_i cos(\theta - \phi_i)}} + \sum_{j=1}^{q}{c_j}
+ 
+    Where $\alpha_i = \lambda_i - \beta_i$ and $c_i = f_i e^{-b\beta_i}$
+
+    """
+    # Let's deal with the fiber signal first: 
+    # Make it iterable if it isn't: 
+    if type(fiber_weights) is float or type(fiber_weights) is int:  
+        fiber_weights=[fiber_weights]
+
+    if type(d_para) is float:
+        d_para = [d_para] * len(fiber_weights)
+    if type(d_ortho) is float:
+        d_ortho = [d_ortho] * len(fiber_weights)
+
+    if type(phi) is float or type(phi) is int:
+        phi = [phi] * len(fiber_weights)
+        
+    sig = np.zeros(len(theta))
+    
+    for i in range(len(fiber_weights)):
+        ang_diff = theta - phi[i]
+        D = d_para[i] * np.cos(ang_diff)**2 + d_ortho[i] * np.sin(ang_diff)**2
+        sig+=fiber_weights[i] * np.exp(-b * D)
+
+    # Now we can deal with the isotropic signal:
+    if type(iso_weights) is float or type(iso_weights) is int:  
+        iso_weights=[iso_weights] 
+
+    if type(d_iso) is float or type(d_iso) is int:
+        d_iso = [d_iso] * len(iso_weights)
+        
+    for i in range(len(iso_weights)):
+        sig += iso_weights[i] * np.exp(-b * d_iso[i])
+
+    return sig
+
+def tensor_1d(theta, b, ad, rd, phi, fiber_weight):
+    """
+    An analogue of a tensor in 1D
+
+    
+    """
+
+    signal_1d(theta, b, fiber_weight, ad, rd, phi, iso_weights, d_iso)
