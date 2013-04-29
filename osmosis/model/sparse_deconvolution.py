@@ -35,7 +35,7 @@ except ImportError:
 
 import nibabel as ni
 import dipy.reconst.recspeed as recspeed
-import dipy.core.sphere as sphere
+import dipy.core.sphere as dps
 
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
@@ -156,9 +156,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             iso_regressor, tensor_regressor, fit_to = self.regressors
 
-            # One weight for each rotation
-            params = np.empty((self._flat_signal.shape[0],
-                               self.rotations.shape[0]))
 
             # We fit the deviations from the mean signal, which is why we also
             # demean each of the basis functions:
@@ -166,8 +163,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             # One basis function per column (instead of rows):
             design_matrix = design_matrix.T
-            
-            for vox in xrange(self._flat_signal.shape[0]):
+
+            # One weight for each rotation
+            params = np.empty((self._n_vox, self.rotations.shape[0]))
+                
+            for vox in xrange(self._n_vox):
                 # Fit the deviations from the mean of the fitted signal: 
                 sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
                 # Use the solver you created upon initialization:
@@ -175,20 +175,34 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
 
-            out_params = ozu.nans((self.signal.shape[:3] + 
-                                          (design_matrix.shape[-1],)))
+            if self._n_vox==1:
+                out_params = params[0]
 
-            out_params[self.mask] = params
-            # Save the params to a file: 
-            params_ni = ni.Nifti1Image(out_params, self.affine)
-            if self.params_file != 'temp':
-                if self.verbose:
-                    print("Saving params to file: %s"%self.params_file)
-                params_ni.to_filename(self.params_file)
+            else:
+                out_params = ozu.nans((self.signal.shape[:3] + 
+                                  (design_matrix.shape[-1],)))
+
+                out_params[self.mask] = params
+                # Save the params to a file: 
+                params_ni = ni.Nifti1Image(out_params, self.affine)
+                if self.params_file != 'temp':
+                    if self.verbose:
+                        print("Saving params to file: %s"%self.params_file)
+                    params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
-            
+
+    @desc.auto_attr    
+    def _flat_params(self):
+        """
+
+        """
+        if self._n_vox == 1:
+            return [self.model_params]
+        else:
+            return self.model_params[self.mask]
+
 
     @desc.auto_attr
     def fit(self):
@@ -205,9 +219,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
         design_matrix = design_matrix.T
         out_flat = np.empty(self._flat_signal.shape)
-        flat_params = self.model_params[self.mask]
-        for vox in xrange(out_flat.shape[0]):
-            this_params = flat_params[vox]
+        
+        for vox in xrange(self._n_vox):
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0             
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T)+
@@ -247,9 +261,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         iso_regressor, tensor_regressor, fit_to = self.regressors
 
         out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_params = flat_params[vox]
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0 
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T)+
@@ -280,11 +293,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         The angle between the tensors that were fitted
         """
         out_flat = np.empty(self._flat_signal.shape[0])
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(flat_params[vox][0]):
-                idx1 = np.argsort(flat_params[vox])[-1]
-                idx2 = np.argsort(flat_params[vox])[-2]
+            if ~np.isnan(self._flat_params[vox][0]):
+                idx1 = np.argsort(self._flat_params[vox])[-1]
+                idx2 = np.argsort(self._flat_params[vox])[-2]
                 ang = np.rad2deg(ozu.vector_angle(
                     self.bvecs[:,self.b_idx].T[idx1],
                     self.bvecs[:,self.b_idx].T[idx2]))
@@ -307,7 +319,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Calculate the value of the peaks in the ODF (in this case, that is
         defined as the weights on the model params 
         """
-        faces = sphere.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
+        faces = dps.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
         odf_flat = self.model_params[self.mask]
         out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
@@ -370,13 +382,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         out[self.mask] = out_flat
             
         return out
-
         
         
     def quantitative_anisotropy(self, Np):
         """
         Return the relative size and indices of the Np major param values
-        (canonical tensor) weights  in the ODF 
+        (canonical tensor weights) in the ODF 
         """
         if self.verbose:
             print("Calculating quantitative anisotropy:")
@@ -389,9 +400,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         qa_flat = np.zeros((self._flat_signal.shape[0], Np))
         inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
         
-        flat_params = self.model_params[self.mask]
-        for vox in xrange(flat_params.shape[0]):
-            this_params = flat_params[vox]
+        for vox in xrange(self._flat_params.shape[0]):
+            this_params = self._flat_params[vox]
             ii = np.argsort(this_params)[::-1]  # From largest to smallest
             inds_flat[vox] = ii[:Np]
             qa_flat[vox] = (this_params/np.sum(this_params))[inds_flat[vox]] 
@@ -405,6 +415,75 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         inds[self.mask] = inds_flat
         return qa, inds
 
+
+    def dispersion_index(self, all_to_all=False):
+        """
+        Calculate a dispersion index based on the formula:
+
+        .. math::
+        
+            DI = \frac{\sum_{i=2}^{n}{\beta_i^2 alpha_i}}{\sum{i=1}{n}{\beta_i^2}}
+
+
+        where $\beta_i$ is the weight in each direction, denoted by $alpha_i$,
+        relative to the direction of the maximal weight.
+
+        Or (when `all_to_all` is set to `True`)
+
+        .. math::
+
+           DI = \frac{\sum{i=1}^{n}\sum_{j=1}^{n}{\beta_i \beta_j alpha_ij}}{\sum{i=1}{n}{\beta_i^2}}
+
+        where now $\alpha_i$ now denotes the angle between 
+        
+        """
+        # Take values up to the number of measurements:
+        qa, inds = self.quantitative_anisotropy(len(self.b_idx))
+        inds_flat = inds[self.mask]
+        qa_flat = qa[self.mask]
+
+        # We'll use the original weights, not the QA for the calculation of the
+        # index: 
+        mp_flat = self.model_params[self.mask]
+        
+        di = ozu.nans(self.data.shape[:3])
+        di_flat = np.zeros(self._n_vox)
+        for vox in xrange(self._n_vox):
+            nonzero_idx = np.where(qa_flat[vox]>0)
+            if len(nonzero_idx[0])>0:
+                # Only look at the non-zero weights:
+                vox_idx = inds_flat[vox][nonzero_idx].astype(int)
+                this_mp = mp_flat[vox][vox_idx]
+                this_dirs = self.bvecs[:, self.b_idx].T[vox_idx]
+                n_idx = len(vox_idx)
+                if all_to_all:
+                    di_s = np.zeros(n_idx)
+                    # Calculate this as all-to-all:
+                    angles = np.arccos(np.dot(this_dirs, this_dirs.T))
+                    for ii in xrange(n_idx):
+                        this_di_s = 0 
+                        for jj in  xrange(ii+1, n_idx): 
+                            ang = angles[ii, jj]
+                            di_s[ii] += ang * ((this_mp[ii]*this_mp[jj])/
+                                               np.sum(this_mp**2))  
+
+                    di_flat[vox] = np.mean(di_s)/n_idx
+                else:
+
+                    #Calculate this from the highest peak to each one of the
+                    #others:
+                    this_pdd, dirs = this_dirs[0], this_dirs[1:] 
+                    angles = np.arccos(np.dot(dirs, this_pdd))
+                    angles = np.min(np.vstack([angles, np.pi-angles]), 0)
+                    angles = angles/(np.pi/2)
+                    di_flat[vox] = np.dot(this_mp[1:]**2/np.sum(this_mp**2),
+                                          angles)
+
+        out = ozu.nans(self.signal.shape[:3])
+        out[self.mask] = di_flat
+        return out
+
+        
     def anisotropy_index(self):
         """
         We calculate an anisotropy index according to the following:
@@ -426,10 +505,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Use k-means clustering to find the peaks in the fodf
         """
         centroid_arr = np.empty(len(self._flat_signal), dtype=object)
-        flat_params = self.model_params[self.mask]
         
         for vox in range(len(self._flat_signal)):
-            this_fodf = flat_params[vox]
+            this_fodf = self._flat_params[vox]
             # Find the bvecs for which the parameters are non-zero:
             nz_idx = np.where(this_fodf>0)
 
@@ -486,13 +564,26 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         design_matrix = self._calc_rotations(vertices, mode=mode)
         
         out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_params = flat_params[vox]
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0 
             out_flat[vox] = np.dot(this_params, design_matrix.T)
             
         out = ozu.nans(self.signal.shape[:3]+ (vertices.shape[-1],))
+        out[self.mask] = out_flat
+        return out
+
+
+    @desc.auto_attr
+    def model_adc(self):
+        """
+        
+        """
+        fit_rel_sig = self.fit[self.mask]/self._flat_S0.reshape(self._n_vox,1)
+        log_rel_sig = np.log(fit_rel_sig)
+
+        out_flat = log_rel_sig/(-self.bvals[self.b_idx][0])
+        out = ozu.nans(self.signal.shape)
         out[self.mask] = out_flat
         return out
 
@@ -508,14 +599,109 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # Take the diffusivity of water here: 
         bD = np.exp(self.bvals[:,self.b_idx][0]* 3.0)
         mu = np.mean(self.regressors[1])
-        flat_params = self.model_params[self.mask]
-        
         beta0 = np.empty(s_bar.shape)
         for vox in xrange(beta0.shape[-1]): 
-            beta0[vox] = (s_bar[vox] - mu * np.sum(flat_params[vox])) * bD
+            beta0[vox] = (s_bar[vox] - mu * np.sum(self._flat_params[vox])) * bD
 
         
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = beta0
 
         return out
+
+    def odf(self, sphere, interp_kwargs=dict(function='multiquadric', smooth=0)):
+        """
+        Interpolate the fiber odf into a provided sphere class instance (from
+        dipy)
+        """
+        s0 = dps.Sphere(xyz=self.bvecs[:, self.b_idx].T)
+        s1 = sphere
+        params_flat = self.model_params[self.mask]
+        print params_flat
+        out_flat = np.empty((self._n_vox, len(sphere.x)))
+        if self._n_vox==1:
+           this_params = params_flat
+           this_params[np.isnan(this_params)] = 0
+           out = dps.interp_rbf(this_params, s0, s1, **interp_kwargs)
+           return np.squeeze(out)
+        else:
+            for vox in range(self._n_vox):
+                this_params = params_flat[vox]
+                this_params[np.isnan(this_params)] = 0
+                out_flat[vox] = dps.interp_rbf(this_params, s0, s1,
+                                           **interp_kwargs)
+            
+            out = ozu.nans(self.model_params.shape[:3] + (len(sphere.x),))
+            out[self.mask] = out_flat
+            return out
+
+# The following is stuff to allow tracking with this model, using the dipy
+# tracking API:
+
+# The first one is a model object that caches some computations that are common
+# to all the sets of data that come through it, but easily resets the
+# data-dependent attributes: 
+class SparseDeconvolutionCache(SparseDeconvolutionModel):
+    # The only thing that differs this one from its base-class is the ability
+    # to *selectively* reset certain attributes that are set as one-time attrs.  
+    def reset(self):
+        """
+        This resets the model params and the ODF in each round. The rest of the
+        attrs that were triggered on initialization are kept for the next round
+        """
+        for attr_name in ["data", "model_params", "signal", "_flat_signal",
+                          "relative_signal", "_flat_data","_flat_S0",
+                          "_flat_relative_signal", "S0", "_flat_fit"]:
+            if hasattr(self, attr_name):
+                delattr(self, attr_name)
+
+# The next one is a translator of what we have here to the dipy tracking
+# API. We need to generate something that has a `fit` method, which returns a
+# class that knows wht to do with the call: x.fit(data).odf(sphere), and
+# generate a legit odf from that, which the tracking algorithms then use
+# further on.
+        
+class SparseDeconvolutionFitter(object):
+    """
+    This class conforms to the requirements of the dipy tracking API, so that
+    we can use the SFM for tracking
+    """
+    def __init__(self, gtab, axial_diffusivity=AD, radial_diffusivity=RD,
+                 solver_params=None, params_file='temp',
+                 scaling_factor=SCALE_FACTOR,
+                 sub_sample=None, over_sample=None, mode='relative_signal',
+                 verbose=False):
+        """
+        gtab : GradientTable class instance
+        """
+        # We initialize this with some bogus data: 
+        data = np.zeros(len(gtab.bvals))
+        # Make a cache with precalculated stuff
+        self.cache = SparseDeconvolutionCache(data,
+                                        gtab.bvecs.T,
+                                        gtab.bvals,
+                                        solver_params=solver_params,
+                                        params_file=params_file,
+                                        axial_diffusivity=axial_diffusivity,
+                                        radial_diffusivity=radial_diffusivity,
+                                        mask=None,
+                                        scaling_factor=scaling_factor,
+                                        sub_sample=sub_sample,
+                                        over_sample=over_sample,
+                                        mode='relative_signal',
+                                        verbose=verbose)
+                       
+        
+    def fit(self, data):
+        """
+        Each time this is called, the data-dependent stuff gets reset. Then,
+        the new data gets put in the right place, so that next time `odf` is
+        triggered by the tracking API, it will apply the fitting procedure to
+        this new set of data.
+        """
+        # Start by removing data dependent stuff:
+        self.cache.reset()
+        # Plant the new data in, so that when model_params is triggered it
+        # picks this data up: 
+        self.cache.data = data
+        return self.cache

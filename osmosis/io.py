@@ -5,6 +5,9 @@ File input and output
 =====================
 Reading and writing files from a variety of formats.
 
+
+PDB files
+---------
 The PDB file format is sometimes used for reading and writing information about
 tractography results. The *nominal* PDB file format specification is as
 follows, but note that some of these things are not implemented in PDB version
@@ -634,7 +637,7 @@ def download_data():
     zf.extractall(path=osmosis_path)
 
 
-def get_t1(t1=data_path + 'FP_t1.nii.gz', resample=None):
+def get_t1(t1=data_path + 'FP/FP_t1.nii.gz', resample=None):
     """
     Get the high-res T1-weighted anatomical scan. If requested, resample it to
     the resolution of a nifti file for which the name is provided as input

@@ -1,5 +1,4 @@
 # Get AD and RD for the CC
-
 import os
 import numpy as np
 
@@ -11,9 +10,9 @@ import osmosis.model.dti as dti
 import osmosis.io as oio
 
 top_n = 250
-data_path = '/Users/arokem/projects/data_osmosis_raw/'
+data_path = '/home/arokem/data/osmosis/'
 
-for subject in ['FP', 'HT']:
+for subject in ['FP']:#, 'HT']:
     subject_path = os.path.join(data_path, subject)
     wm_mask_file = os.path.join(subject_path, '%s_wm_mask.nii.gz'%subject)
     wm_nifti = ni.load(wm_mask_file)
@@ -33,6 +32,15 @@ for subject in ['FP', 'HT']:
             AD = TM.axial_diffusivity[idx]
             RD = TM.radial_diffusivity[idx]
             MD = TM.mean_diffusivity[idx]
-            print('For: %s and b=%s: AD=%1.4f, RD=%1.4f, MD=%1.4f'%(subject, b, np.median(AD), np.median(RD), np.median(MD)))
+            print('For: %s and b=%s: AD=%1.4f, RD=%1.4f, MD=%1.4f'%(
+                   subject, b, np.median(AD), np.median(RD), np.median(MD)))
+            idx_AD = np.argmin(np.abs(AD - np.median(AD)))
+            idx_RD = np.argmin(np.abs(RD - np.median(RD)))
+            idx_MD = np.argmin(np.abs(MD - np.median(MD)))
+            print('For: %s and b=%s: AD idx=%s, RD idx =%s, MD idx=%s'%(
+                   subject, b, idx_AD, idx_RD, idx_MD))
+            
+            
+            
     
     
