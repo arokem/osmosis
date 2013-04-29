@@ -214,6 +214,12 @@ class TensorModel(BaseModel):
         return out
 
     @desc.auto_attr
+    def mode(self):
+        out = ozu.nans(self.data.shape[:3])
+        out[self.mask] = dti.tensor_mode(self.tensors)[self.mask]
+        return out
+
+    @desc.auto_attr
     def model_adc(self):
         out = np.empty(self.signal.shape)
         tensors_flat = self.tensors[self.mask].reshape((-1,3,3))

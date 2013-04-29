@@ -192,7 +192,17 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             # And return the params for current use:
             return out_params
-            
+
+    @desc.auto_attr    
+    def _flat_params(self):
+        """
+
+        """
+        if self._n_vox == 1:
+            return [self.model_params]
+        else:
+            return self.model_params[self.mask]
+
 
     @desc.auto_attr
     def fit(self):
@@ -209,10 +219,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
         design_matrix = design_matrix.T
         out_flat = np.empty(self._flat_signal.shape)
-        flat_params = self.model_params[self.mask]
         
         for vox in xrange(self._n_vox):
-            this_params = flat_params[vox]
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0             
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T)+
@@ -252,9 +261,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         iso_regressor, tensor_regressor, fit_to = self.regressors
 
         out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_params = flat_params[vox]
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0 
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T)+
@@ -285,11 +293,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         The angle between the tensors that were fitted
         """
         out_flat = np.empty(self._flat_signal.shape[0])
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(flat_params[vox][0]):
-                idx1 = np.argsort(flat_params[vox])[-1]
-                idx2 = np.argsort(flat_params[vox])[-2]
+            if ~np.isnan(self._flat_params[vox][0]):
+                idx1 = np.argsort(self._flat_params[vox])[-1]
+                idx2 = np.argsort(self._flat_params[vox])[-2]
                 ang = np.rad2deg(ozu.vector_angle(
                     self.bvecs[:,self.b_idx].T[idx1],
                     self.bvecs[:,self.b_idx].T[idx2]))
@@ -393,9 +400,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         qa_flat = np.zeros((self._flat_signal.shape[0], Np))
         inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
         
-        flat_params = self.model_params[self.mask]
-        for vox in xrange(flat_params.shape[0]):
-            this_params = flat_params[vox]
+        for vox in xrange(self._flat_params.shape[0]):
+            this_params = self._flat_params[vox]
             ii = np.argsort(this_params)[::-1]  # From largest to smallest
             inds_flat[vox] = ii[:Np]
             qa_flat[vox] = (this_params/np.sum(this_params))[inds_flat[vox]] 
@@ -499,10 +505,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Use k-means clustering to find the peaks in the fodf
         """
         centroid_arr = np.empty(len(self._flat_signal), dtype=object)
-        flat_params = self.model_params[self.mask]
         
         for vox in range(len(self._flat_signal)):
-            this_fodf = flat_params[vox]
+            this_fodf = self._flat_params[vox]
             # Find the bvecs for which the parameters are non-zero:
             nz_idx = np.where(this_fodf>0)
 
@@ -559,9 +564,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         design_matrix = self._calc_rotations(vertices, mode=mode)
         
         out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
-        flat_params = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
-            this_params = flat_params[vox]
+            this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0 
             out_flat[vox] = np.dot(this_params, design_matrix.T)
             
@@ -595,11 +599,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # Take the diffusivity of water here: 
         bD = np.exp(self.bvals[:,self.b_idx][0]* 3.0)
         mu = np.mean(self.regressors[1])
-        flat_params = self.model_params[self.mask]
-        
         beta0 = np.empty(s_bar.shape)
         for vox in xrange(beta0.shape[-1]): 
-            beta0[vox] = (s_bar[vox] - mu * np.sum(flat_params[vox])) * bD
+            beta0[vox] = (s_bar[vox] - mu * np.sum(self._flat_params[vox])) * bD
 
         
         out = ozu.nans(self.signal.shape[:3])
