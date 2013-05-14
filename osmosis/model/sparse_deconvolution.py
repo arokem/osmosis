@@ -106,21 +106,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         
         # This will be passed as kwarg to the solver initialization:
         if solver_params is None:
-            """
-            If you are interested in controlling the L1 and L2 penalty
-            separately, keep in mind that this is equivalent to::
-
-                a * L1 + b * L2
-
-            where::
-
-                alpha = a + b and l1_ratio = a / (a + b)
-            """
-            # Taken from Stefan:
-            a = 0.0001
-            b = 0.00001
-            alpha = a + b
-            l1_ratio = a/(a+b)
+            # This seems to be good for our data:
+            alpha = 0.0005
+            l1_ratio = 0.6
             self.solver_params = dict(alpha=alpha,
                                       l1_ratio=l1_ratio,
                                       fit_intercept=True,
@@ -131,6 +119,16 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # We reuse the same class instance in all voxels: 
         self.solver = this_solver(**self.solver_params)
 
+    def _fit_it(self, fit_to, design_matrix):
+        """
+        The core fitting routine
+        """
+        # Fit the deviations from the mean of the fitted signal: 
+        sig = fit_to - np.mean(fit_to)
+        # Use the solver you created upon initialization:
+        return self.solver.fit(design_matrix, sig).coef_
+
+        
     @desc.auto_attr
     def model_params(self):
         """
@@ -138,7 +136,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Use sklearn to fit the parameters:
 
         """
-
         # The file already exists: 
         if os.path.isfile(self.params_file):
             if self.verbose:
@@ -156,7 +153,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
             iso_regressor, tensor_regressor, fit_to = self.regressors
 
-
+            if self._n_vox==1:
+                # We have to be a bit (too) clever here, so that the indexing
+                # below works out:
+                fit_to = np.array([fit_to]).T
+                
             # We fit the deviations from the mean signal, which is why we also
             # demean each of the basis functions:
             design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
@@ -168,27 +169,22 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             params = np.empty((self._n_vox, self.rotations.shape[0]))
                 
             for vox in xrange(self._n_vox):
-                # Fit the deviations from the mean of the fitted signal: 
-                sig = fit_to.T[vox] - np.mean(fit_to.T[vox])
-                # Use the solver you created upon initialization:
-                params[vox] = self.solver.fit(design_matrix, sig).coef_
+                # Call out to the core fitting routine: 
+                params[vox] = self._fit_it(fit_to.T[vox], design_matrix)
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
 
-            if self._n_vox==1:
-                out_params = params[0]
-
-            else:
-                out_params = ozu.nans((self.signal.shape[:3] + 
-                                  (design_matrix.shape[-1],)))
-
-                out_params[self.mask] = params
-                # Save the params to a file: 
-                params_ni = ni.Nifti1Image(out_params, self.affine)
-                if self.params_file != 'temp':
-                    if self.verbose:
-                        print("Saving params to file: %s"%self.params_file)
-                    params_ni.to_filename(self.params_file)
+                    
+            out_params = ozu.nans((self.signal.shape[:3] + 
+                                        (design_matrix.shape[-1],)))
+            
+            out_params[self.mask] = params
+            # Save the params to a file: 
+            params_ni = ni.Nifti1Image(out_params, self.affine)
+            if self.params_file != 'temp':
+                if self.verbose:
+                    print("Saving params to file: %s"%self.params_file)
+                params_ni.to_filename(self.params_file)
 
             # And return the params for current use:
             return out_params
@@ -196,12 +192,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
     @desc.auto_attr    
     def _flat_params(self):
         """
-
+        Sometimes its useful to have a flat version of the params
         """
-        if self._n_vox == 1:
-            return [self.model_params]
-        else:
-            return self.model_params[self.mask]
+        return self.model_params[self.mask].squeeze()
 
 
     @desc.auto_attr
@@ -320,7 +313,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         defined as the weights on the model params 
         """
         faces = dps.Sphere(xyz=self.bvecs[:,self.b_idx].T).faces
-        odf_flat = self.model_params[self.mask]
+        if self._n_vox == 1: 
+            odf_flat = np.array([self.model_params])
+        else: 
+            odf_flat = self.model_params[self.mask]
         out_flat = np.zeros(odf_flat.shape)
         for vox in xrange(odf_flat.shape[0]):
             if ~np.any(np.isnan(odf_flat[vox])):
@@ -328,6 +324,9 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 peaks, inds = recspeed.local_maxima(this_odf, faces)
                 out_flat[vox][inds] = peaks 
 
+        if self._n_vox == 1:
+            return out_flat
+        
         out = ozu.nans(self.model_params.shape)
         out[self.mask] = out_flat
         return out
@@ -359,7 +358,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return out
         
 
-    def n_peaks(self,threshold=0.1):
+    def n_peaks(self, threshold=0.1):
         """
         How many peaks in the ODF of each voxel
         """
@@ -617,7 +616,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         s0 = dps.Sphere(xyz=self.bvecs[:, self.b_idx].T)
         s1 = sphere
         params_flat = self.model_params[self.mask]
-        print params_flat
         out_flat = np.empty((self._n_vox, len(sphere.x)))
         if self._n_vox==1:
            this_params = params_flat
@@ -637,39 +635,22 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
 # The following is stuff to allow tracking with this model, using the dipy
 # tracking API:
-
-# The first one is a model object that caches some computations that are common
-# to all the sets of data that come through it, but easily resets the
-# data-dependent attributes: 
-class SparseDeconvolutionCache(SparseDeconvolutionModel):
-    # The only thing that differs this one from its base-class is the ability
-    # to *selectively* reset certain attributes that are set as one-time attrs.  
-    def reset(self):
-        """
-        This resets the model params and the ODF in each round. The rest of the
-        attrs that were triggered on initialization are kept for the next round
-        """
-        for attr_name in ["data", "model_params", "signal", "_flat_signal",
-                          "relative_signal", "_flat_data","_flat_S0",
-                          "_flat_relative_signal", "S0", "_flat_fit"]:
-            if hasattr(self, attr_name):
-                delattr(self, attr_name)
-
-# The next one is a translator of what we have here to the dipy tracking
-# API. We need to generate something that has a `fit` method, which returns a
-# class that knows wht to do with the call: x.fit(data).odf(sphere), and
-# generate a legit odf from that, which the tracking algorithms then use
-# further on.
         
 class SparseDeconvolutionFitter(object):
     """
     This class conforms to the requirements of the dipy tracking API, so that
     we can use the SFM for tracking
     """
-    def __init__(self, gtab, axial_diffusivity=AD, radial_diffusivity=RD,
-                 solver_params=None, params_file='temp',
+    def __init__(self,
+                 gtab,
+                 axial_diffusivity=AD,
+                 radial_diffusivity=RD,
+                 solver_params=None,
+                 params_file='temp',
                  scaling_factor=SCALE_FACTOR,
-                 sub_sample=None, over_sample=None, mode='relative_signal',
+                 sub_sample=None,
+                 over_sample=None,
+                 mode='relative_signal',
                  verbose=False):
         """
         gtab : GradientTable class instance
@@ -677,7 +658,7 @@ class SparseDeconvolutionFitter(object):
         # We initialize this with some bogus data: 
         data = np.zeros(len(gtab.bvals))
         # Make a cache with precalculated stuff
-        self.cache = SparseDeconvolutionCache(data,
+        self.cache = SparseDeconvolutionModel(data,
                                         gtab.bvecs.T,
                                         gtab.bvals,
                                         solver_params=solver_params,
@@ -685,7 +666,8 @@ class SparseDeconvolutionFitter(object):
                                         axial_diffusivity=axial_diffusivity,
                                         radial_diffusivity=radial_diffusivity,
                                         mask=None,
-                                        scaling_factor=scaling_factor,
+                                        # We've already scaled this mofo!
+                                        scaling_factor=1,
                                         sub_sample=sub_sample,
                                         over_sample=over_sample,
                                         mode='relative_signal',
@@ -699,9 +681,10 @@ class SparseDeconvolutionFitter(object):
         triggered by the tracking API, it will apply the fitting procedure to
         this new set of data.
         """
-        # Start by removing data dependent stuff:
-        self.cache.reset()
-        # Plant the new data in, so that when model_params is triggered it
-        # picks this data up: 
-        self.cache.data = data
+        iso_regressor, tensor_regressor, _ = self.cache.regressors
+
+        design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
+        fit_to = data[self.cache.b_idx]/np.mean(data[self.cache.b0_idx])        
+        self.cache.model_params = self.cache._fit_it(fit_to, design_matrix)
+            
         return self.cache

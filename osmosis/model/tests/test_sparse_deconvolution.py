@@ -110,3 +110,37 @@ def test_predict():
     new_bvecs = bvecs[:,:4]
     prediction = SSD.predict(new_bvecs)
     npt.assert_array_equal(prediction, SSD.fit[...,:4])
+    
+
+def test_single_voxel():
+    """
+    Test fitting with data from a single voxel
+    """
+    data = data_path + 'small_dwi.nii.gz'
+
+    # All voxels:
+    mask_array1 = np.ones(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
+
+    # Only a single voxel:
+    mask_array2 = np.zeros(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
+    mask_array2[0, 0, 0] = 1
+
+    SSD1 = SparseDeconvolutionModel(data,
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+                                   mask=mask_array1,
+        params_file=tempfile.NamedTemporaryFile().name)
+
+    SSD2 = SparseDeconvolutionModel(data,
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+                                   mask=mask_array2,
+                            params_file=tempfile.NamedTemporaryFile().name)
+
+    # In the case of the single voxel, the model_params is identical to the
+    # flat array: 
+    npt.assert_array_equal(SSD1.model_params[0,0,0],
+                           SSD2.model_params[0,0,0])
+
+    npt.assert_array_equal(SSD1.model_params[0,0,0],
+                           SSD2._flat_params)

@@ -297,7 +297,7 @@ class CanonicalTensorModel(BaseModel):
         # The tensor regressor always looks the same regardless of mode: 
         tensor_regressor = self.rotations
 
-        return iso_regressor, tensor_regressor, fit_to
+        return [iso_regressor, tensor_regressor, fit_to]
         
     
     @desc.auto_attr
