@@ -150,7 +150,7 @@ def plot_signal_interp(bvecs, signal, origin=[0,0,0], maya=True, cmap='jet',
                        vmax=None, offset=0, azimuth=60, elevation=90, roll=0,
                        points=False, cmap_points=None, scale_points=False,
                        non_neg=False,
-                       interp_kwargs=dict(function='multiquadric', smooth=0)):
+                       interp_kwargs=dict(function='thin_plate', smooth=0)):
 
     """
 
@@ -172,15 +172,15 @@ def plot_signal_interp(bvecs, signal, origin=[0,0,0], maya=True, cmap='jet',
     
     """
 
-    #bvecs_new = np.hstack([bvecs, -bvecs])
-    #new_signal = np.hstack([signal, signal])
+    bvecs_new = np.hstack([bvecs, -bvecs])
+    new_signal = np.hstack([signal, signal])
 
-    s0 = Sphere(xyz=bvecs.T)
+    s0 = Sphere(xyz=bvecs_new.T)
     s1 = create_unit_sphere(7)
 
     signal[np.isnan(signal)] = 0
     
-    interp_signal = interp_rbf(signal, s0, s1, **interp_kwargs)
+    interp_signal = interp_rbf(new_signal, s0, s1, **interp_kwargs)
     vertices = s1.vertices
 
     if non_neg:
@@ -420,7 +420,7 @@ def _vec_handler(this_vec, figure, origin):
     g = np.abs(xyz[1])/np.sum(np.abs(xyz))
     b = np.abs(xyz[2])/np.sum(np.abs(xyz))
 
-    xyz = ozu.unit_vector(xyz)     
+    xyz = ozu.unit_vector(xyz)/4.0     
 
     maya.plot3d([origin[0], xyz[0]+origin[0]],
                         [origin[1], xyz[1]+origin[1]],
