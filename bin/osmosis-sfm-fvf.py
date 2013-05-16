@@ -7,7 +7,7 @@ import numpy as np
 import nibabel as nib
 import osmosis.model.sparse_deconvolution as sfm
 
-parser = arg.ArgumentParser('Calculate the sum of weights in the sparse fascicle model')
+parser = arg.ArgumentParser(description='Calculate the sum of weights in the sparse fascicle model')
 
 parser.add_argument('dwi_file', action='store', metavar='File', 
                     help='DWI file (.nii.gz)')
@@ -26,8 +26,7 @@ parser.add_argument('--mask_file', action='store', metavar='File',
                     default=None)
 
 parser.add_argument('--params_output', action='store', metavar='File',
-                    help='If you want to save the model parameters as a nifti file, provide a file-name here (default: do not save params)', default=None)
-
+                    help='If you want to save the model parameters as a nifti file, or load them from a previous run of model-fitting, provide a file-name here (default: do not save params)', default=None)
 
 parser.add_argument('--alpha', action='store', metavar='Float',
                     help='Regularization parameter : how strong should regularization be (default: 0.0005)', default=0.0005)
