@@ -371,7 +371,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         Gives you not only the principal, but also the 2nd, 3rd, etc
         """
         out_flat = ozu.nans(self._flat_signal.shape + (3,))
-        flat_peaks = self.odf_peaks[self.mask]
+        # flat_peaks = self.odf_peaks[self.mask]
+        flat_peaks = self.model_params[self.mask]
         for vox in xrange(out_flat.shape[0]):
             coeff_idx = np.where(flat_peaks[vox]>0)[0]
             for i, idx in enumerate(coeff_idx):
@@ -499,11 +500,22 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
     
     @desc.auto_attr
-    def cluster_fodf(self):
+    def cluster_fodf(self, in_data=None):
         """
         Use k-means clustering to find the peaks in the fodf
+
+        Per default, we'll use AIC to determine the value of `k`. However, if
+        an additional data-set is provided, we will use the prediction of this
+        additional data as a criterion for stopping. Once additional k stops
+        improving cross-validation accuracy, that's a good time to stop.
+
+        
         """
         centroid_arr = np.empty(len(self._flat_signal), dtype=object)
+
+        # If you provided another object that inherits from DWI,  
+        if in_data:
+            comp_data = in_data.data[self.mask]
         
         for vox in range(len(self._flat_signal)):
             this_fodf = self._flat_params[vox]
@@ -534,10 +546,18 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                     seeds = sort_bv[:, :k].T
                     centroids, y_n, sse = ozc.spkm(bv.T, k, seeds=seeds,
                                                    weights=this_fodf[nz_idx])
-                    # The unexplained variance is the residual sse: 
-                    bic = ozu.aic(sse, bv.shape[-1], k)
+
+                    if in_data is not None:
+                        # We're going to cross-validate against the other
+                        # data-set: 
+                        this_comp = comp_data[vox]
+                        # XXX Need to do linear regression right here?           
+                    else:
+                        # The unexplained variance is the residual sse: 
+                        bic = ozu.aic(sse, bv.shape[-1], k)
+
                     if bic > last_bic:
-                        break
+                            break
                     else:
                         choose = centroids
                         last_bic = bic
