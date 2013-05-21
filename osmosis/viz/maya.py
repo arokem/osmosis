@@ -122,7 +122,9 @@ def plot_tensor_3d(Tensor, cmap='jet', mode='ADC', file_name=None,
         v = Tensor.diffusion_distance * scale_factor
     elif mode == 'pred_sig':
         v = Tensor.predicted_signal(1) * scale_factor
-
+    else:
+        raise ValueError("Mode not recognized")
+        
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(v, phi, theta)
 
@@ -409,13 +411,14 @@ def plot_cut_planes(vol,
 
     return figure
 
-def _vec_handler(this_vec, figure, origin):
+def _vec_handler(this_vec, figure, origin, tube_radius=None):
     """
     Some boiler-plate used to plot any ol' vector with vector RGB coloring and
     tube-radius scaled by the magnitude of the vector
     """
     xyz = this_vec.squeeze()
-    tube_radius = np.dot(xyz, xyz) 
+    if tube_radius is None:
+        tube_radius = np.dot(xyz, xyz) 
     r = np.abs(xyz[0])/np.sum(np.abs(xyz))
     g = np.abs(xyz[1])/np.sum(np.abs(xyz))
     b = np.abs(xyz[2])/np.sum(np.abs(xyz))
@@ -430,7 +433,7 @@ def _vec_handler(this_vec, figure, origin):
                         figure=figure,
                         color=(r, g, b))
 
-def plot_vectors(xyz, figure=None, origin=np.array([0,0,0])):
+def plot_vectors(xyz, figure=None, origin=np.array([0,0,0]), tube_radius=None):
     """
     xyz is a n by 3 array OR an array with 3 items (shape==(3,))    
     """
@@ -441,9 +444,9 @@ def plot_vectors(xyz, figure=None, origin=np.array([0,0,0])):
 
     if len(xyz.squeeze().shape)>1:
         for this_vec in xyz:
-            _vec_handler(this_vec, figure, origin)  
+            _vec_handler(this_vec, figure, origin, tube_radius=tube_radius)  
     else:
-        _vec_handler(xyz, figure, origin)
+        _vec_handler(xyz, figure, origin, tube_radius=tube_radius)
 
     scene = figure.scene
     scene.background = (1,1,1)
