@@ -87,7 +87,6 @@ class Voxel(object):
                            [0, radial_diffusivity, 0],
                            [0, 0, radial_diffusivity]])
         self.response_function = ozt.Tensor(self.Q, self.bvecs, self.bvals)
-
         self.iso = iso
 
     def signal(self, S0=1):
@@ -106,6 +105,7 @@ class Voxel(object):
                                                  evecs,
                                                  self.bvecs,
                                                  self.bvals)
+
             this_signal = (self.odf.weights[odf_idx] *
                           this_response.predicted_signal(S0))
             signal += this_signal
@@ -117,7 +117,7 @@ class Voxel(object):
             signal += iso_signal
             signal /=  np.sum(np.hstack([self.odf.weights, self.iso]))
         else:
-            signal /=  np.sum(self.odf.weights, self.iso)
+            signal /=  np.sum(self.odf.weights)
             
         return signal
 
