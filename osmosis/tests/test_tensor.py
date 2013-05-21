@@ -97,7 +97,7 @@ def test_Tensor_decompose():
     Test the eigen-vector/value decomposition of the tensor:
     """
     q = np.array([[1.5,0,0], 
-                  [0,0.51,0],  # This needs to be slightly higher, so that
+                  [0,0.5,0],  # This needs to be slightly higher, so that
                                # there is no ambiguity about the order of the
                                # evals 
                   [0,0,0.5]])

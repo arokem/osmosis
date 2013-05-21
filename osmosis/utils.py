@@ -284,8 +284,8 @@ def decompose_tensor(tensor, non_negative=True):
 
     Parameters
     ----------
-    D : array (3,3)
-        array holding a tensor. Assumes D has units on order of
+    tensor : array (3,3)
+        array holding a tensor. Assumes tensor has units on order of
         ~ 10^-4 mm^2/s
 
     Returns
@@ -293,9 +293,10 @@ def decompose_tensor(tensor, non_negative=True):
     eigvals : array (3,)
         Eigenvalues from eigen decomposition of the tensor. Negative
         eigenvalues are replaced by zero. Sorted from largest to smallest.
+
     eigvecs : array (3,3)
         Associated eigenvectors from eigen decomposition of the tensor.
-        Note that in the output of la.eigh, eigenvectors are columnar
+        Note that in the output of la.eig, eigenvectors are columnar
         (e.g. eigvecs[:,j] is associated with eigvals[j])
 
     See Also
@@ -303,13 +304,12 @@ def decompose_tensor(tensor, non_negative=True):
     numpy.linalg.eig
     """
 
-    #outputs multiplicity as well so need to unique
-    eigenvals, eigenvecs = la.eigh(tensor)
+    eigenvals, eigenvecs = la.eig(tensor)
 
-    #need to reorder the eigenvalues and associated eigenvectors, so that they
-    #are in descending order:
-    eigenvecs = eigenvecs[:,::-1].T
-    eigenvals = eigenvals[::-1]
+    # Cast to real:
+    eigenvals = np.real(eigenvals)
+    # Eigenvectors are in the columns! 
+    eigenvecs = np.real(eigenvecs).T
 
     if non_negative: 
         # Forcing negative eigenvalues to 0

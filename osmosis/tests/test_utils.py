@@ -53,7 +53,8 @@ def test_euclidian_distance():
 
     y = [np.array([0,1,0]), np.array([0,0,1])]
     npt.assert_equal(ozu.euclidian_distance(x,y), np.sqrt(2) * np.eye(2))
-    
+
+
 def test_decompose_tensor():
     """
     Testing the decomposition and recomposition of tensors from eigen-vectors
@@ -71,13 +72,13 @@ def test_decompose_tensor():
 
     q2 = ozu.tensor_from_eigs(evals1, evecs1)
 
-    npt.assert_almost_equal(q1, q2)
+    npt.assert_almost_equal(q1, q2, decimal=2)
 
     evals2, evecs2 = ozu.decompose_tensor(q2)
     
     q3 = ozu.tensor_from_eigs(evals1, evecs2)
 
-    npt.assert_almost_equal(q2,q3)
+    npt.assert_almost_equal(q2,q3, decimal=2)
 
     # Let's see that we can do this many times: 
     for i in range(1000):
@@ -93,7 +94,8 @@ def test_decompose_tensor():
 
         # The result is always going to be equal, up to a sign reversal of one
         # of the vectors (why does this happen?):
-        npt.assert_almost_equal(np.abs(evecs_est/evecs), np.ones((3,3)))
+        npt.assert_almost_equal(np.abs(evecs_est), np.abs(evecs), decimal=3)
+
 
 def test_fractional_anisotropy():
     """
