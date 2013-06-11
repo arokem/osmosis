@@ -5,6 +5,8 @@ import osmosis.model.dti as dti
 import nibabel as nib
 import scipy.stats as stats
 import matplotlib.pyplot as plt
+import matplotlib
+from scipy.special import gamma
 
 def separate_bvals(bvals):
     """
@@ -12,13 +14,14 @@ def separate_bvals(bvals):
     
     Returns the grouped b values and their corresponding indices.
     """
+    
     if bvals[len(bvals)-1]>4:
         bvals = bvals/1000
 
-    bvals0 = array([bvals[bvals < 0.5],np.where(bvals < 0.5)])
-    bvals1 = array([bvals[logical_and(bvals > 0.5, bvals < 1.5)], np.where(logical_and(bvals > 0.5,bvals < 1.5))])
-    bvals2 = array([bvals[logical_and(bvals > 1.5, bvals < 2.5)], np.where(logical_and(bvals > 1.5, bvals < 2.5))])
-    bvals3 = array([bvals[bvals > 2.5],where(bvals > 2.5)])
+    bvals0 = np.array([bvals[bvals < 0.5],np.where(bvals < 0.5)])
+    bvals1 = np.array([bvals[np.logical_and(bvals > 0.5, bvals < 1.5)], np.where(np.logical_and(bvals > 0.5,bvals < 1.5))])
+    bvals2 = np.array([bvals[np.logical_and(bvals > 1.5, bvals < 2.5)], np.where(np.logical_and(bvals > 1.5, bvals < 2.5))])
+    bvals3 = np.array([bvals[bvals > 2.5],np.where(bvals > 2.5)])
 
     return bvals0, bvals1, bvals2, bvals3
 
@@ -28,7 +31,6 @@ def calculate_snr(data, bvals, b, mask):
     
     Can calculate the SNR on the entire data or just a subset.
     """
-    from scipy.special import gamma
     
     if bvals[len(bvals)-1]>4:
         bvals = bvals/1000
@@ -58,7 +60,7 @@ def calculate_snr(data, bvals, b, mask):
     nb0 = len(bvals_sep[0][0])
     bias = sigma*(1-np.sqrt(2/(nb0-1))*(gamma(nb0/2)/gamma((nb0-1)/2)))
     noise = sigma + bias
-    snr_unbiased = mean(bval_data, -1)/noise
+    snr_unbiased = np.mean(bval_data, -1)/noise
     
     out[idx_mask] = np.squeeze(snr_unbiased)
     out[np.where(~np.isfinite(out))] = 0
@@ -73,6 +75,9 @@ def histogram(data, bvals, bvecs, mask):
     if bvals[len(bvals)-1]>4:
         bvals = bvals/1000
     
+    if hasattr(mask, 'get_data'):
+        mask = mask.get_data()
+        
     # Separate b values
     bvals0, bvals1, bvals2, bvals3 = separate_bvals(bvals)
     idx_mask = np.where(mask)
@@ -80,7 +85,7 @@ def histogram(data, bvals, bvecs, mask):
     prop1 = calculate_snr(data, bvals, 1, mask)[idx_mask]
     prop2 = calculate_snr(data, bvals, 2, mask)[idx_mask]
     prop3 = calculate_snr(data, bvals, 3, mask)[idx_mask]
-    all_prop = calculate_all_snr(data, bvals, mask)[1][idx_mask]
+    all_prop = calculate_all_snr(data, bvals, mask)[idx_mask]
         
     # Median and interquartile range
     prop1_med = np.median(prop1)
@@ -96,9 +101,7 @@ def histogram(data, bvals, bvecs, mask):
     fig = mpl.probability_hist(prop2, fig = fig)
     fig = mpl.probability_hist(prop3, fig = fig)
     fig = mpl.probability_hist(all_prop, fig = fig)
-    legend('b = 1000', 'b = 2000', 'b = 3000', 'All b values',loc = 'upper right')
-    
-    return prop1, prop2, prop3
+    plt.legend(('b = 1000', 'b = 2000', 'b = 3000', 'All b values'),loc = 'upper right')
     
 def calculate_all_snr(data, bvals, mask):
     """
@@ -123,9 +126,9 @@ def calculate_all_snr(data, bvals, mask):
     #save_data(new_disp_snr, 'all')
         
     # Display output
-    mean_snr = display_snr(new_disp_snr)
+    #mean_snr = display_snr(new_disp_snr)
 
-    return mean_snr, new_disp_snr
+    return new_disp_snr
     
 def iter_snr(data, mask, disp_snr, bvals0):
     """
@@ -133,8 +136,8 @@ def iter_snr(data, mask, disp_snr, bvals0):
     """
     for m in range(mask.shape[2]):
         # Initialize the mask data, slice data, and isolate data.
-        slice_mask = zeros(mask_data.shape)
-        slice_mask[:,:,m] = mask_data[:,:,m]
+        slice_mask = np.zeros(mask.shape)
+        slice_mask[:,:,m] = mask[:,:,m]
         slice_data = data[np.where(slice_mask)]
         b0_data = slice_data[:, bvals0[1]]
         
@@ -143,7 +146,7 @@ def iter_snr(data, mask, disp_snr, bvals0):
         nb0 = len(bvals0[0])
         bias = sigma*(1-np.sqrt(2/(nb0-1))*(gamma(nb0/2)/gamma((nb0-1)/2)))
         noise = sigma + bias
-        snr_unbiased = mean(slice_data, -1)/noise      
+        snr_unbiased = np.mean(slice_data, -1)/noise      
         disp_snr[np.where(slice_mask)] = snr_unbiased
         
         # Save slice
@@ -171,7 +174,7 @@ def display_snr(snr_data):
     Displays the snr across the brain as a mosaic
     """
     #mean_snr = mean(snr_data[np.where(np.isfinite(snr_data))])
-    mean_snr = mean(snr_data[snr_data>0])
+    mean_snr = np.mean(snr_data[snr_data>0])
     fig = mpl.mosaic(snr_data, cmap=matplotlib.cm.bone)
     fig.set_size_inches([20,10])
 
