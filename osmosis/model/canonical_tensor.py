@@ -744,7 +744,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             x,y,z = geo.sphere2cart(1, theta, phi)
             bvec = [x,y,z]
             # decompose is an auto-attr of the tensor object, so is only run once
-            # and then cached:x
+            # and then cached:
             evals, evecs = self.response_function.decompose
             rot = ozu.calculate_rotation(bvec, evecs[0])
             rot_evecs = evecs * rot
@@ -792,7 +792,9 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             This is the signal prediction for the constrained model. 
             """
             theta, phi, w = params
-
+            if np.isnan(theta) or np.isnan(phi):
+                return np.inf
+            
             if check_constraints:
                 if self._check_constraints([[theta, 0, np.pi],
                                        [phi, -np.pi, np.pi],
