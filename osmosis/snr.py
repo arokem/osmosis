@@ -1,7 +1,5 @@
 import numpy as np
 import osmosis.viz.mpl as mpl
-import osmosis.tensor as ozt
-import osmosis.model.dti as dti
 import nibabel as nib
 import scipy.stats as stats
 import matplotlib.pyplot as plt
@@ -11,25 +9,63 @@ from scipy.special import gamma
 def separate_bvals(bvals):
     """
     Separates b values into groups with similar values
-    
     Returns the grouped b values and their corresponding indices.
+    
+    Parameters
+    ----------
+    bvals: ndarray
+	b values to be separated
+	
+    Returns
+    -------
+    bval_list: list
+	 List of separated b values.  Each index contains an array of grouped b values
+	 with similar values
+    bval_ind: list
+	 List of the indices corresponding to the separated b values.  Each index
+	 contains an array of the indicies to the grouped b values with similar values
     """
     
     if bvals[len(bvals)-1]>4:
         bvals = bvals/1000
-
-    bvals0 = np.array([bvals[bvals < 0.5],np.where(bvals < 0.5)])
-    bvals1 = np.array([bvals[np.logical_and(bvals > 0.5, bvals < 1.5)], np.where(np.logical_and(bvals > 0.5,bvals < 1.5))])
-    bvals2 = np.array([bvals[np.logical_and(bvals > 1.5, bvals < 2.5)], np.where(np.logical_and(bvals > 1.5, bvals < 2.5))])
-    bvals3 = np.array([bvals[bvals > 2.5],np.where(bvals > 2.5)])
-
-    return bvals0, bvals1, bvals2, bvals3
-
-def calculate_snr(data, bvals, b, mask):
-    """
-    Calculates signal-to-noise ratio (SNR) of the signal at different b values.
     
-    Can calculate the SNR on the entire data or just a subset.
+    # Round all the b values and find the unique numbers
+    rounded_bvals = zeros(len(bvals))
+    for j in arange(len(bvals)):
+      rounded_bvals[j] = round(bvals[j])
+
+    unique_b = np.unique(rounded_bvals)
+    
+    # Initialize one list for b values and another list for the indices
+    bval_list = list()
+    bval_ind = list()
+    
+    # Find locations where rounded b values equal the unique b values
+    for i in arange(len(unique_b)):
+      idx_b = np.where(rounded_bvals == unique_b[i])
+      bval_list.append(bvals[idx_b])
+      bval_ind.append(idx_b)
+      
+    return bval_list, bval_ind, unique_b
+
+def b_snr(data, bvals, b, mask):
+    """
+    Calculates the signal-to-noise ratio (SNR) of the signal at each voxel at different
+    b values.  Can calculate the SNR on the entire data or just a subset of the data if
+    given a mask.
+    
+    Parameters
+    ----------
+    bval_list: list
+	 List of separated b values.  Each index contains an array of grouped b values
+	 with similar values
+    bval_ind: list
+	 List of the indices corresponding to the separated b values.  Each index
+	 contains an array of the indicies to the grouped b values with similar values
+    Returns
+    -------
+    bsnr: 3 dimensional array
+	 SNR at each voxel
     """
     
     if bvals[len(bvals)-1]>4:
@@ -42,34 +78,68 @@ def calculate_snr(data, bvals, b, mask):
         data = data.get_data()
 
     # Separate b values
-    bvals_sep = separate_bvals(bvals)
-    bvals0 = bvals_sep[0]
-    this_b = bvals_sep[b_dict[b]]
+    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bvals0_ind = bval_ind[0]
+    this_b_ind = bval_ind[b_dict[b]]
     
     idx_mask = np.where(mask)
         
     # Initialize the output: 
-    out = np.zeros_like(mask)
+    bsnr = np.zeros_like(mask)
     
     this_data = data[idx_mask]
-    bval_data = this_data[:, this_b[1]]
-    b0_data = this_data[:, bvals0[1]]
+    bval_data = this_data[:, this_b_ind]
+    b0_data = this_data[:, bvals0_ind]
     
     # Calculate SNR for each voxel
-    sigma = np.std(b0_data,-1)
-    nb0 = len(bvals_sep[0][0])
+    snr_unbiased = calculate_snr(bvals0_ind, b0_data, bval_data)
+    
+    bsnr[idx_mask] = np.squeeze(snr_unbiased)
+    bsnr[np.where(~np.isfinite(bsnr))] = 0
+    
+    return bsnr
+    
+def calculate_snr(bvals0_ind, b0_data, bval_data):
+    """
+    Does the SNR calculations and unbiases them.
+    
+    Parameters
+    ----------
+    bvals0: ndarray
+	 b = 0 values
+    b0_data: 2 dimensional array
+	 Data where b = 0
+    bval_data: 2 dimensional array
+	 Data at the desired b value(s)
+
+    Returns
+    -------
+    snr_unbiased: 1 dimensional array
+	 Array of the resulting unbiased SNRs
+    """
+    sigma = np.squeeze(np.std(b0_data,-1))
+    nb0 = len(bvals0_ind[0])
     bias = sigma*(1-np.sqrt(2/(nb0-1))*(gamma(nb0/2)/gamma((nb0-1)/2)))
     noise = sigma + bias
     snr_unbiased = np.mean(bval_data, -1)/noise
     
-    out[idx_mask] = np.squeeze(snr_unbiased)
-    out[np.where(~np.isfinite(out))] = 0
-    
-    return out
+    return snr_unbiased
 
-def histogram(data, bvals, bvecs, mask):
+def probability_curve(data, bvals, bvecs, mask):
     """
-    Outputs an probability histogram of SNR
+    Displays a probability histogram of SNR at different b values and at all b values
+    as well as the median and interquartile range
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+	 Diffusion MRI data
+    bvals: 1 dimensional array
+	 All b values
+    bvecs: 3 dimensional array
+	 All the b vectors
+    mask: 3 dimensional array
+	 Brain mask of the data
     """
     
     if bvals[len(bvals)-1]>4:
@@ -79,33 +149,51 @@ def histogram(data, bvals, bvecs, mask):
         mask = mask.get_data()
         
     # Separate b values
-    bvals0, bvals1, bvals2, bvals3 = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b = separate_bvals(bvals)
     idx_mask = np.where(mask)
-
-    prop1 = calculate_snr(data, bvals, 1, mask)[idx_mask]
-    prop2 = calculate_snr(data, bvals, 2, mask)[idx_mask]
-    prop3 = calculate_snr(data, bvals, 3, mask)[idx_mask]
-    all_prop = calculate_all_snr(data, bvals, mask)[idx_mask]
-        
-    # Median and interquartile range
-    prop1_med = np.median(prop1)
-    iqr1 = [stats.scoreatpercentile(prop1,25), stats.scoreatpercentile(prop1,75)]
-    prop2_med = np.median(prop2)
-    iqr2 = [stats.scoreatpercentile(prop2,25), stats.scoreatpercentile(prop2,75)]
-    prop3_med = np.median(prop3)
-    iqr3 = [stats.scoreatpercentile(prop3,25), stats.scoreatpercentile(prop3,75)]
-    prop_all_med = np.median(all_prop)
-    iqr_all= [stats.scoreatpercentile(prop3,25), stats.scoreatpercentile(prop3,75)]
-
-    fig = mpl.probability_hist(prop1)
-    fig = mpl.probability_hist(prop2, fig = fig)
-    fig = mpl.probability_hist(prop3, fig = fig)
-    fig = mpl.probability_hist(all_prop, fig = fig)
-    plt.legend(('b = 1000', 'b = 2000', 'b = 3000', 'All b values'),loc = 'upper right')
     
-def calculate_all_snr(data, bvals, mask):
+    unique_b_list = list(unique_b)
+    if 0 in unique_b:
+      unique_b_list.remove(0)
+    
+    legend_list = list()
+    all_prop = all_snr(data, bvals, mask)[idx_mask]
+    all_prop_med = np.median(all_prop)
+    iqr_all = [stats.scoreatpercentile(all_prop,25), stats.scoreatpercentile(all_prop,75)]
+    fig = mpl.probability_hist(all_prop)
+    legend_list.append('All b values')
+    
+    idx_array = arange(len(unique_b_list))
+    txt_height = 0.12
+    for l in idx_array:
+      prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
+      prop_med = np.median(prop2)
+      iqr = [stats.scoreatpercentile(prop2,25), stats.scoreatpercentile(prop2,75)]
+      fig = mpl.probability_hist(prop, fig = fig)
+      ax = fig.axes[0]
+      ax.text(20.7, txt_height,"b = {0}: Median = {1}, IQR = {2}".format(l*1000, round(prop1_med,2), round(np.abs(iqr1[0] - iqr1[1]),2)),horizontalalignment='center',verticalalignment='center')
+      txt_height = txt_height + 0.02
+      legend_list.append('b = {0}'.format(l*1000))
+    
+    plt.legend(legend_list,loc = 'upper right')
+    
+def all_snr(data, bvals, mask):
     """
-    Calculates the SNR of each voxel at all the b values.
+    Calculates the SNR of each voxel at all b values.
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+	 Diffusion MRI data
+    bvals: 1 dimensional array
+	 All b values
+    mask: 3 dimensional array
+	 Brain mask of the data
+
+    Returns
+    -------
+    new_disp_snr: 3 dimensional array
+	 SNR at each voxel
     """
     
     if hasattr(mask, 'get_data'):
@@ -117,10 +205,11 @@ def calculate_all_snr(data, bvals, mask):
     disp_snr = np.zeros(mask.shape)
 
     # Get b = 0 indices
-    bvals0 = separate_bvals(bvals)[0]
+    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bvals0_ind = bval_ind[0]
     
     # Find snr across each slice
-    new_disp_snr = iter_snr(data, mask, disp_snr, bvals0)
+    new_disp_snr = iter_snr(data, mask, disp_snr, bvals0_ind)
     
     # Save all SNR
     #save_data(new_disp_snr, 'all')
@@ -130,30 +219,41 @@ def calculate_all_snr(data, bvals, mask):
 
     return new_disp_snr
     
-def iter_snr(data, mask, disp_snr, bvals0):
+def iter_snr(data, mask, disp_snr, bvals0_ind):
     """
     Iterates through the slices and finds the snr of each voxel
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+	 Diffusion MRI data
+    mask: 3 dimensional array
+	 Brain mask of the data
+    disp_snr: 3 dimensional array
+	 Initializes the output to which SNRs will be assigned into
+    bvals0: ndarray
+	 b = 0 values
+
+    Returns
+    -------
+    disp_snr: 3 dimensional array
+	 SNR at each voxel
     """
     for m in range(mask.shape[2]):
         # Initialize the mask data, slice data, and isolate data.
         slice_mask = np.zeros(mask.shape)
         slice_mask[:,:,m] = mask[:,:,m]
         slice_data = data[np.where(slice_mask)]
-        b0_data = slice_data[:, bvals0[1]]
+        b0_data = slice_data[:, bvals0_ind]
         
-        # Calculate SNRs of the slices and assign into array
-        sigma = np.squeeze(np.std(b0_data,-1))
-        nb0 = len(bvals0[0])
-        bias = sigma*(1-np.sqrt(2/(nb0-1))*(gamma(nb0/2)/gamma((nb0-1)/2)))
-        noise = sigma + bias
-        snr_unbiased = np.mean(slice_data, -1)/noise      
+        # Calculate SNRs of the slices and assign into array        
+        snr_unbiased = calculate_snr(bvals0_ind, b0_data, slice_data)
         disp_snr[np.where(slice_mask)] = snr_unbiased
-        
         # Save slice
         #file_slice_data = np.zeros(slice_mask.shape)
         #file_slice_data[np.where(slice_mask)] = bsnr
         #save_data(file_slice_data, "slice", m = m)
-        
+    
     disp_snr[~np.isfinite(disp_snr)] = 0
     
     return disp_snr
@@ -161,6 +261,16 @@ def iter_snr(data, mask, disp_snr, bvals0):
 def save_data(data, data_type, m = 'None'):
     """
     Saves the data as a nifti file
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+	 Diffusion MRI data
+    data_type: str
+	 slice: if saving a slice
+	 all: if saving all the data
+    m: int
+	 Integer indicating the slice number if saving slices
     """
     if data_type is "slice":
         ni = nib.Nifti1Image(data,None)
@@ -172,9 +282,14 @@ def save_data(data, data_type, m = 'None'):
 def display_snr(snr_data):
     """
     Displays the snr across the brain as a mosaic
+    
+    Saves the data as a nifti file
+    
+    Parameters
+    ----------
+    snr_data: 3 dimensional array
+	 SNR at each voxel
     """
-    #mean_snr = mean(snr_data[np.where(np.isfinite(snr_data))])
-    mean_snr = np.mean(snr_data[snr_data>0])
     fig = mpl.mosaic(snr_data, cmap=matplotlib.cm.bone)
     fig.set_size_inches([20,10])
 
