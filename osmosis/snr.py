@@ -30,8 +30,8 @@ def separate_bvals(bvals):
         bvals = bvals/1000
     
     # Round all the b values and find the unique numbers
-    rounded_bvals = zeros(len(bvals))
-    for j in arange(len(bvals)):
+    rounded_bvals = np.zeros(len(bvals))
+    for j in np.arange(len(bvals)):
       rounded_bvals[j] = round(bvals[j])
 
     unique_b = np.unique(rounded_bvals)
@@ -41,7 +41,7 @@ def separate_bvals(bvals):
     bval_ind = list()
     
     # Find locations where rounded b values equal the unique b values
-    for i in arange(len(unique_b)):
+    for i in np.arange(len(unique_b)):
       idx_b = np.where(rounded_bvals == unique_b[i])
       bval_list.append(bvals[idx_b])
       bval_ind.append(idx_b)
@@ -163,11 +163,11 @@ def probability_curve(data, bvals, bvecs, mask):
     fig = mpl.probability_hist(all_prop)
     legend_list.append('All b values')
     
-    idx_array = arange(len(unique_b_list))
+    idx_array = np.arange(len(unique_b_list))
     txt_height = 0.12
     for l in idx_array:
       prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
-      prop_med = np.median(prop2)
+      prop_med = np.median(prop)
       iqr = [stats.scoreatpercentile(prop2,25), stats.scoreatpercentile(prop2,75)]
       fig = mpl.probability_hist(prop, fig = fig)
       ax = fig.axes[0]
