@@ -14,20 +14,17 @@ def separate_bvals(bvals):
     Parameters
     ----------
     bvals: ndarray
-	b values to be separated
+        b values to be separated
 	
     Returns
     -------
     bval_list: list
-	 List of separated b values.  Each index contains an array of grouped b values
-	 with similar values
+        List of separated b values.  Each index contains an array of grouped b values
+        with similar values
     bval_ind: list
-	 List of the indices corresponding to the separated b values.  Each index
-	 contains an array of the indicies to the grouped b values with similar values
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indicies to the grouped b values with similar values
     """
-    
-    if bvals[len(bvals)-1]>4:
-        bvals = bvals/1000
     
     # Round all the b values and find the unique numbers
     rounded_bvals = np.zeros(len(bvals))
@@ -46,7 +43,7 @@ def separate_bvals(bvals):
       bval_list.append(bvals[idx_b])
       bval_ind.append(idx_b)
       
-    return bval_list, bval_ind, unique_b
+    return bval_list, np.squeeze(bval_ind), unique_b
 
 def b_snr(data, bvals, b, mask):
     """
@@ -57,21 +54,17 @@ def b_snr(data, bvals, b, mask):
     Parameters
     ----------
     bval_list: list
-	 List of separated b values.  Each index contains an array of grouped b values
-	 with similar values
+        List of separated b values.  Each index contains an array of grouped b values
+        with similar values
     bval_ind: list
-	 List of the indices corresponding to the separated b values.  Each index
-	 contains an array of the indicies to the grouped b values with similar values
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indicies to the grouped b values with similar values
     Returns
     -------
     bsnr: 3 dimensional array
-	 SNR at each voxel
+        SNR at each voxel
     """
     
-    if bvals[len(bvals)-1]>4:
-        bvals = bvals/1000
-        
-    b_dict = {1000:1, 2000:2, 3000:3, 1:1, 2:2, 3:3, 0:0}
     if hasattr(mask, 'get_data'):
         mask = mask.get_data()
     if hasattr(data, 'get_data'):
@@ -80,7 +73,7 @@ def b_snr(data, bvals, b, mask):
     # Separate b values
     bval_list, bval_ind, unique_b = separate_bvals(bvals)
     bvals0_ind = bval_ind[0]
-    this_b_ind = bval_ind[b_dict[b]]
+    this_b_ind = bval_ind[b]
     
     idx_mask = np.where(mask)
         
@@ -92,33 +85,33 @@ def b_snr(data, bvals, b, mask):
     b0_data = this_data[:, bvals0_ind]
     
     # Calculate SNR for each voxel
-    snr_unbiased = calculate_snr(bvals0_ind, b0_data, bval_data)
+    snr_unbiased = calculate_snr(b0_data, bval_data)
     
     bsnr[idx_mask] = np.squeeze(snr_unbiased)
     bsnr[np.where(~np.isfinite(bsnr))] = 0
     
     return bsnr
     
-def calculate_snr(bvals0_ind, b0_data, bval_data):
+def calculate_snr(b0_data, bval_data):
     """
     Does the SNR calculations and unbiases them.
     
     Parameters
     ----------
     bvals0: ndarray
-	 b = 0 values
+        b = 0 values
     b0_data: 2 dimensional array
-	 Data where b = 0
+        Data where b = 0
     bval_data: 2 dimensional array
-	 Data at the desired b value(s)
+        Data at the desired b value(s)
 
     Returns
     -------
     snr_unbiased: 1 dimensional array
-	 Array of the resulting unbiased SNRs
+        Array of the resulting unbiased SNRs
     """
     sigma = np.squeeze(np.std(b0_data,-1))
-    nb0 = len(bvals0_ind[0])
+    nb0 = np.squeeze(b0_data).shape[1]
     bias = sigma*(1-np.sqrt(2/(nb0-1))*(gamma(nb0/2)/gamma((nb0-1)/2)))
     noise = sigma + bias
     snr_unbiased = np.mean(bval_data, -1)/noise
@@ -133,17 +126,14 @@ def probability_curve(data, bvals, bvecs, mask):
     Parameters
     ----------
     data: 4 dimensional array
-	 Diffusion MRI data
+        Diffusion MRI data
     bvals: 1 dimensional array
-	 All b values
+        All b values
     bvecs: 3 dimensional array
-	 All the b vectors
+        All the b vectors
     mask: 3 dimensional array
-	 Brain mask of the data
+        Brain mask of the data
     """
-    
-    if bvals[len(bvals)-1]>4:
-        bvals = bvals/1000
     
     if hasattr(mask, 'get_data'):
         mask = mask.get_data()
@@ -184,16 +174,16 @@ def all_snr(data, bvals, mask):
     Parameters
     ----------
     data: 4 dimensional array
-	 Diffusion MRI data
+        Diffusion MRI data
     bvals: 1 dimensional array
-	 All b values
+        All b values
     mask: 3 dimensional array
-	 Brain mask of the data
+        Brain mask of the data
 
     Returns
     -------
     new_disp_snr: 3 dimensional array
-	 SNR at each voxel
+        SNR at each voxel
     """
     
     if hasattr(mask, 'get_data'):
@@ -226,13 +216,13 @@ def iter_snr(data, mask, disp_snr, bvals0_ind):
     Parameters
     ----------
     data: 4 dimensional array
-	 Diffusion MRI data
+        Diffusion MRI data
     mask: 3 dimensional array
-	 Brain mask of the data
+        Brain mask of the data
     disp_snr: 3 dimensional array
-	 Initializes the output to which SNRs will be assigned into
+        Initializes the output to which SNRs will be assigned into
     bvals0: ndarray
-	 b = 0 values
+        b = 0 values
 
     Returns
     -------
@@ -247,7 +237,7 @@ def iter_snr(data, mask, disp_snr, bvals0_ind):
         b0_data = slice_data[:, bvals0_ind]
         
         # Calculate SNRs of the slices and assign into array        
-        snr_unbiased = calculate_snr(bvals0_ind, b0_data, slice_data)
+        snr_unbiased = calculate_snr(b0_data, slice_data)
         disp_snr[np.where(slice_mask)] = snr_unbiased
         # Save slice
         #file_slice_data = np.zeros(slice_mask.shape)
@@ -265,12 +255,12 @@ def save_data(data, data_type, m = 'None'):
     Parameters
     ----------
     data: 4 dimensional array
-	 Diffusion MRI data
+        Diffusion MRI data
     data_type: str
-	 slice: if saving a slice
-	 all: if saving all the data
+        'slice': if saving a slice
+        'all': if saving all the data
     m: int
-	 Integer indicating the slice number if saving slices
+        Integer indicating the slice number if saving slices
     """
     if data_type is "slice":
         ni = nib.Nifti1Image(data,None)
@@ -288,9 +278,10 @@ def display_snr(snr_data):
     Parameters
     ----------
     snr_data: 3 dimensional array
-	 SNR at each voxel
+        SNR at each voxel
     """
     fig = mpl.mosaic(snr_data, cmap=matplotlib.cm.bone)
     fig.set_size_inches([20,10])
 
     return mean_snr
+
