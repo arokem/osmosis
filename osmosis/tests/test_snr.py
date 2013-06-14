@@ -15,7 +15,13 @@ bval_ind_t = [np.array([0,1,2]), np.array([4,5,7]), np.array([3,6])]
 unique_b_t = np.array([0,1,2])
 
 # Mock data to be used in all tests
-data_t = abs(np.random.randn(2,2,2,8)*1000)
+#data_t = 2000 + abs(np.random.randn(2,2,2,8)*1000)
+data_t = np.zeros([2,2,2,8])
+data_t[:,:,:,0:3] = 2000 + abs(np.random.randn(2,2,2,3)*500) #Data for b values 0.005, 0.005, 0.010
+data_t[:,:,:,3] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b value 2.010
+data_t[:,:,:,4:6] = 1000 + abs(np.random.randn(2,2,2,2)*500) #Data for b values 1.005, 0.950
+data_t[:,:,:,6] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b values 1.950
+data_t[:,:,:,7] = np.squeeze(1000 + abs(np.random.randn(2,2,2,1)*500)) #Data for b value 1.000
 
 # Mock mask to be used in all tests
 mask_t = np.zeros([2,2,2])

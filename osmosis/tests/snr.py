@@ -23,9 +23,7 @@ def separate_bvals(bvals):
         with similar values
     bval_ind: list
         List of the indices corresponding to the separated b values.  Each index
-        contains an array of the indices to the grouped b values with similar values
-    unique_b: 1 dimensional array
-        Array of all the unique b values found
+        contains an array of the indicies to the grouped b values with similar values
     """
     
     # Round all the b values and find the unique numbers
