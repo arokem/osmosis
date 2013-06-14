@@ -56,4 +56,4 @@ def test_slope():
     slopeProp_all_t = np.zeros([2,2,2])
     slopeProp_all_t[idx_mask_t] = np.squeeze(np.array(ls_fit_FA_t[0,:][np.isfinite(ls_fit_FA_t[0,:])]))
     
-    npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask_t, saved_file = 'yes'))
+    npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask_t, saved_file = 'no'))
