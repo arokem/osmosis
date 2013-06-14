@@ -5,7 +5,7 @@ import osmosis.utils as utils
 from osmosis.snr import separate_bvals
 import matplotlib
 
-def slope(data, bvals, bvecs, prop, mask):
+def slope(data, bvals, bvecs, prop, mask, saved_file = 'yes'):
     """
     Calculates and displays the slopes of a least squares solution fitted to either the
     log of the fractional anisotropy data or mean diffusivity data of the tensor model
@@ -25,6 +25,10 @@ def slope(data, bvals, bvecs, prop, mask):
         'MD': Mean diffusivity
     mask: 3 dimensional array
         Brain mask of the data
+    saved_file: 'str'
+        Indicate whether or not you want the function to create or use saved parameter files
+        'no': Function will not create or use saved files
+        'yes': Function will create or use saved files
         
     Returns
     -------
@@ -54,7 +58,11 @@ def slope(data, bvals, bvecs, prop, mask):
     idx_mask = np.where(mask)
     log_prop = list()
     for k in idx_array[:len(unique_b)-1]:
-        tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals[bval_ind_wb0[k]], mask = mask, params_file='TensorModel{0}.nii.gz'.format(k+1))
+        if saved_file is 'no':
+            params_file = 'temp'
+	elif saved_file is 'yes':
+            params_file = 'TensorModel{0}.nii.gz'.format(k+1)
+        tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals[bval_ind_wb0[k]], mask = mask, params_file = params_file)
         if prop_dict[prop] is "FA":
             prop_val = tensor_prop.fractional_anisotropy
             log_prop.append(np.log(prop_val[idx_mask] + 0.01))
@@ -65,9 +73,9 @@ def slope(data, bvals, bvecs, prop, mask):
     # Convert list into a matrix and make a matrix with b values.
     log_prop_matrix = np.matrix(log_prop)
     b_matrix = np.matrix([unique_b[1:], np.ones(len(unique_b[1:]))]).T
-    inv = utils.ols_matrix(b_matrix)
+    b_inv = utils.ols_matrix(b_matrix)
     
-    ls_fit = np.dot(inv, log_prop_matrix)
+    ls_fit = np.dot(b_inv, log_prop_matrix)
     
     #Calculates slopes    
     slopeProp_all = np.zeros_like(mask)
