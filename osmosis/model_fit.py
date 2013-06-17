@@ -13,7 +13,7 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     
     Parameters
     ----------
-    data: 4 dimensional array
+    data: 4 dimensional array or Nifti1Image
         Diffusion MRI data
     bvals: 1 dimensional array
         All b values
@@ -23,10 +23,11 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
         String indicating the property to analyzed
         'FA': Fractional anisotropy
         'MD': Mean diffusivity
-    mask: 3 dimensional array
+    mask: 3 dimensional array or Nifti1Image
         Brain mask of the data
     saved_file: 'str'
-        Indicate whether or not you want the function to create or use saved parameter files
+        Indicate whether or not you want the function to create or use saved
+        parameter files
         'no': Function will not create or use saved files
         'yes': Function will create or use saved files
         
@@ -67,9 +68,9 @@ def obtain_data(data, mask):
     
     Parameters
     ----------
-    data: 4 dimensional array or ???
+    data: 4 dimensional array or Nifti1Image
         Diffusion MRI data
-    mask: 3 dimensional array or ???
+    mask: 3 dimensional array or Nifti1Image
         Brain mask of the data
         
     Returns
@@ -90,21 +91,30 @@ def obtain_data(data, mask):
     return data, mask
 def include_b0vals(idx_array, bval_ind, bval_list):
     """
-    Tensor model calculations work better if given 
+    Tensor model calculations work better if given b = 0 values and indices.  This
+    function concatenates the values and indices to the b = 0 values to the other
+    b value and indices arrays.
     
     Parameters
     ----------
-    data: 4 dimensional array or ???
-        Diffusion MRI data
-    mask: 3 dimensional array or ???
-        Brain mask of the data
+    idx_array: 1 dimensional array
+        Array with sequential numbers from 0 to the length of the number of b values
+        for indexing over.
+    bval_ind: list
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indices to the grouped b values with similar values
+    bval_list: list
+        List of separated b values.  Each index contains an array of grouped b values
+        with similar values
         
     Returns
     -------
-    data: 4 dimensional array
-        Diffusion MRI data
-    mask: 3 dimensional array
-        Brain mask of the data
+    bval_ind_wb0: list
+        List of the indices corresponding to the non-zero separated b values
+        concatenated to the indices of the b = 0 values.
+    bvals_wb0: list
+        List of the values corresponding to the non-zero separated b values
+        concatenated to the valuese of the b = 0 values.
     """
     bval_ind_wb0 = list()
     bvals_wb0 = list()
@@ -115,6 +125,33 @@ def include_b0vals(idx_array, bval_ind, bval_list):
     return bval_ind_wb0, bvals_wb0
 
 def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array):
+    """
+    Tensor model calculations of the given property
+    
+    Parameters
+    ----------
+    prop: str
+        String indicating the property to analyzed
+        'FA': Fractional anisotropy
+        'MD': Mean diffusivity
+    saved_file: 'str'
+        Indicate whether or not you want the function to create or use saved
+        parameter files
+        'no': Function will not create or use saved files
+        'yes': Function will create or use saved files
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvecs: 3 dimensional array
+        All the b vectors
+    idx_array: ndarray
+        Array with the indices indicating the location of the non-zero values within
+        the mask
+        
+    Returns
+    -------
+    log_prop: list
+        List of all the log of the desired property values
+    """
 
     log_prop = list()
     for k in idx_array[:len(idx_array)-1]:
@@ -133,6 +170,23 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array):
     return log_prop
     
 def ls_fit_b(log_prop, unique_b):
+    """
+    Does calculations for fitting a first order least squares solution to the
+    properties
+    
+    Parameters
+    ----------
+    log_prop: list
+        List of all the log of the desired property values
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+        
+    Returns
+    -------
+    log_prop: list
+        List of the indices corresponding to the non-zero separated b values
+        concatenated to the indices of the b = 0 values.
+    """
     log_prop_matrix = np.matrix(log_prop)
     b_matrix = np.matrix([unique_b[1:], np.ones(len(unique_b[1:]))]).T
     b_inv = utils.ols_matrix(b_matrix)
@@ -141,6 +195,22 @@ def ls_fit_b(log_prop, unique_b):
     return ls_fit
 
 def plot_slopes(mask, ls_fit):
+    """
+    Does calculations for fitting a first order least squares solution to the
+    properties
+    
+    Parameters
+    ----------
+    log_prop: list
+        List of all the log of the desired property values
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+        
+    Returns
+    -------
+    slopeProp_all: 3 dimensional array
+        Slope of the desired property across b values at each voxel
+    """
     idx_mask = np.where(mask)
     slopeProp_all = np.zeros_like(mask)
     slopeProp_all[idx_mask] = np.squeeze(np.array(ls_fit[0,:][np.isfinite(ls_fit[0,:])]))
