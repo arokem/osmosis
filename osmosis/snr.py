@@ -271,7 +271,7 @@ def save_data(data, data_type, m = 'None'):
         ni = nib.Nifti1Image(data,None)
         ni.to_filename("all_snr.nii.gz")
         
-def display_snr(snr_data):
+def display(data):
     """
     Displays the snr across the brain as a mosaic
     
@@ -282,7 +282,7 @@ def display_snr(snr_data):
     snr_data: 3 dimensional array
         SNR at each voxel
     """
-    fig = mpl.mosaic(snr_data, cmap=matplotlib.cm.bone)
+    fig = mpl.mosaic(data, cmap=matplotlib.cm.bone)
     fig.set_size_inches([20,10])
 
     return mean_snr
