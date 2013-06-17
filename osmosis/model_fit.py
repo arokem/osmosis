@@ -38,7 +38,6 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     """
     
     # Making sure inputs are all in the right format for calculations
-    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD', 'fractional anisotropy':'FA'}
     data, mask = obtain_data(data, mask)
         
     # Separate b values
@@ -50,7 +49,7 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
         
     # Find the property values for each grouped b values
     idx_mask = np.where(mask)
-    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array)
+    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask)
     
     # Convert list into a matrix and make a matrix with b values.
     ls_fit = ls_fit_b(log_prop, unique_b)
@@ -124,7 +123,7 @@ def include_b0vals(idx_array, bval_ind, bval_list):
         
     return bval_ind_wb0, bvals_wb0
 
-def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array):
+def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask):
     """
     Tensor model calculations of the given property
     
@@ -152,6 +151,7 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array):
     log_prop: list
         List of all the log of the desired property values
     """
+    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD', 'fractional anisotropy':'FA'}
 
     log_prop = list()
     for k in idx_array[:len(idx_array)-1]:

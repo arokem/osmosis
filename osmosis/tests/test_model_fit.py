@@ -6,6 +6,7 @@ import osmosis.model_fit as mf
 
 import numpy.testing as npt
 
+saved_file = 'no'
 # Mock b value array to be used in all tests
 bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
 
@@ -35,25 +36,50 @@ data_t[:,:,:,7] = np.squeeze(1000 + abs(np.random.randn(2,2,2,1)*500)) #Data for
 mask_t = np.zeros([2,2,2])
 mask_t[:,:,1] = 1
 
-def test_slope():
-    bval_val_wb0_t = [np.array([0.005, 0.005, 0.010, 1.005, 0.950, 1.000])]
-    bval_val_wb0_t.append(np.array([0.005, 0.005, 0.010, 2.010, 1.950]))
+# Mock index arrays to be used in all tests
+idx_array = np.array([0,1,2])
+idx_mask_t = np.where(mask_t)
+
+def test_include_b0vals():
+    bvals_wb0_t = [np.array([0.005, 0.005, 0.010, 1.005, 0.950, 1.000])]
+    bvals_wb0_t.append(np.array([0.005, 0.005, 0.010, 2.010, 1.950]))
     
     bval_ind_wb0_t = [np.array([0,1,2,4,5,7]), np.array([0,1,2,3,6])]
+    bval_ind_wb0_a, bvals_wb0_a = mf.include_b0vals(idx_array, bval_ind_t, bval_list_t)
     
-    tensor_prop1 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[0]], bvecs_t[:,bval_ind_wb0_t[0]], bvals_t[bval_ind_wb0_t[0]], mask = mask_t, params_file = 'temp')
-    tensor_prop2 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[1]], bvecs_t[:,bval_ind_wb0_t[1]], bvals_t[bval_ind_wb0_t[1]], mask = mask_t, params_file = 'temp')
+    npt.assert_equal(bvals_wb0_t, bvals_wb0_a)
+    npt.assert_equal(bval_ind_wb0_t, bval_ind_wb0_a)
     
-    idx_mask_t = np.where(mask_t)
+    return bvals_wb0_t, bval_ind_wb0_t
+    
+def test_log_prop_vals():
+    bvals_wb0_t, bval_ind_wb0_t = test_include_b0vals()
+    
+    tensor_prop1 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[0]], bvecs_t[:,bval_ind_wb0_t[0]], bvals_wb0_t[0], mask = mask_t, params_file = 'temp')
+    tensor_prop2 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[1]], bvecs_t[:,bval_ind_wb0_t[1]], bvals_wb0_t[1], mask = mask_t, params_file = 'temp')
+    
+    log_prop_t = [np.log(tensor_prop1.fractional_anisotropy[idx_mask_t]+0.01), np.log(tensor_prop2.fractional_anisotropy[idx_mask_t]+0.01)]
+    log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t)
+    
+    npt.assert_equal(log_prop_t[0], log_prop_a[0])
+    npt.assert_equal(log_prop_t[1], log_prop_a[1])
+    
+    return log_prop_t
+    
+def test_ls_fit_b():
+    log_prop_t = test_log_prop_vals()
     b_matrix_t = np.matrix([[1,2], [1,1]]).T
+    b_inv = ols_matrix(b_matrix_t)
+    ls_fit_FA_t = np.dot(b_inv, np.matrix(log_prop_t))
     
+    npt.assert_equal(ls_fit_FA_t, mf.ls_fit_b(log_prop_t, unique_b_t))
+    
+    return ls_fit_FA_t
+    
+def test_slope():
+    ls_fit_FA_t = test_ls_fit_b()
     # Test for FA
-    log_FA1 = np.log(tensor_prop1.fractional_anisotropy[idx_mask_t] + 0.01)
-    log_FA2 = np.log(tensor_prop2.fractional_anisotropy[idx_mask_t] + 0.01)
-    log_FA_matrix_t = np.matrix([log_FA1, log_FA2])
-    ls_fit_FA_t = np.dot(ols_matrix(b_matrix_t), log_FA_matrix_t)
-
     slopeProp_all_t = np.zeros([2,2,2])
     slopeProp_all_t[idx_mask_t] = np.squeeze(np.array(ls_fit_FA_t[0,:][np.isfinite(ls_fit_FA_t[0,:])]))
     
-    npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask_t, saved_file = 'no'))
+    npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask = mask_t, saved_file = 'no'))
