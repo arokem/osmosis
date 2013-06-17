@@ -183,9 +183,8 @@ def ls_fit_b(log_prop, unique_b):
         
     Returns
     -------
-    log_prop: list
-        List of the indices corresponding to the non-zero separated b values
-        concatenated to the indices of the b = 0 values.
+    ls_fit: 1 dimensional array
+        An array with the results from the least squares fit
     """
     log_prop_matrix = np.matrix(log_prop)
     b_matrix = np.matrix([unique_b[1:], np.ones(len(unique_b[1:]))]).T
@@ -196,15 +195,14 @@ def ls_fit_b(log_prop, unique_b):
 
 def plot_slopes(mask, ls_fit):
     """
-    Does calculations for fitting a first order least squares solution to the
-    properties
+    Prepares and plots arrays in a mosaic.
     
     Parameters
     ----------
-    log_prop: list
-        List of all the log of the desired property values
-    unique_b: 1 dimensional array
-        Array of all the unique b values found
+    mask: 3 dimensional array
+        Brain mask of the data
+    ls_fit: 1 dimensional array
+        An array with the results from the least squares fit
         
     Returns
     -------
