@@ -202,12 +202,6 @@ def all_snr(data, bvals, mask):
     
     # Find snr across each slice
     new_disp_snr = iter_snr(data, mask, disp_snr, bvals0_ind)
-    
-    # Save all SNR
-    #save_data(new_disp_snr, 'all')
-        
-    # Display output
-    #mean_snr = display_snr(new_disp_snr)
 
     return new_disp_snr
     
@@ -241,10 +235,6 @@ def iter_snr(data, mask, disp_snr, bvals0_ind):
         # Calculate SNRs of the slices and assign into array        
         snr_unbiased = calculate_snr(b0_data, slice_data)
         disp_snr[np.where(slice_mask)] = snr_unbiased
-        # Save slice
-        #file_slice_data = np.zeros(slice_mask.shape)
-        #file_slice_data[np.where(slice_mask)] = bsnr
-        #save_data(file_slice_data, "slice", m = m)
     
     disp_snr[~np.isfinite(disp_snr)] = 0
     
