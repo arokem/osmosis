@@ -83,3 +83,25 @@ def test_slope():
     slopeProp_all_t[idx_mask_t] = np.squeeze(np.array(ls_fit_FA_t[0,:][np.isfinite(ls_fit_FA_t[0,:])]))
     
     npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask = mask_t, saved_file = 'no'))
+
+def test_sqrd_err():
+    unique_b_t = np.array([1,2])
+    ls_fit_FA_t = test_ls_fit_b()
+    ls_fit_t = np.array(ls_fit_FA_t)
+    log_prop_t = test_log_prop_vals()
+    
+    fit_vals_b1 = ls_fit_t[0,:]*1*np.ones([1,ls_fit_t.shape[1]]) + ls_fit_t[1,:]
+    fit_vals_b2 = ls_fit_t[0,:]*2*np.ones([1,ls_fit_t.shape[1]]) + ls_fit_t[1,:]
+    
+    sum_sqrd_err_t = np.squeeze(np.sum(np.array([(log_prop_t[0] - fit_vals_b1)**2, (log_prop_t[1] - fit_vals_b2)**2]).T,-1))
+    
+    npt.assert_equal(sum_sqrd_err_t, mf.sqrd_err(ls_fit_FA_t, log_prop_t, unique_b_t))
+    
+    return sum_sqrd_err_t
+    
+def test_disp_sqrd_err():
+    sum_sqrd_err_t = test_sqrd_err()
+    sqrd_err_all_t = np.zeros([2,2,2])
+    sqrd_err_all_t[idx_mask_t] = sum_sqrd_err_t
+    
+    npt.assert_equal(sqrd_err_all_t, mf.disp_sqrd_err(sum_sqrd_err_t, mask_t))

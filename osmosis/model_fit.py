@@ -54,8 +54,12 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     # Convert list into a matrix and make a matrix with b values.
     ls_fit = ls_fit_b(log_prop, unique_b)
     
-    #Plot slopes    
-    slopeProp_all = plot_slopes(mask, ls_fit)
+    # Calculate squared error for each voxel and display it on a mosaic
+    sum_sqrd_err = sqrd_err(ls_fit, log_prop, unique_b)
+    sqrd_err_all = disp_sqrd_err(sum_sqrd_err, mask)
+    
+    # Display slopes on a mosaic
+    slopeProp_all = disp_slopes(mask, ls_fit)
     
     return slopeProp_all
 
@@ -193,9 +197,9 @@ def ls_fit_b(log_prop, unique_b):
     
     return ls_fit
 
-def plot_slopes(mask, ls_fit):
+def disp_slopes(mask, ls_fit):
     """
-    Prepares and plots arrays in a mosaic.
+    Prepares and displays arrays in a mosaic.
     
     Parameters
     ----------
@@ -213,7 +217,63 @@ def plot_slopes(mask, ls_fit):
     slopeProp_all = np.zeros_like(mask)
     slopeProp_all[idx_mask] = np.squeeze(np.array(ls_fit[0,:][np.isfinite(ls_fit[0,:])]))
     
-    fig = mpl.mosaic(slopeProp_all, cmap=matplotlib.cm.bone)
+    fig = mpl.mosaic(slopeProp_all, cmap=matplotlib.cm.PuOr_r, vmin = -0.75, vmax = 0.75)
     fig.set_size_inches([20,10])
     
     return slopeProp_all
+    
+def sqrd_err(ls_fit, log_prop, unique_b):
+    """
+    Calculates the squared error from the model fit
+    
+    Parameters
+    ----------
+    ls_fit: 1 dimensional array
+        An array with the results from the least squares fit
+    log_prop: list
+        List of all the log of the desired property values
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+        
+    Returns
+    -------
+    sum_sqrd_err: 1 dimensional array
+        An array with the results from the squared error calculations
+    """
+    if 0 in unique_b:
+        unique_b = unique_b[1:]
+    
+    sqrd_err_list = list()
+    ls_fit = np.array(ls_fit)
+    for bi in np.arange(unique_b.shape[0]):
+        fit_vals = ls_fit[0,:]*unique_b[bi]*np.ones([1,ls_fit.shape[1]]) + ls_fit[1,:]
+        sqrd_err_list.append((log_prop[bi] - fit_vals)**2)
+        
+    sum_sqrd_err = np.squeeze(np.sum(np.array(sqrd_err_list).T, -1))
+    
+    return sum_sqrd_err
+    
+def disp_sqrd_err(sum_sqrd_err, mask):
+    """
+    Prepares and displays arrays in a mosaic.
+    
+    Parameters
+    ----------
+    sum_sqrd_err: 1 dimensional array
+        An array with the sum squared error at each voxel
+    mask: 3 dimensional array
+        Brain mask of the data
+        
+    Returns
+    -------
+    sqrd_err_all: 3 dimensional array
+        Squared error from model fit at each voxel
+    """
+    idx_mask = np.where(mask)
+    sqrd_err_all = np.zeros_like(mask)
+    sqrd_err_all[idx_mask] = sum_sqrd_err
+    
+    fig = mpl.mosaic(sqrd_err_all, cmap=matplotlib.cm.bone, vmax = 1)
+    fig.set_size_inches([20,10])
+    
+    return sqrd_err_all
