@@ -1,5 +1,8 @@
 import numpy as np
+
+import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
+
 import osmosis.viz.mpl as mpl
 import osmosis.utils as utils
 from osmosis.snr import separate_bvals
@@ -49,7 +52,7 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
         
     # Find the property values for each grouped b values
     idx_mask = np.where(mask)
-    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask)
+    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask, bvals)
     
     # Convert list into a matrix and make a matrix with b values.
     ls_fit = ls_fit_b(log_prop, unique_b)
@@ -127,7 +130,7 @@ def include_b0vals(idx_array, bval_ind, bval_list):
         
     return bval_ind_wb0, bvals_wb0
 
-def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask):
+def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask, bvals):
     """
     Tensor model calculations of the given property
     
@@ -155,20 +158,29 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_w
     log_prop: list
         List of all the log of the desired property values
     """
-    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD', 'fractional anisotropy':'FA'}
-
+    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD', 'fractional anisotropy':'FA', 'dispersion index':'DI', 'DI':'DI'}
+    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    
     log_prop = list()
     for k in idx_array[:len(idx_array)-1]:
         if saved_file is 'no':
             params_file = 'temp'
         elif saved_file is 'yes':
-            params_file = 'TensorModel{0}.nii.gz'.format(k+1)
-        tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals_wb0[k], mask = mask, params_file = params_file)
+            if prop_dict[prop] is ("FA" or "MD"):
+                params_file = 'TensorModel{0}.nii.gz'.format(k+1)
+            elif prop_dict[prop] is 'DI':
+                params_file = 'SparseDeconvolutionModel{0}.nii.gz'.format(k+1)
         if prop_dict[prop] is "FA":
+            tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals_wb0[k], mask = mask, params_file = params_file)
             prop_val = tensor_prop.fractional_anisotropy
             log_prop.append(np.log(prop_val[idx_mask] + 0.01))
         elif prop_dict[prop] is "MD":
+            tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals_wb0[k], mask = mask, params_file = params_file)
             prop_val = tensor_prop.mean_diffusivity
+            log_prop.append(np.log(prop_val[idx_mask] + 0.01))
+        elif prop_dict[prop] is 'DI':
+            sfm_di = sfm.SparseDeconvolutionModel(data[:,:,:,bval_ind[k+1]], bvecs[:,bval_ind[k+1]], bval_list[k+1], mask = mask, params_file = params_file)
+            prop_val = sfm_di.dispersion_index()
             log_prop.append(np.log(prop_val[idx_mask] + 0.01))
     
     return log_prop
