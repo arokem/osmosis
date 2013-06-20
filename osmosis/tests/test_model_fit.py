@@ -59,7 +59,7 @@ def test_log_prop_vals():
     tensor_prop2 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[1]], bvecs_t[:,bval_ind_wb0_t[1]], bvals_wb0_t[1], mask = mask_t, params_file = 'temp')
     
     log_prop_t = [np.log(tensor_prop1.fractional_anisotropy[idx_mask_t]+0.01), np.log(tensor_prop2.fractional_anisotropy[idx_mask_t]+0.01)]
-    log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t)
+    log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t, bvals_t)
     
     npt.assert_equal(log_prop_t[0], log_prop_a[0])
     npt.assert_equal(log_prop_t[1], log_prop_a[1])
@@ -82,7 +82,9 @@ def test_slope():
     slopeProp_all_t = np.zeros([2,2,2])
     slopeProp_all_t[idx_mask_t] = np.squeeze(np.array(ls_fit_FA_t[0,:][np.isfinite(ls_fit_FA_t[0,:])]))
     
-    npt.assert_equal(slopeProp_all_t, mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask = mask_t, saved_file = 'no'))
+    slopeProp_all, log_prop, ls_fit, unique_b = mf.slope(data_t, bvals_t, bvecs_t, 'FA', mask = mask_t, saved_file = 'no')
+    
+    npt.assert_equal(slopeProp_all_t, slopeProp_all)
 
 def test_sqrd_err():
     unique_b_t = np.array([1,2])
@@ -95,7 +97,7 @@ def test_sqrd_err():
     
     sum_sqrd_err_t = np.squeeze(np.sum(np.array([(log_prop_t[0] - fit_vals_b1)**2, (log_prop_t[1] - fit_vals_b2)**2]).T,-1))
     
-    npt.assert_equal(sum_sqrd_err_t, mf.sqrd_err(ls_fit_FA_t, log_prop_t, unique_b_t))
+    npt.assert_equal(sum_sqrd_err_t, mf.sqrd_err(ls_fit_FA_t, log_prop_t, unique_b_t, mask_t))
     
     return sum_sqrd_err_t
     

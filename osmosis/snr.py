@@ -67,10 +67,13 @@ def b_snr(data, bvals, b, mask):
         SNR at each voxel
     """
     
-    if hasattr(mask, 'get_data'):
-        mask = mask.get_data()
     if hasattr(data, 'get_data'):
         data = data.get_data()
+        affine = data.get_affine()
+        
+    if mask is not 'None':
+        if hasattr(mask, 'get_data'):
+            mask = mask.get_data()
 
     # Separate b values
     bval_list, bval_ind, unique_b = separate_bvals(bvals)
@@ -188,10 +191,13 @@ def all_snr(data, bvals, mask):
         SNR at each voxel
     """
     
-    if hasattr(mask, 'get_data'):
-        mask = mask.get_data()
     if hasattr(data, 'get_data'):
         data = data.get_data()
+        affine = data.get_affine()
+        
+    if mask is not 'None':
+        if hasattr(mask, 'get_data'):
+            mask = mask.get_data()
 
     # Initialize array for displaying SNR
     disp_snr = np.zeros(mask.shape)

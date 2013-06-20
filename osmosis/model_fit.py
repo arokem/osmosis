@@ -5,7 +5,7 @@ import osmosis.model.dti as dti
 
 import osmosis.viz.mpl as mpl
 import osmosis.utils as utils
-from osmosis.snr import separate_bvals
+import osmosis.snr as snr
 import matplotlib
 
 def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
@@ -44,7 +44,7 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     data, mask = obtain_data(data, mask)
         
     # Separate b values
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
     idx_array = np.arange(len(unique_b))
     
     # Add b = 0 values and indices to the other b values for tensor calculation
@@ -54,17 +54,14 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     idx_mask = np.where(mask)
     log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask, bvals)
     
-    # Convert list into a matrix and make a matrix with b values.
+    # Fit a first order least squares solution to the specified property versus
+    # b value to obtain slopes
     ls_fit = ls_fit_b(log_prop, unique_b)
     
-    # Calculate squared error for each voxel and display it on a mosaic
-    sum_sqrd_err = sqrd_err(ls_fit, log_prop, unique_b)
-    sqrd_err_all = disp_sqrd_err(sum_sqrd_err, mask)
+    # Display slopes of property on a mosaic
+    slopeProp_all = disp_slopes(mask, ls_fit, prop)
     
-    # Display slopes on a mosaic
-    slopeProp_all = disp_slopes(mask, ls_fit)
-    
-    return slopeProp_all
+    return slopeProp_all, log_prop, ls_fit, unique_b
 
 def obtain_data(data, mask):
     """
@@ -158,18 +155,20 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_w
     log_prop: list
         List of all the log of the desired property values
     """
-    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD', 'fractional anisotropy':'FA', 'dispersion index':'DI', 'DI':'DI'}
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD',
+                'fractional anisotropy':'FA', 'dispersion index':'DI',
+                'DI':'DI'}
+    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
     
     log_prop = list()
     for k in idx_array[:len(idx_array)-1]:
         if saved_file is 'no':
             params_file = 'temp'
         elif saved_file is 'yes':
-            if prop_dict[prop] is ("FA" or "MD"):
-                params_file = 'TensorModel{0}.nii.gz'.format(k+1)
-            elif prop_dict[prop] is 'DI':
+            if prop_dict[prop] is 'DI':
                 params_file = 'SparseDeconvolutionModel{0}.nii.gz'.format(k+1)
+            else:
+                params_file = 'TensorModel{0}.nii.gz'.format(k+1)
         if prop_dict[prop] is "FA":
             tensor_prop = dti.TensorModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals_wb0[k], mask = mask, params_file = params_file)
             prop_val = tensor_prop.fractional_anisotropy
@@ -182,7 +181,7 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_w
             sfm_di = sfm.SparseDeconvolutionModel(data[:,:,:,bval_ind[k+1]], bvecs[:,bval_ind[k+1]], bval_list[k+1], mask = mask, params_file = params_file)
             prop_val = sfm_di.dispersion_index()
             log_prop.append(np.log(prop_val[idx_mask] + 0.01))
-    
+            
     return log_prop
     
 def ls_fit_b(log_prop, unique_b):
@@ -202,16 +201,19 @@ def ls_fit_b(log_prop, unique_b):
     ls_fit: 1 dimensional array
         An array with the results from the least squares fit
     """
+    if 0 in unique_b:
+        unique_b = unique_b[1:]
+        
     log_prop_matrix = np.matrix(log_prop)
-    b_matrix = np.matrix([unique_b[1:], np.ones(len(unique_b[1:]))]).T
+    b_matrix = np.matrix([unique_b, np.ones(len(unique_b))]).T
     b_inv = utils.ols_matrix(b_matrix)
     ls_fit = np.dot(b_inv, log_prop_matrix)
     
     return ls_fit
 
-def disp_slopes(mask, ls_fit):
+def disp_slopes(mask, ls_fit, prop):
     """
-    Prepares and displays arrays in a mosaic.
+    Prepares and displays the slopes in a mosaic.
     
     Parameters
     ----------
@@ -224,17 +226,25 @@ def disp_slopes(mask, ls_fit):
     -------
     slopeProp_all: 3 dimensional array
         Slope of the desired property across b values at each voxel
-    """
-    idx_mask = np.where(mask)
-    slopeProp_all = np.zeros_like(mask)
-    slopeProp_all[idx_mask] = np.squeeze(np.array(ls_fit[0,:][np.isfinite(ls_fit[0,:])]))
+    """  
+    prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD',
+                'fractional anisotropy':'FA', 'dispersion index':'DI',
+                'DI':'DI','SNR':'SNR', 'signal-to-noise ratio':'SNR',
+                'signal to noise ratio':'SNR'}
     
-    fig = mpl.mosaic(slopeProp_all, cmap=matplotlib.cm.PuOr_r, vmin = -0.75, vmax = 0.75)
-    fig.set_size_inches([20,10])
+    slopeProp_all = np.zeros_like(mask)
+    slopeProp_all[np.where(mask)] = np.squeeze(np.array(ls_fit[0,:][np.isfinite(ls_fit[0,:])]))
+    
+    if prop_dict[prop] is 'SNR':
+        fig = mpl.mosaic(slopeProp_all, cmap=matplotlib.cm.bone)
+        fig.set_size_inches([20,10])
+    else:
+        fig = mpl.mosaic(slopeProp_all, cmap=matplotlib.cm.PuOr_r, vmin = -0.75, vmax = 0.75)
+        fig.set_size_inches([20,10])
     
     return slopeProp_all
     
-def sqrd_err(ls_fit, log_prop, unique_b):
+def sqrd_err(ls_fit, log_prop, unique_b, mask):
     """
     Calculates the squared error from the model fit
     
@@ -254,7 +264,7 @@ def sqrd_err(ls_fit, log_prop, unique_b):
     """
     if 0 in unique_b:
         unique_b = unique_b[1:]
-    
+            
     sqrd_err_list = list()
     ls_fit = np.array(ls_fit)
     for bi in np.arange(unique_b.shape[0]):
@@ -263,11 +273,13 @@ def sqrd_err(ls_fit, log_prop, unique_b):
         
     sum_sqrd_err = np.squeeze(np.sum(np.array(sqrd_err_list).T, -1))
     
+    disp_sqrd_err(sum_sqrd_err, mask)
+    
     return sum_sqrd_err
     
 def disp_sqrd_err(sum_sqrd_err, mask):
     """
-    Prepares and displays arrays in a mosaic.
+    Prepares and displays the squared error in a mosaic.
     
     Parameters
     ----------
@@ -280,12 +292,92 @@ def disp_sqrd_err(sum_sqrd_err, mask):
     -------
     sqrd_err_all: 3 dimensional array
         Squared error from model fit at each voxel
-    """
-    idx_mask = np.where(mask)
+    """   
     sqrd_err_all = np.zeros_like(mask)
-    sqrd_err_all[idx_mask] = sum_sqrd_err
+    sqrd_err_all[np.where(mask)] = sum_sqrd_err
     
     fig = mpl.mosaic(sqrd_err_all, cmap=matplotlib.cm.bone, vmax = 1)
     fig.set_size_inches([20,10])
     
     return sqrd_err_all
+   
+def scat_prop_snrSlope(log_prop, data, bvals, mask):
+    """
+    Displays a scatter density plot of the slopes of the log of the desired property
+    values versus the slopes of the first order fit through SNR.
+    
+    Parameters
+    ----------
+    log_prop: list
+        List of all the log of the desired property values
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    mask: 3 dimensional array
+        Brain mask of the data
+    """    
+    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
+          
+    ls_fit_bsnr = snr_ls_fit(data, bvals, mask, unique_b)
+    ls_fit_prop = ls_fit_b(log_prop, unique_b)
+    
+    mpl.scatter_density(ls_fit_bsnr[0,:], ls_fit_prop[0,:])
+    
+def snr_ls_fit(data, bvals, mask, unique_b):
+    """
+    Fits a first order least squares solution to the SNR data versus b value
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    mask: 3 dimensional array
+        Brain mask of the data
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+        
+    Returns
+    -------
+    ls_fit_bsnr: 1 dimensional array
+        An array with the results from the least squares fit to the SNR data
+    """
+    if 0 in unique_b:
+        unique_b = unique_b[1:]
+        
+    data, mask = obtain_data(data, mask)
+    
+    all_bsnr = list()         
+    for bi in np.arange(len(unique_b)):
+        all_bsnr.append(snr.b_snr(data, bvals, unique_b[bi], mask)[np.where(mask)])
+    
+    ls_fit_bsnr = ls_fit_b(all_bsnr, unique_b)
+    
+    return ls_fit_bsnr
+    
+def scat_prop_snr(log_prop, data, bvals, mask):
+    """
+    Displays a scatter density plot of SNR versus the slope of the desired property
+    
+    Parameters
+    ----------
+    log_prop: list
+        List of all the log of the desired property values
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    mask: 3 dimensional array
+        Brain mask of the data
+    """    
+    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
+    
+    if 0 in unique_b:
+        unique_b = unique_b[1:]
+    
+    bsnr = snr.b_snr(data, bvals, unique_b[0], mask)[np.where(mask)]
+    ls_fit_prop = ls_fit_b(log_prop, unique_b)
+    
+    mpl.scatter_density(bsnr, ls_fit_prop[0,:])
