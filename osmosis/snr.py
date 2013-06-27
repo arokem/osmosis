@@ -34,6 +34,7 @@ def separate_bvals(bvals):
       rounded_bvals[j] = round(bvals[j])
 
     unique_b = np.unique(rounded_bvals)
+    bvals_scaled = rounded_bvals*1000
     
     # Initialize one list for b values and another list for the indices
     bval_list = list()
@@ -42,10 +43,10 @@ def separate_bvals(bvals):
     # Find locations where rounded b values equal the unique b values
     for i in np.arange(len(unique_b)):
       idx_b = np.where(rounded_bvals == unique_b[i])
-      bval_list.append(bvals[idx_b])
+      bval_list.append(bvals_scaled[idx_b])
       bval_ind.append(idx_b)
       
-    return bval_list, np.squeeze(bval_ind), unique_b
+    return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
 
 def b_snr(data, bvals, b, mask):
     """
@@ -76,7 +77,7 @@ def b_snr(data, bvals, b, mask):
             mask = mask.get_data()
 
     # Separate b values
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled = separate_bvals(bvals)
     bvals0_ind = bval_ind[0]
     this_b_ind = bval_ind[b]
     
@@ -144,7 +145,7 @@ def probability_curve(data, bvals, bvecs, mask):
         mask = mask.get_data()
         
     # Separate b values
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled= separate_bvals(bvals)
     idx_mask = np.where(mask)
     
     unique_b_list = list(unique_b)
@@ -203,7 +204,7 @@ def all_snr(data, bvals, mask):
     disp_snr = np.zeros(mask.shape)
 
     # Get b = 0 indices
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled = separate_bvals(bvals)
     bvals0_ind = bval_ind[0]
     
     # Find snr across each slice

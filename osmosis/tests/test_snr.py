@@ -6,11 +6,13 @@ import osmosis.snr as snr
 # Mock b value array to be used in all tests
 bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
 
-bval_list_t = [(np.array([0.005, 0.005, 0.010]))]
-bval_list_t.append(np.array([1.005, 0.950, 1.000]))
-bval_list_t.append(np.array([2.010, 1.950]))
+bval_list_t = [(np.array([0, 0, 0]))]
+bval_list_t.append(np.array([1000, 1000, 1000]))
+bval_list_t.append(np.array([2000, 2000]))
 
 bval_ind_t = [np.array([0,1,2]), np.array([4,5,7]), np.array([3,6])]
+
+bvals_scaled_t = np.array([0, 0, 0, 2000, 1000, 1000, 2000, 1000])
 
 unique_b_t = np.array([0,1,2])
 
@@ -29,8 +31,9 @@ mask_t[:,:,1] = 1
 
 def test_separate_bvals():
     
-    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals_t)
+    bval_list, bval_ind, unique_b, bvals_scaled = snr.separate_bvals(bvals_t)
     npt.assert_equal(unique_b, unique_b_t)
+    npt.assert_equal(bvals_scaled, bvals_scaled_t)
     
     for i in np.arange(len(bval_list)):
         npt.assert_equal(np.squeeze(bval_list)[i], bval_list_t[i])
