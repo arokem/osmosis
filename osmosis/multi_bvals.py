@@ -280,16 +280,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         return signal_rel
 
-    @desc.auto_attr
-    def _flat_relative_signal(self):
+    def _flat_relative_signal(self,bi):
         """
         Get the flat relative signal only in the mask
-        """
-        out_list = list()
-        for frsi in np.arange(len(self.unique_b)):
-            out_list.append(np.reshape(self.relative_signal[frsi,self.mask],(-1, self.b_inds[frsi].shape)))
-        
-        return out_list
+        """       
+        return np.reshape(self.relative_signal[bi,self.mask],
+                         (-1, self.b_inds[bi].shape[0]))
 
 
     @desc.auto_attr
@@ -302,12 +298,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
         return 1 - self.relative_signal
 
-    @desc.auto_attr
-    def _flat_signal_attenuation(self):
+    def _flat_signal_attenuation(self,bi):
         """
 
         """
-        return 1-self._flat_relative_signal
+        return 1-self._flat_relative_signal(bi)
         
     @desc.auto_attr
     def regressors(self):
@@ -323,20 +318,20 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             iso_pred_sig.append(np.exp(-b * self.iso_diffusivity[idx]))
             if self.mode == 'signal_attenuation':
                 iso_regressor = 1 - iso_pred_sig[idx] * np.ones(self.rotations[idx].shape[-1])
-                fit_to = self._flat_signal_attenuation.T
+                fit_to = self._flat_signal_attenuation(idx).T
             elif self.mode == 'relative_signal':
                 iso_regressor = iso_pred_sig[idx] * np.ones(self.rotations[idx].shape[-1])
-                fit_to = self._flat_relative_signal.T
+                fit_to = self._flat_relative_signal(idx).T
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights... 
                 iso_regressor = np.ones(self.rotations[idx].shape[-1])
-                fit_to = self._flat_relative_signal.T
+                fit_to = self._flat_relative_signal[idx].T
             elif self.mode == 'log':
                 iso_regressor = (np.log(iso_pred_sig[idx]) *
                                 np.ones(self.rotations[idx].shape[-1]))
-                fit_to = np.log(self._flat_relative_signal.T)
+                fit_to = np.log(self._flat_relative_signal[idx].T)
             fit_to_list.append(fit_to)
             iso_regressor_list.append(iso_regressor)
             
@@ -378,9 +373,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
             iso_regressor_list, tensor_regressor_list, fit_to_list = self.regressors
             
-            tensor_regressor_mp = np.concatenate(tensor_regressor_list,-1)
-            fit_to_mp = np.concatenate(fit_to_list,-1)
-            iso_regressor_list = np.concatenate(iso_regressor_list,-1)
+            tensor_regressor_mp = np.array(tensor_regressor_list)
+            fit_to_mp = np.array(fit_to_list)
+            iso_regressor_list = np.array(iso_regressor_list)
             
             if self._n_vox==1:
                 # We have to be a bit (too) clever here, so that the indexing
