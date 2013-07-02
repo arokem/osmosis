@@ -348,6 +348,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         return tensor_regressor_arr, fit_to_arr, iso_regressor_arr
         
     @desc.auto_attr
+    def _flat_signal(self):
+        """
+        Get the signal in the diffusion-weighted volumes in flattened form
+        (only in the mask).
+        """
+        return self._flat_data[:,self.all_b_idx]
+        
+    @desc.auto_attr
     def model_params(self):
         """
 
