@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from scipy.special import gamma
 
-def separate_bvals(bvals):
+def separate_bvals(bvals, mode = 'None'):
     """
     Separates b values into groups with similar values
     Returns the grouped b values and their corresponding indices.
@@ -29,12 +29,16 @@ def separate_bvals(bvals):
     """
     
     # Round all the b values and find the unique numbers
-    rounded_bvals = np.zeros(len(bvals))
+    rounded_bvals = list()
     for j in np.arange(len(bvals)):
-      rounded_bvals[j] = round(bvals[j])
-
-    unique_b = np.unique(rounded_bvals)
-    bvals_scaled = rounded_bvals*1000
+        if mode is 'remove0':
+            if round(bvals[j]) != 0:
+                rounded_bvals.append(round(bvals[j]))
+        else:
+            rounded_bvals.append(round(bvals[j]))
+      
+    unique_b = np.unique(np.array(rounded_bvals))
+    bvals_scaled = np.array(rounded_bvals)*1000
     
     # Initialize one list for b values and another list for the indices
     bval_list = list()
@@ -157,19 +161,21 @@ def probability_curve(data, bvals, bvecs, mask):
     all_prop_med = np.median(all_prop)
     iqr_all = [stats.scoreatpercentile(all_prop,25), stats.scoreatpercentile(all_prop,75)]
     fig = mpl.probability_hist(all_prop)
+    ax = fig.axes[0]
+    ax.text(20.7, 0.10,"All b values: Median = {0}, IQR = {1}".format(round(all_prop_med,2), round(np.abs(iqr_all[0] - iqr_all[1]),2)),horizontalalignment='center',verticalalignment='center')
     legend_list.append('All b values')
     
     idx_array = np.arange(len(unique_b_list))
     txt_height = 0.12
     for l in idx_array:
-      prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
-      prop_med = np.median(prop)
-      iqr = [stats.scoreatpercentile(prop2,25), stats.scoreatpercentile(prop2,75)]
-      fig = mpl.probability_hist(prop, fig = fig)
-      ax = fig.axes[0]
-      ax.text(20.7, txt_height,"b = {0}: Median = {1}, IQR = {2}".format(l*1000, round(prop1_med,2), round(np.abs(iqr1[0] - iqr1[1]),2)),horizontalalignment='center',verticalalignment='center')
-      txt_height = txt_height + 0.02
-      legend_list.append('b = {0}'.format(l*1000))
+        prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
+        prop_med = np.median(prop)
+        iqr = [stats.scoreatpercentile(prop,25), stats.scoreatpercentile(prop,75)]
+        fig = mpl.probability_hist(prop, fig = fig)
+        ax = fig.axes[0]
+        ax.text(20.7, txt_height,"b = {0}: Median = {1}, IQR = {2}".format(unique_b_list[l]*1000, round(prop_med,2), round(np.abs(iqr[0] - iqr[1]),2)),horizontalalignment='center',verticalalignment='center')
+        txt_height = txt_height + 0.02
+        legend_list.append('b = {0}'.format(unique_b_list[l]*1000))
     
     plt.legend(legend_list,loc = 'upper right')
     
