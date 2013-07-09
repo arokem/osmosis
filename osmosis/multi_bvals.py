@@ -158,7 +158,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         return tensor_out
         
-    def _calc_rotations(self, b_idx, vertices, mode=None, over_sample=None):
+    def _calc_rotations(self, b_idx, bvals, vertices, mode=None, over_sample=None):
         """
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
@@ -176,14 +176,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         # If we have as many vertices as b-vectors, we can take the
         # b-values from the measurement
-        if vertices.shape[0] == len(self.all_b_idx): 
-            bvals = self.rounded_bvals
+        
+        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        
+        if over_sample is None:
+            #self.rot_vecs = np.squeeze(self.bvecs[:, self.all_b_idx])
+            rot_vecs = vertices
+        
+        if vertices.shape[0] == len(all_b_idx): 
+            bvals = rounded_bvals
         
         evals, evecs = self.response_function(b_idx).decompose
 
-        this_b_inds = self.b_inds[b_idx]                
-        out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-        for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):
+        this_b_inds = b_inds[b_idx]                
+        out = np.empty((rot_vecs[:,all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
+        for idx, bvec in enumerate(rot_vecs[:,all_b_idx].T):
             # bvec within the rotational vectors
             this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertices[:,this_b_inds], self.rounded_bvals[:,this_b_inds]/1000)
             pred_sig = this_rot.predicted_signal(1)
@@ -220,7 +228,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         in all these directions (over-sampling the sphere above the resolution
         of the measurement). 
         """
-        return self._calc_rotations(b_idx, self.bvecs)
+        return self._calc_rotations(b_idx, self.rounded_bvals/1000, self.bvecs)
         
     @desc.auto_attr
     def S0(self):
