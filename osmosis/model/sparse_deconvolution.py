@@ -464,7 +464,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                         this_di_s = 0 
                         for jj in  xrange(ii+1, n_idx): 
                             ang = angles[ii, jj]
-                            di_s[ii] += ang * ((this_mp[ii]*this_mp[jj])/
+                            di_s[ii] += np.sin(ang) * ((this_mp[ii]*this_mp[jj])/
                                                np.sum(this_mp**2))  
 
                     di_flat[vox] = np.mean(di_s)/n_idx
@@ -477,7 +477,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                     angles = np.min(np.vstack([angles, np.pi-angles]), 0)
                     angles = angles/(np.pi/2)
                     di_flat[vox] = np.dot(this_mp[1:]**2/np.sum(this_mp**2),
-                                          angles)
+                                          np.sin(angles))
 
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = di_flat
