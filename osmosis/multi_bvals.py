@@ -158,7 +158,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         return tensor_out
         
-    def _calc_rotations(self, b_idx, bvals, vertices, mode=None, over_sample=None):
+    def _calc_rotations(self, b_idx, bval_arr, vertices, mode=None, over_sample=None):
         """
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
@@ -177,23 +177,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # If we have as many vertices as b-vectors, we can take the
         # b-values from the measurement
         
-        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
+        bval_list = bval_list[1:]
+        b_inds = b_inds[1:]
+        unique_b = unique_b[1:]
         all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-        
-        if over_sample is None:
-            #self.rot_vecs = np.squeeze(self.bvecs[:, self.all_b_idx])
-            rot_vecs = vertices
-        
+               
         if vertices.shape[0] == len(all_b_idx): 
-            bvals = rounded_bvals
+            these_bvals = rounded_bvals
         
         evals, evecs = self.response_function(b_idx).decompose
 
         this_b_inds = b_inds[b_idx]                
-        out = np.empty((rot_vecs[:,all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-        for idx, bvec in enumerate(rot_vecs[:,all_b_idx].T):
+        out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
+        for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):
             # bvec within the rotational vectors
-            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertices[:,this_b_inds], self.rounded_bvals[:,this_b_inds]/1000)
+            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertices[:,this_b_inds], np.squeeze(rounded_bvals)[this_b_inds]/1000)
             pred_sig = this_rot.predicted_signal(1)
             
             if mode == 'distance':
@@ -425,6 +424,15 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
             # And return the params for current use:
             return out_params
+        
+        
+    @desc.auto_attr    
+    def design_matrix(self):
+        """ 
+        
+        """ 
+        
+        
             
     @desc.auto_attr    
     def _flat_params(self):
@@ -468,10 +476,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_params[np.isnan(this_params)] = 0.0
             
             if self.mode == 'log':
-                this_relative=np.exp(np.dot(this_params, self.design_matrix) +
+                this_relative=np.exp(np.dot(this_params, self.design_matrix.T) +
                                     self.fit_to[vox])
             else:     
-                this_relative = (np.dot(this_params, self.design_matrix) +
+                this_relative = (np.dot(this_params, self.design_matrix.T) +
                                     self.fit_to[vox])
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):
@@ -483,10 +491,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             #a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
             # out_flat[vox] = a*this_pred_sig + b
             out_flat_arr[vox] = this_pred_sig
+            
+        out = ozu.nans((self.signal(self.b_inds[0]).shape[:3] + 
+                         (self.design_matrix.shape[-1],)))
+        out[self.mask] = out_flat_arr
 
-        return out_flat_arr
+        return out
         
-    def predict(self, vertices, bvals):
+    def predict(self, vertices, new_bvals):
         """
         Predict the signal on a new set of vertices
         """
@@ -495,16 +507,16 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             msg += " with %s"%self.solver
             print(msg)
         
-        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-        tensor_regressor_list = self._calc_rotations(vertices)
-        iso_regressor_list, _ , fit_to_list = self.regressors
+        p_bval_list, p_b_inds, p_unique_b, p_rounded_bvals = separate_bvals(new_bvals)
+        p_bval_list_rm0, p_b_inds_rm0, p_unique_b_rm0, p_rounded_bvals_rm0 = separate_bvals(new_bvals, mode = 'remove0')
         
-        #For now, make rot_vecs = vertices equal
-        design_matrix = np.zeros((vertices.shape[-1],vertices.shape[-1]))
-        for mpi in np.arange(len(self.unique_b)):
-            tensor_regressor = self._calc_rotations(mpi, vertices)
+        design_matrix = np.zeros((vertices.shape[-1],self.rot_vecs[:,self.all_b_idx].shape[-1]))
+        for mpi in np.arange(len(p_unique_b)):
+            tensor_regressor = self._calc_rotations(mpi, new_bvals, vertices)
             this_design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
-            design_matrix[self.b_inds_rm0[mpi]] = this_design_matrix.T
+            design_matrix[p_b_inds_rm0[mpi]] = this_design_matrix.T
+            
+        _, _, fit_to_list = self.regressors
         
         fit_to = np.zeros(np.concatenate(fit_to_list,0).T.shape)
         for vox in xrange(self._n_vox):
@@ -532,8 +544,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             #a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
             # out_flat[vox] = a*this_pred_sig + b
             out_flat_arr[vox] = this_pred_sig
+            
+        out = ozu.nans(self.data[...,self.all_b_idx].shape)
+        out[self.mask] = out_flat_arr
 
-        return out_flat_arr
+        return out
         
     @desc.auto_attr
     def fit_angle(self):
