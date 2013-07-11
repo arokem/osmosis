@@ -7,7 +7,9 @@ import numpy.testing as npt
 import nibabel as ni
 
 import osmosis as oz
-from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel
+import osmosis.tensor as ozt
+
+from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel, AD, RD
 
 data_path = os.path.split(oz.__file__)[0] + '/data/'
 
@@ -144,3 +146,39 @@ def test_single_voxel():
 
     npt.assert_array_equal(SSD1.model_params[0,0,0],
                            SSD2._flat_params)
+
+
+def test_design_matrix():
+    """
+    Testing that our assumptions about the design matrix are correct
+    """
+    data = (np.random.rand(10 * 10 * 10).reshape(10 * 10 * 10, 1) +
+            np.zeros((10 * 10 * 10, 160))).reshape(10, 10, 10,160)
+
+    mask_array = np.zeros(ni.load(data_path+'small_dwi.nii.gz').shape[:3])
+    # Only two voxels:
+    mask_array[1:3, 1:3, 1:3] = 1
+
+    SSD = SparseDeconvolutionModel(data,
+                                   data_path + 'dwi.bvecs',
+                                   data_path + 'dwi.bvals',
+                                   mask=mask_array,
+        params_file=tempfile.NamedTemporaryFile().name)
+
+    all_bvecs = SSD.bvecs[:, SSD.b_idx]
+    all_bvals = SSD.bvals[SSD.b_idx]
+    axial_diffusivity=AD
+    radial_diffusivity=RD
+
+    for i, this_bvec in enumerate(all_bvecs.T):
+        my_tensor = ozt.rotate_to_vector(this_bvec, [axial_diffusivity,
+                                                 radial_diffusivity,
+                                                 radial_diffusivity],
+            np.eye(3), all_bvecs, all_bvals)
+
+        pred_sig = my_tensor.predicted_signal(1)
+        pred_sig = pred_sig - np.mean(pred_sig)
+
+        # The ith column of the matrix should be the demeaned response function
+        # of a tensor pointing in this direction:
+        npt.assert_array_equal(pred_sig, SSD.design_matrix[:, i])
