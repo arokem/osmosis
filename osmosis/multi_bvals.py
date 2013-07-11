@@ -51,8 +51,8 @@ from osmosis.model.io import params_file_resolver
 
 
 # For now, let's assume 3 bvalues and let's assume these are the diffusivities:
-AD = [1.3, 1.5, 1.8]
-RD = [0.8, 0.5, 0.3]
+AD = [1, 1, 1]
+RD = [0, 0, 0]
 
 class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     """
@@ -178,9 +178,13 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # b-values from the measurement
         
         bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
-        bval_list = bval_list[1:]
-        b_inds = b_inds[1:]
-        unique_b = unique_b[1:]
+        if 0 in unique_b:
+            ind = 1
+        else:
+            ind = 0
+        bval_list = bval_list[ind:]
+        b_inds = b_inds[ind:]
+        unique_b = unique_b[ind:]
         all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
                
         if vertices.shape[0] == len(all_b_idx): 
@@ -370,8 +374,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 prog_bar = ozu.ProgressBar(self._flat_signal_b(self.b_inds[0]).shape[0])
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
-
-            iso_regressor_list, tensor_regressor_list, fit_to_list = self.regressors
+            
+            _, _, fit_to_list = self.regressors
             
             this_fit_to_list = list()
             if self._n_vox==1:
@@ -386,10 +390,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # demean each of the basis functions:
             
             # rot_vecs by vertices -> vertices by rot_vecs
-            self.design_matrix = np.zeros(np.concatenate(tensor_regressor_list,-1).T.shape)
-            for mpi in np.arange(len(self.unique_b)):
-                this_design_matrix = tensor_regressor_list[mpi] - np.mean(tensor_regressor_list[mpi], 0)
-                self.design_matrix[self.b_inds_rm0[mpi]] = this_design_matrix.T
+
 
             # One basis function per column (instead of rows):
             # rot_vecs by vertices -> vertices by rot_vecs
@@ -398,11 +399,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # One weight for each rotation
             params = np.empty((self._n_vox, self.rotations(0).shape[0]))
             
+            self.fit_to = np.zeros(np.concatenate(fit_to_list,0).T.shape)
             for vox in xrange(self._n_vox):
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
                 # Call out to the core fitting routine:
-                self.fit_to = np.zeros(np.concatenate(fit_to_list,0).T.shape)
                 for b_fi in np.arange(len(self.unique_b)):
                     self.fit_to[vox, self.b_inds_rm0[b_fi]] = fit_to_list[b_fi].T[vox] - np.mean(fit_to_list[b_fi].T[vox])
                 
@@ -430,8 +431,15 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def design_matrix(self):
         """ 
         
-        """ 
+        """
+        _, tensor_regressor_list, _ = self.regressors
         
+        out = np.zeros(np.concatenate(tensor_regressor_list,-1).T.shape)
+        for mpi in np.arange(len(self.unique_b)):
+            this_design_matrix = tensor_regressor_list[mpi].T - np.mean(tensor_regressor_list[mpi], -1)
+            out[self.b_inds_rm0[mpi]] = this_design_matrix
+        
+        return out
         
             
     @desc.auto_attr    
@@ -460,27 +468,21 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         iso_regressor_list, tensor_regressor_list, fit_to_list = self.regressors
         
-        self.design_matrix = np.zeros(np.concatenate(tensor_regressor_list,-1).T.shape)
-        for mpi in np.arange(len(self.unique_b)):
-            this_design_matrix = tensor_regressor_list[mpi] - np.mean(tensor_regressor_list[mpi], 0)
-            self.design_matrix[self.b_inds_rm0[mpi]] = this_design_matrix.T
-        
-        self.fit_to = np.zeros(np.concatenate(fit_to_list,0).T.shape)
+        self.fit_to_mean = np.zeros(np.concatenate(fit_to_list,0).T.shape)
         for vox in xrange(self._n_vox):
             for b_fi in np.arange(len(self.unique_b)):
-                self.fit_to[vox, self.b_inds_rm0[b_fi]] = np.mean(fit_to_list[b_fi].T[vox])
+                self.fit_to_mean[vox, self.b_inds_rm0[b_fi]] = np.mean(fit_to_list[b_fi].T[vox])
         
-        out_flat_arr = np.zeros(self.fit_to.shape)
+        out_flat_arr = np.zeros(self.fit_to_mean.shape)
         for vox in xrange(self._n_vox):    
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0
             
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, self.design_matrix.T) +
-                                    self.fit_to[vox])
+                                    self.fit_to_mean[vox])
             else:     
-                this_relative = (np.dot(this_params, self.design_matrix.T) +
-                                    self.fit_to[vox])
+                this_relative = np.dot(this_params, self.design_matrix.T) + self.fit_to_mean[vox]
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):
                 this_pred_sig = this_relative * self._flat_S0[vox] # this_relative = S/S0
@@ -507,14 +509,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             msg += " with %s"%self.solver
             print(msg)
         
-        p_bval_list, p_b_inds, p_unique_b, p_rounded_bvals = separate_bvals(new_bvals)
-        p_bval_list_rm0, p_b_inds_rm0, p_unique_b_rm0, p_rounded_bvals_rm0 = separate_bvals(new_bvals, mode = 'remove0')
+        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(new_bvals)
+        bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(new_bvals, mode = 'remove0')
         
         design_matrix = np.zeros((vertices.shape[-1],self.rot_vecs[:,self.all_b_idx].shape[-1]))
-        for mpi in np.arange(len(p_unique_b)):
+        for mpi in np.arange(len(unique_b)):
             tensor_regressor = self._calc_rotations(mpi, new_bvals, vertices)
-            this_design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
-            design_matrix[p_b_inds_rm0[mpi]] = this_design_matrix.T
+            this_design_matrix = tensor_regressor.T - np.mean(tensor_regressor, -1)
+            design_matrix[b_inds_rm0[mpi]] = this_design_matrix
             
         _, _, fit_to_list = self.regressors
         
@@ -529,10 +531,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_params[np.isnan(this_params)] = 0.0
             
             if self.mode == 'log':
-                this_relative=np.exp(np.dot(this_params, design_matrix) +
+                this_relative=np.exp(np.dot(this_params, design_matrix.T) +
                                     fit_to[vox])
             else:     
-                this_relative = (np.dot(this_params, design_matrix) +
+                this_relative = (np.dot(this_params, design_matrix.T) +
                                     fit_to[vox])
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):
