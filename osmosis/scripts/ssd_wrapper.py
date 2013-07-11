@@ -1,3 +1,31 @@
+"""
+
+This is a wrapper for creating sge commands for parallel computation of model
+parameters for SFM models.
+
+This needs to be run on proclus:
+
+1. Log into proclus
+2. Make sure that the output directories are empty:
+   /hsgs/u/arokem/tmp
+   ~/sgeoutput
+   ~/pycmd
+
+3. Run:  
+   python ssd_wrapper.py
+4. This should create a new batch_sge.sh file in your home directory
+5. Run it:
+   ./batch_sge.sh
+
+6. Now you need to wait for all the processes to go through and for the nifti
+parameter files to be created.
+
+7. Once that's done, you should be able to run:
+   python ssd_reassmble
+Which will generate the parameter files. Use these. 
+
+"""
+
 import os
 import nibabel as ni
 import numpy as np

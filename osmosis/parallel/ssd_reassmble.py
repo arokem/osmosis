@@ -8,7 +8,7 @@ import osmosis.io as oio
 import numpy as np
 
 alphas = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05]
-rhos = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+l1_ratios = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 data_path = '/hsgs/u/arokem/tmp/'
 
@@ -26,19 +26,19 @@ for subject in ['FP']: #['HT']
         for data_i, data in enumerate(oio.get_dwi_data(b, subject)):
             file_stem = (data_path + '%s/'%subject +
                          data[0].split('/')[-1].split('.')[0])
-            for rho in rhos:
+            for l1_ratio in l1_ratios:
                 for alpha in alphas:
                     new_vol = ozu.nans(wm_data.shape + (150,))
                     
-                    new_fname = "%s_SSD_rho%s_alpha%s.nii.gz"%(file_stem,
-                                                               rho,
+                    new_fname = "%s_SSD_l1ratio%s_alpha%s.nii.gz"%(file_stem,
+                                                               l1_ratio,
                                                                alpha)
                     if not os.path.exists(new_fname):
                         print("Reassembling %s"%new_fname)
                         for i in range(int(n_wm_vox/10000)+2):
-                            params_file="%s_SSD_rho%s_alpha%s_%03d.nii.gz"%(
+                            params_file="%s_SSD_l1ratio%s_alpha%s_%03d.nii.gz"%(
                                 file_stem,
-                                rho,
+                                l1_ratio,
                                 alpha,
                                 i)
                             low = i*10000
