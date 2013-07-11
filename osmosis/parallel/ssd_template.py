@@ -11,7 +11,7 @@ if __name__=="__main__":
     oio.data_path = data_path
     data = oio.get_dwi_data(b, subject)[data_i]
     solver_params = dict(alpha=alpha,
-                         rho=rho,
+                         l1_ratio=l1_ratio,
                          fit_intercept=False,
                          positive=True)
 

@@ -4,12 +4,12 @@ import numpy as np
 import osmosis.io as oio
 from osmosis.parallel import sge
 
-import ssd_template
+import osmosis.parallel.ssd_template as ssd_template
 reload(ssd_template)
 template = sge.getsourcelines(ssd_template)[0]
 
 alphas = [0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05]
-rhos = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+l1_ratios = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 
 data_path = '/hsgs/u/arokem/tmp/'
 
@@ -29,12 +29,12 @@ for subject in ['FP']: #,'HT']
         for data_i, data in enumerate(oio.get_dwi_data(b, subject)):
             file_stem = (data_path + '%s/'%subject +
                          data[0].split('/')[-1].split('.')[0])
-            for rho in rhos:
+            for l1_ratio in l1_ratios:
                 for alpha in alphas:
                     for i in range(int(n_wm_vox/10000)+2):
-                        params_file="%s_SSD_rho%s_alpha%s_%03d.nii.gz"%(
+                        params_file="%s_SSD_l1ratio%s_alpha%s_%03d.nii.gz"%(
                             file_stem,
-                            rho,
+                            l1_ratio,
                             alpha,
                             i)
 
@@ -44,7 +44,7 @@ for subject in ['FP']: #,'HT']
                             data_i=data_i,
                             subject=subject,
                             b=b,
-                            rho=rho,
+                            l1_ratio=l1_ratio,
                             alpha=alpha,
                             ad=ad_rd[data_i]['AD'],
                             rd=ad_rd[data_i]['RD'],
@@ -52,8 +52,8 @@ for subject in ['FP']: #,'HT']
                             params_file = params_file)
                                     
                         code = sge.add_params(template,params_dict)
-                        name = 'ssd_%s_b%s_data%s_rho%s_alpha%s_%03d'%(
-                            subject, b, data_i+1, rho, alpha, i)
+                        name = 'ssd_%s_b%s_data%s_l1ratio%s_alpha%s_%03d'%(
+                            subject, b, data_i+1, l1_ratio, alpha, i)
                         cmd_file = '/home/arokem/pycmd/%s.py'%name
                         print("Generating: %s"%cmd_file)
                         
