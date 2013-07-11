@@ -168,7 +168,7 @@ def add_params(s, params_dict):
 
 
 def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
-             email='$USER@stanford.edu', mem_usage=4, priority=0,
+             email=None, mem_usage=4, priority=0,
              flags='', output_dir='sgeoutput'):
    """
    This puts together the qsub command.
@@ -210,7 +210,8 @@ def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
    A nicely formatted qsub call packed into a conveniently shaped string.
    
    """
-   return "qsub -N %s -m a -M %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
+   if email is not None:
+      return "qsub -N %s -m a -M %s -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
       %(name,
       email,
       output_dir,
@@ -221,6 +222,16 @@ def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
       shell,
       call)
 
+   else:
+      return "qsub -N %s -m a -o %s -e %s -l h_vmem=%sg -p %d %s -S %s %s"\
+      %(name,
+      output_dir,
+      output_dir,
+      mem_usage,
+      priority,
+      flags,
+      shell,
+      call)
 
 
 def _sftp(local_path, remote_path, hostname=None, username=None, password=None,
