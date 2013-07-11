@@ -128,7 +128,19 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # Use the solver you created upon initialization:
         return self.solver.fit(design_matrix, sig).coef_
 
-        
+    @desc.auto_attr
+    def design_matrix(self):
+        """
+        Abstract the design matrix out
+        """
+        iso_regressor, tensor_regressor, fit_to = self.regressors
+        # We fit the deviations from the mean signal, which is why we also
+        # demean each of the basis functions and transpose (regressors on
+        # columns, instead of on rows):
+        design_matrix = tensor_regressor.T - np.mean(tensor_regressor, -1)
+        return design_matrix
+
+    
     @desc.auto_attr
     def model_params(self):
         """
@@ -157,26 +169,18 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                 # We have to be a bit (too) clever here, so that the indexing
                 # below works out:
                 fit_to = np.array([fit_to]).T
-                
-            # We fit the deviations from the mean signal, which is why we also
-            # demean each of the basis functions:
-            design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
-
-            # One basis function per column (instead of rows):
-            design_matrix = design_matrix.T
 
             # One weight for each rotation
             params = np.empty((self._n_vox, self.rotations.shape[0]))
                 
             for vox in xrange(self._n_vox):
                 # Call out to the core fitting routine: 
-                params[vox] = self._fit_it(fit_to.T[vox], design_matrix)
+                params[vox] = self._fit_it(fit_to.T[vox], self.design_matrix)
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
-
                     
             out_params = ozu.nans((self.signal.shape[:3] + 
-                                        (design_matrix.shape[-1],)))
+                                        (self.design_matrix.shape[-1],)))
             
             out_params[self.mask] = params
             # Save the params to a file: 
@@ -208,19 +212,16 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             print(msg)
         
         iso_regressor, tensor_regressor, fit_to = self.regressors
-
-        design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
-        design_matrix = design_matrix.T
         out_flat = np.empty(self._flat_signal.shape)
         
         for vox in xrange(self._n_vox):
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0             
             if self.mode == 'log':
-                this_relative=np.exp(np.dot(this_params, design_matrix.T)+
+                this_relative=np.exp(np.dot(self.design_matrix, this_params)+
                                      np.mean(fit_to.T[vox]))
             else:     
-                this_relative = (np.dot(this_params, design_matrix.T) + 
+                this_relative = (np.dot(self.design_matrix, this_params) + 
                                  np.mean(fit_to.T[vox]))
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):
@@ -247,21 +248,21 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             msg += " with %s"%self.solver
             print(msg)
 
+        # For this one, we need a different design matrix, which we calculate
+        # here now:
         design_matrix = self._calc_rotations(vertices)
-        design_matrix = design_matrix - np.mean(design_matrix, 0)
-        design_matrix = design_matrix.T
+        design_matrix = design_matrix.T - np.mean(design_matrix, -1)
         
         iso_regressor, tensor_regressor, fit_to = self.regressors
-
         out_flat = np.empty((self._flat_signal.shape[0], vertices.shape[-1]))
         for vox in xrange(out_flat.shape[0]):
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0 
             if self.mode == 'log':
-                this_relative=np.exp(np.dot(this_params, design_matrix.T)+
+                this_relative=np.exp(np.dot(design_matrix, this_params)+
                                      np.mean(fit_to.T[vox]))
             else:     
-                this_relative = (np.dot(this_params, design_matrix.T) + 
+                this_relative = (np.dot(design_matrix, this_params) + 
                                  np.mean(fit_to.T[vox]))
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):

@@ -267,6 +267,7 @@ class CanonicalTensorModel(BaseModel):
         """
         return self._calc_rotations(self.bvecs[:, self.b_idx])
 
+
     @desc.auto_attr
     def regressors(self):
         """
