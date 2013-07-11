@@ -133,14 +133,12 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         """
         Abstract the design matrix out
         """
-        iso_regressor, tensor_regressor, fit_to = self.regressors
-        # We fit the deviations from the mean signal, which is why we also
-        # demean each of the basis functions and transpose (regressors on
-        # columns, instead of on rows):
-        design_matrix = tensor_regressor.T - np.mean(tensor_regressor, -1)
-        return design_matrix
+        # We fit the deviations from the mean signal, so we demean each of the
+        # basis functions and we transpose, so that we have the  regressors on
+        # columns, instead of on the rows (which is how they are generated): 
+        return self.rotations.T - np.mean(self.rotations, -1)
 
-    
+
     @desc.auto_attr
     def model_params(self):
         """
