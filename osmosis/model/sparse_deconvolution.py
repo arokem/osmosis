@@ -45,6 +45,7 @@ from osmosis.model.canonical_tensor import CanonicalTensorModel, AD, RD
 from osmosis.model.base import SCALE_FACTOR
 from osmosis.model.io import params_file_resolver
 
+import osmosis.model.dti as dti
 
 
 class SparseDeconvolutionModel(CanonicalTensorModel):
@@ -652,9 +653,50 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
             out[self.mask] = out_flat
             return out
 
+
+def tensor_reliability(SD_1, SD_2, wm_mask):
+    """ 
+    given two SD models, calculate the reliability of the PDD of the derived
+    tensor models
+
+    Parameters
+    ----------
+
+    SD_1, SD_2 : SparseDeconvolutionModel class instances
+
+    wm_mask : ndarray
+
+    Returns
+    -------
+
+    pdd_rel : ndarray
+       The angular difference between the PDD of the two tensor models fit to
+       the predicted data from each of the SD models.
+    
+    """
+    pred1 = np.concatenate([SD_1.S0[...,np.newaxis], SD_1.fit], -1)
+    pred2 = np.concatenate([SD_2.S0[...,np.newaxis], SD_2.fit], -1)
+    
+    new_bvecs1 = np.concatenate([np.array([[0,0,0]]).T,
+                                 SD_1.bvecs[:, SD_1.b_idx]], -1)
+    new_bvecs2 = np.concatenate([np.array([[0,0,0]]).T,
+                                 SD_2.bvecs[:, SD_2.b_idx]], -1)
+    
+    # Freely assume that the bvals are the same 
+    new_bvals = np.hstack([0, SD_1.bvals[:,SD_1.b_idx]])
+
+    # 
+    TM1 = dti.TensorModel(pred1, new_bvecs1, new_bvals,
+                          mask=wm_mask, params_file='temp')
+    TM2 = dti.TensorModel(pred2, new_bvecs2, new_bvals, mask=wm_mask,
+                          params_file='temp')
+
+    pdd_rel = oza.pdd_reliability(TM1, TM2)
+    return pdd_rel
+
+
 # The following is stuff to allow tracking with this model, using the dipy
-# tracking API:
-        
+# tracking API:        
 class SparseDeconvolutionFitter(object):
     """
     This class conforms to the requirements of the dipy tracking API, so that
@@ -707,3 +749,6 @@ class SparseDeconvolutionFitter(object):
         self.cache.model_params = self.cache._fit_it(fit_to, design_matrix)
             
         return self.cache
+
+
+
