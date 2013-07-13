@@ -85,7 +85,7 @@ fig.axes[0].plot([1/np.sqrt(2),1/np.sqrt(2)], fig.axes[0].get_ylim(), '--k')
 fig.axes[0].set_xlim([0.6,1.4])
 plt.legend()
 
-fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure4_histogram.svg')
+fig.savefig('figures/Figure4_histogram.svg')
 
 # <codecell>
 

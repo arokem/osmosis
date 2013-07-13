@@ -13,7 +13,6 @@ import osmosis.model.dti as dti
 
 import osmosis.viz.mpl as mpl
 
-
 # <codecell>
 
 import os
@@ -118,7 +117,7 @@ for b in [1000, 2000, 4000]:
     cax.axes.set_ylabel(r'$\alpha$')
     im = ax.matshow(rmse_matrix[b], cmap=matplotlib.cm.RdYlGn_r)
     fig.set_size_inches([8,6])
-    fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure5_acc_b%s.svg'%b)
+    fig.savefig('figures/Figure5_acc_b%s.svg'%b)
     plt.colorbar(im)
 rmse_matrix[1000]
 
@@ -170,7 +169,7 @@ for b in [1000, 2000, 4000]:
     cax.axes.set_ylabel(r'$\alpha$')
     #ax.matshow(rmse_matrix[b], cmap=matplotlib.cm.hot)
     fig.set_size_inches([8,6])
-    fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure5_rel_b%s.svg'%b)
+    fig.savefig('figures/Figure5_rel_b%s.svg'%b)
 
 # <codecell>
 

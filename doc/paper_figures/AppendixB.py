@@ -62,7 +62,7 @@ ax.set_xlabel('RMSE')
 ax.set_ylabel('P(RMSE)')
 plt.legend()
 ax.text(80, 0.05, 'median(1000): %2.2f \nmedian(2000): %2.2f \nmedian(4000): %2.2f'%(np.median(rmse1k), np.median(rmse2k), np.median(rmse4k)))
-fig.savefig('/home/arokem/Dropbox/rmse_distributions.svg')
+fig.savefig('figures/rmse_distributions.svg')
 
 # <codecell>
 
@@ -85,7 +85,7 @@ ax.set_xlim([900, 4500])
 ax.set_ylim([10,100])
 ax.set_xticks([1000,2000,4000])
 ax.loglog()
-fig.savefig('/home/arokem/Dropbox/rmse_bars.svg')
+fig.savefig('figures/rmse_bars.svg')
 
 # <codecell>
 
@@ -116,7 +116,7 @@ ax.set_xlabel('SNR')
 ax.set_ylabel('P(SNR)')
 plt.legend()
 ax.text(20, 0.20, 'median(1000): %2.2f \nmedian(2000): %2.2f \nmedian(4000): %2.2f'%(np.median(snr1k), np.median(snr2k), np.median(snr4k)))
-fig.savefig('/home/arokem/Dropbox/snr_distributions.svg')
+fig.savefig('figures/snr_distributions.svg')
 
 # <codecell>
 
@@ -137,5 +137,5 @@ ax.set_xticks([1000,2000,4000])
 
 
 ax.loglog()
-fig.savefig('/home/arokem/Dropbox/snr_bars.svg')
+fig.savefig('figures/snr_bars.svg')
 

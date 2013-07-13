@@ -54,7 +54,7 @@ fig.axes[0].plot([1,1], [ax.get_ylim()[0], ax.get_ylim()[1]], '--k')
 fig.axes[0].plot([1/np.sqrt(2),1/np.sqrt(2)], [ax.get_ylim()[0], ax.get_ylim()[1]], '--k')
 
 plt.legend()
-fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure2_histogram.svg')
+fig.savefig('figures/Figure2_histogram.svg')
 
 # <codecell>
 
@@ -81,7 +81,7 @@ for ax, models in zip(axes,([TM_1k_1,TM_1k_2],[TM_2k_1, TM_2k_2],[TM_4k_1, TM_4k
     
 fig.set_size_inches([10,10])
 
-fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure2_scatter_self.svg')
+fig.savefig('figures/Figure2_scatter_self.svg')
 
 # <codecell>
 
@@ -96,6 +96,6 @@ for ax, models in zip(axes,([TM_1k_1,TM_1k_2],[TM_2k_1, TM_2k_2],[TM_4k_1, TM_4k
 axes[0].set_ylabel(r'Predicted $\frac{S}{S_0}$')    
 fig.set_size_inches([10,10])
 
-fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/Figure2_scatter_cross.svg')
+fig.savefig('figures/Figure2_scatter_cross.svg')
 print rrmse_1k[vox_idx],rrmse_2k[vox_idx], rrmse_4k[vox_idx]
 

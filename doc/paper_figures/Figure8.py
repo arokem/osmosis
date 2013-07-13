@@ -51,7 +51,6 @@ for bval in bvals_to_test:
     b_idx.append(np.where(bvals[-1]>0)[0])
 
 mask = oio.get_wm_mask(oio.data_path + '/%s/%s_wm_mask.nii.gz'%(subject, subject), resample=data1[0])
-#mask = oio.get_wm_mask(oio.data_path + '/%s/tensor_sucks.nii.gz'%(subject), resample=data1[0])
 
 # <codecell>
 
@@ -296,7 +295,7 @@ for yy, w_bal in enumerate(weights):
 
 
 fig.set_size_inches([10,6])
-fig.savefig('/home/arokem/Dropbox/sim_small_mults.svg')
+fig.savefig('figures/sim_small_mults.svg')
 
 # <codecell>
 
@@ -315,7 +314,7 @@ for yy, w_bal in enumerate(weights):
     ax[0].set_ylabel('Reliability (degrees)')
     #ax[-1].legend()
     fig.set_size_inches([13, 4])
-    fig.savefig('/home/arokem/Dropbox/sim_rel.svg')
+    fig.savefig('figures/sim_rel.svg')
 
 # <codecell>
 
@@ -334,8 +333,5 @@ for yy, w_bal in enumerate(weights):
     ax[0].set_ylabel('Accuracy (degrees)')
     #ax[-1].legend()
     fig.set_size_inches([13, 4])
-    fig.savefig('/home/arokem/Dropbox/sim_acc.svg')
-
-# <codecell>
-
+    fig.savefig('figures/sim_acc.svg')
 

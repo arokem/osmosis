@@ -83,7 +83,7 @@ cbar.set_ticks([0,1,2,3])
 cbar.set_ticklabels([1,10,100,1000])
 
 fig.set_size_inches([10,10])
-#fig.savefig('/home/arokem/Dropbox/scatter_rrmse_1k.svg')
+fig.savefig('figures/scatter_rrmse_1k.svg')
 fig_hist = viz.probability_hist(dtm_rrmse_1k[idx] - sfm_rrmse_1k[idx])
 fig_hist.set_size_inches([8,6])
 
@@ -98,7 +98,7 @@ cbar.set_ticks([0,1,2,3])
 cbar.set_ticklabels([1,10,100,1000])
 
 fig.set_size_inches([10,10])
-#fig.savefig('/home/arokem/Dropbox/scatter_rrmse_2k.svg')
+fig.savefig('figures/scatter_rrmse_2k.svg')
 
 # <codecell>
 
@@ -111,7 +111,7 @@ cbar.set_ticks([0,1,2,3])
 cbar.set_ticklabels([1,10,100,1000])
 
 fig.set_size_inches([10,10])
-#fig.savefig('/home/arokem/Dropbox/scatter_rrmse_4k.svg')
+fig.savefig('figures/scatter_rrmse_4k.svg')
 
 # <codecell>
 
@@ -207,7 +207,7 @@ ax.set_xlim([0.8, 9])
 ax.grid()
 ax.set_xticks([0])
 fig.set_size_inches([10,6])
-fig.savefig('/home/arokem/Dropbox/osmosis_paper_figures/rrmse_bars.svg')
+fig.savefig('figures/rrmse_bars.svg')
 
 # <codecell>
 
