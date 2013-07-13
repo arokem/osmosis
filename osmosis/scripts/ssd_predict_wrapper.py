@@ -25,68 +25,48 @@ data_path = '/hsgs/u/arokem/tmp/'
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 batch_sge = []
-for subject in ['FP']: #,'HT']
-    data_1k_1, data_1k_2 = oio.get_dwi_data(1000, subject)
-    data_2k_1, data_2k_2 = oio.get_dwi_data(2000, subject)
-    data_4k_1, data_4k_2 = oio.get_dwi_data(4000, subject)
-
-    data_fnames = {1000:[data_1k_1, data_1k_2],
-                   2000:[data_2k_1, data_2k_2],
-                   4000:[data_4k_1, data_4k_2]}
-
-    data_fnames = {1000:[data_1k_1, data_1k_2],
-                   2000:[data_2k_1, data_2k_2],
-                   4000:[data_4k_1, data_4k_2]}
-    
+for subject in ['FP']: #,'HT']    
     wm_file = "%s_wm_mask.nii.gz"%subject
     for b in [1000, 2000, 4000]:
-        ad_rd = oio.get_ad_rd(subject, b)
-        for data_i, data in enumerate(oio.get_dwi_data(b, subject)):
-            file_stem = (data_path + '%s/'%subject +
-                         data[0].split('/')[-1].split('.')[0])
-            for l1_ratio in l1_ratios:
-                for alpha in alphas:
-                    for i in range(int(n_wm_vox/10000)+2):
-                        params_file1 ="%s_SSD_l1ratio%s_alpha%s.nii.gz"%(
-                            data_path +
-                            '/%s/'%subject +
-                            data_fnames[b][0][0].split('/')[-1].split('.')[0],
-                            l1_ratio, alpha)
+        data = oio.get_dwi_data(b, subject)
+        file_stems = [data_path + '%s/'%subject +
+                      d[0].split('/')[-1].split('.')[0] for d in data]
+        for l1_ratio in l1_ratios:
+            for alpha in alphas:
+                
+                params_file1 ="%s_SSD_l1ratio%s_alpha%s.nii.gz"%(
+                    file_stems[0],
+                    l1_ratio, alpha)
 
 
-                        params_file2="%s_SSD_l1ratio%s_alpha%s.nii.gz"%(
-                            data_path +
-                            '/%s/'%subject +
-                            data_fnames[b][1][0].split('/')[-1].split('.')[0],
-                            l1_ratio, alpha)
+                params_file2="%s_SSD_l1ratio%s_alpha%s.nii.gz"%(
+                    file_stems[1],
+                    l1_ratio, alpha)
 
-                        params_dict =  dict(
-                            data_path=data_path,
-                            subject=subject,
-                            data=data_fnames,
-                            b=b,
-                            l1_ratio=l1_ratio,
-                            alpha=alpha,
-                            ad=ad_rd[data_i]['AD'],
-                            rd=ad_rd[data_i]['RD'],
-                            wm_file=wm_file,
-                            params_file1=params_file1,
-                            params_file2=params_file2)
-                                    
-                        code = sge.add_params(template, params_dict)
-                        name ='ssd_predict%s_b%s_l1ratio%s_alpha%s_%03d'%(
-                            subject, b, l1_ratio, alpha, i)
-                        cmd_file = '/home/arokem/pycmd/%s.py'%name
-                        print("Generating: %s"%cmd_file)
+                params_dict =  dict(
+                    data_path=data_path,
+                    subject=subject,
+                    b=b,
+                    l1_ratio=l1_ratio,
+                    alpha=alpha,
+                    wm_file=wm_file,
+                    params_file1=params_file1,
+                    params_file2=params_file2)
+                
+                code = sge.add_params(template, params_dict)
+                name ='ssd_predict%s_b%s_l1ratio%s_alpha%s'%(
+                    subject, b, l1_ratio, alpha)
+                cmd_file = '/home/arokem/pycmd/%s.py'%name
+                print("Generating: %s"%cmd_file)
                         
-                        sge.py_cmd(ssh,
-                                   code,
-                                   file_name=cmd_file,
-                                   python='/home/arokem/anaconda/bin/python')
+                sge.py_cmd(ssh,
+                           code,
+                           file_name=cmd_file,
+                           python='/home/arokem/anaconda/bin/python')
 
-                        cmd_file = '/home/arokem/pycmd/%s.py'%name
-                        batch_sge.append(sge.qsub_cmd(
-                            '/home/arokem/bashcmd.sh %s'%cmd_file,name))
+                cmd_file = '/home/arokem/pycmd/%s.py'%name
+                batch_sge.append(sge.qsub_cmd(
+                        '/home/arokem/bashcmd.sh %s'%cmd_file,name))
 
 # Add some header stuff:
 #batch_sge = ['export PATH=$PATH:/hsgs/software/oge2011.11p1/bin/linux-x64/'] + batch_sge
