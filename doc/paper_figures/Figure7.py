@@ -16,21 +16,22 @@ from IPython.display import Image, display
 
 import nibabel as ni
 
-import osmosis as oz
 import osmosis.model.analysis as ozm
 import osmosis.model.dti as dti
 import osmosis.model.sparse_deconvolution as ssd
-
-
 import osmosis.viz.maya as maya
-reload(maya)
 import osmosis.viz.mpl as mpl
 
 import osmosis.utils as ozu
 import osmosis.volume as ozv
-import osmosis.io as oio
-oio.data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis'
 import osmosis.tensor as ozt
+
+# <codecell>
+
+import os
+import osmosis as oz
+import osmosis.io as oio
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

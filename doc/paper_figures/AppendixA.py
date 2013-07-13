@@ -4,20 +4,22 @@
 # <codecell>
 
 # This takes a (very long) while to run unless the tools in osmosis.parallel are 
-# used to parallelize the computation of all the 
+# used to parallelize the computation of all the parameter computations.
 
 import nibabel as ni
-import os
-
-import osmosis as oz
 import osmosis.model.analysis as oza
 import osmosis.model.sparse_deconvolution as ssd
 import osmosis.model.dti as dti
 
 import osmosis.viz.mpl as mpl
 
+
+# <codecell>
+
+import os
+import osmosis as oz
 import osmosis.io as oio
-oio.data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis'
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

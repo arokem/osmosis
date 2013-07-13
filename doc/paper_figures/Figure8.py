@@ -19,11 +19,15 @@ import osmosis.utils as ozu
 import osmosis.viz.maya as maya
 import osmosis.viz.mpl as mpl
 import osmosis.simulation as sim
-import osmosis.io as oio
 
 import osmosis.tensor as ozt
 
-oio.data_path = '/home/arokem/data/osmosis/'
+# <codecell>
+
+import os
+import osmosis as oz
+import osmosis.io as oio
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

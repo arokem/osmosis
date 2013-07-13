@@ -4,14 +4,16 @@
 # <codecell>
 
 import nibabel as ni
-
-import osmosis as oz
 import osmosis.model.analysis as oza
 import osmosis.model.dti as dti
 import osmosis.viz.mpl as mpl
 
+# <codecell>
+
+import os
+import osmosis as oz
 import osmosis.io as oio
-oio.data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis'
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

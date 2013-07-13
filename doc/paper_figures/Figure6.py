@@ -14,12 +14,17 @@ import tempfile
 from IPython.display import Image, display
 import nibabel as ni
 
-import osmosis as oz
 import osmosis.viz.maya as viz
 import osmosis.utils as ozu
-import osmosis.io as oio
 import osmosis.model.sparse_deconvolution as ssd
 import osmosis.model.analysis as oza
+
+# <codecell>
+
+import os
+import osmosis as oz
+import osmosis.io as oio
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

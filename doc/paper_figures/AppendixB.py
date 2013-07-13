@@ -7,16 +7,18 @@ import scipy.stats as stats
 
 import nibabel as ni
 
-import osmosis as oz
 import osmosis.viz.mpl as viz
-reload(viz)
 import osmosis.utils as ozu
-import osmosis.io as oio
 import osmosis.model.sparse_deconvolution as ssd
 import osmosis.model.dti as dti
 import osmosis.model.analysis as oza
 
-oio.data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis'
+# <codecell>
+
+import os
+import osmosis as oz
+import osmosis.io as oio
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 

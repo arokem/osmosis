@@ -5,16 +5,17 @@
 
 import nibabel as ni
 
-import osmosis as oz
 import osmosis.model.analysis as oza
 import osmosis.model.sparse_deconvolution as ssd
 import osmosis.model.dti as dti
-
 import osmosis.viz.mpl as mpl
 
-import osmosis.io as oio
+# <codecell>
 
-oio.data_path = '/biac4/wandell/biac2/wandell6/data/arokem/osmosis'
+import os
+import osmosis as oz
+import osmosis.io as oio
+oio.data_path = os.path.join(oz.__path__[0], 'data')
 
 # <codecell>
 
