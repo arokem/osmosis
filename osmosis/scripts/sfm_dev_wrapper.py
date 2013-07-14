@@ -110,7 +110,7 @@ dwi_dirs =\
     '/biac4/wandell/biac2/wandell2/data/WH/089_SM/DTI/dti96ls',
     ]
 
-
+batch_sge = []
 for this_dir in dwi_dirs:
     params_dict =  dict(this_dir=this_dir)
     code = sge.add_params(template,params_dict)
