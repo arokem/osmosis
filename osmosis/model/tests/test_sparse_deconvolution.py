@@ -1,5 +1,6 @@
 import os
 import tempfile
+import os
 
 import numpy as np
 import numpy.testing as npt
@@ -27,15 +28,16 @@ def test_SparseDeconvolutionModel():
     # Only two voxels:
     mask_array[1:3, 1:3, 1:3] = 1
 
+    params_file = tempfile.NamedTemporaryFile().name
     SSD = SparseDeconvolutionModel(data,
                                    data_path + 'dwi.bvecs',
                                    data_path + 'dwi.bvals',
                                    mask=mask_array,
-        params_file=tempfile.NamedTemporaryFile().name)
+                                   params_file=params_file)
     
     # XXX Smoke testing only
     npt.assert_equal(SSD.fit.shape, SSD.signal.shape)
-
+    
     # Fit this on some real dwi data
     for mode in ['signal_attenuation', 'relative_signal', 'normalize', 'log']:
         for params_file in [None, tempfile.NamedTemporaryFile().name, 'temp']:
