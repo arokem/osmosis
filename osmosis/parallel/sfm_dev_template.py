@@ -19,4 +19,4 @@ if __name__=="__main__":
                                      force_recompute=True)
 
     nib.Nifti1Header(M.dispersion_index(), M.affine).to_filename(
-                          M.params_file.split('.')[0] + "_DI.nii.gz")
+                          M.params_file.split(".")[0] + "_DI.nii.gz")
