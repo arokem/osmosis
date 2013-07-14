@@ -21,3 +21,6 @@ if __name__=="__main__":
 
     nib.Nifti1Header(M.dispersion_index(), M.affine).to_filename(
                           M.params_file.split(".")[0] + "_DI.nii.gz")
+
+    nib.Nifti1Header(np.sum(M.model_params, -1), M.affine).to_filename(
+                          M.params_file.split(".")[0] + "_FVF.nii.gz")
