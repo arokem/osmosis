@@ -68,7 +68,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                  sub_sample=None,
                  over_sample=None,
                  mode='relative_signal',
-                 verbose=True):
+                 verbose=True,
+                 force_recompute=False):
         """
         Initialize SparseDeconvolutionModel class instance.
         """
@@ -120,6 +121,11 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # We reuse the same class instance in all voxels: 
         self.solver = this_solver(**self.solver_params)
 
+        # This is only here for now, but should be implemented in the
+        # base-class (all the way up?) and generalized in a wrapper to model
+        # params, I believe. 
+        self.force_recompute = force_recompute
+
     def _fit_it(self, fit_to, design_matrix):
         """
         The core fitting routine
@@ -148,7 +154,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
         """
         # The file already exists: 
-        if os.path.isfile(self.params_file):
+        if os.path.isfile(self.params_file) and not self.force_recompute:
             if self.verbose:
                 print("Loading params from file: %s"%self.params_file)
             # Get the cached values and be done with it:
