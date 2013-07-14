@@ -114,7 +114,7 @@ dwi_dirs =\
 for this_dir in dwi_dirs:
     params_dict =  dict(this_dir=this_dir)
     code = sge.add_params(template,params_dict)
-    name = 'sfm_dev_%s'%(name)
+    name = 'sfm_dev_%s'%(this_dir.split('/')[7])
     cmd_file = '/home/arokem/pycmd/%s.py'%name
     print("Generating: %s"%cmd_file)
 
