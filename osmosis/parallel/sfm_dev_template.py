@@ -8,11 +8,11 @@ import os
 import numpy as np
 
 if __name__=="__main__":
-    dt6 = sio.loadmat(os.path.join(this_dir, 'dt6.mat'),
+    dt6 = sio.loadmat(os.path.join(this_dir, "dt6.mat"),
                       squeeze_me=True)
-    data = [str(x) for x in [dt6['files']['alignedDwRaw'],
-                             dt6['files']['alignedDwBvecs'],
-                             dt6['files']['alignedDwBvals']]]
+    data = [str(x) for x in [dt6["files"]["alignedDwRaw"],
+                             dt6["files"]["alignedDwBvecs"],
+                             dt6["files"]["alignedDwBvals"]]]
 
     M = sfm.SparseDeconvolutionModel(*data,
                                      axial_diffusivity=1.5,
