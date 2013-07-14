@@ -3,6 +3,7 @@
 # this_dir
 import osmosis.model.sparse_deconvolution as sfm
 import nibabel as nib
+import scipy.io as sio
 import os
 import numpy as np
 
