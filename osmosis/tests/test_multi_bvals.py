@@ -2,7 +2,7 @@ import numpy as np
 import osmosis.tensor as ozt
 import numpy.testing as npt
 
-import osmosis.multi_bvals as sfm_mb
+import osmosis.alt_multi_bvals as sfm_mb
 
 # Mock b value array to be used in all tests
 bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
@@ -82,26 +82,41 @@ def test__flat_relative_signal():
     npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_t[1]])
         
 def test_regressors():
-    tensor_regressor_list_t = [mb.rotations(0), mb.rotations(1)]
-    _, tensor_regressor_list_a, fit_to_list_a = mb.regressors
+    _, tensor_regressor_a, design_matrix_a, fit_to_a, fit_to_means_a = mb.regressors
 
-    fit_to_list_t = list()
+    fit_to_t = np.empty((np.sum(mask_t), len(bvals_scaled_t[3:])))
+    fit_to_means = np.empty((np.sum(mask_t), len(bval_ind_t[3:])))
+    
+    n_columns = len(bvals_scaled_t[np.where(bvals_scaled_t > 0)])
+    tensor_regressor_t = np.empty((n_columns, n_columns))
+    design_matrix_t = np.empty(tensor_regressor_t.shape)
     for idx, b in enumerate(unique_b_t[1:]):
-        fit_to_list_t.append(mb._flat_relative_signal[:,bval_ind_t[1:][idx]].T)
-        npt.assert_equal(tensor_regressor_list_t[idx], tensor_regressor_list_a[idx])
-        npt.assert_equal(fit_to_list_t[idx], fit_to_list_a[idx])
+        this_fit_to = mb._flat_relative_signal[:, bval_ind_t[1:][idx]].T
+        for vox in np.arange(4):
+            fit_to_t[vox, bval_ind_rm0_t[idx]]  = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
+            
+            # Check tensor regressors
+            this_tensor_regressor = mb.rotations(idx)
+            tensor_regressor_t[bval_ind_rm0_t[idx]] = this_tensor_regressor.T
+            
+            #Check design matrix
+            this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
+            design_matrix_t[bval_ind_rm0_t[idx]] = this_design_matrix
+            
+    npt.assert_equal(tensor_regressor_t, tensor_regressor_a)
+    npt.assert_equal(fit_to_t, fit_to_a)
         
-    return tensor_regressor_list_t, fit_to_list_t
+    return tensor_regressor_t, design_matrix_t, fit_to_t
     
 def test__n_vox():
     npt.assert_equal(4, mb._n_vox)
 
 def test_design_matrix():
-    _, tensor_regressor_list_a, fit_to_list_a = mb.regressors
+    _, tensor_regressor_a, design_matrix_a, _, _ = mb.regressors
     
     for bi in np.arange(len(mb.b_inds_rm0)):
         evals_a, evecs_a = mb.response_function(bi).decompose
-        this_tr = mb.design_matrix[mb.b_inds_rm0[bi]] + np.mean(tensor_regressor_list_a[bi], -1)
+        this_tr = design_matrix_a[mb.b_inds_rm0[bi]] + np.mean(tensor_regressor_a[mb.b_inds_rm0[bi]], 0)
         for rv in np.arange(len(mb.rot_vecs[:,3:8].T)):
             # Check to see if contents of the rotational vectors are equal to the
             # predicted signal
@@ -110,17 +125,15 @@ def test_design_matrix():
             npt.assert_equal(this_tr[:,0],this_rot.predicted_signal(1))
             
             # Test to see if the mean across the vertices of the design matrix == 0
-            mean_3rot = np.mean(mb.design_matrix[bval_ind_rm0_t[bi]][:,rv])
+            mean_3rot = np.mean(design_matrix_a[bval_ind_rm0_t[bi]][:,rv])
             npt.assert_equal(mean_3rot<1*10**-10,1)
 
 def test_model_params():
-    _, fit_to_list_t = test_regressors()
+    _, _, fit_to_t = test_regressors()
+    _, _, design_matrix_a, _, _ = mb.regressors
 
-    this_fit_to = np.empty(5)
-    for bi in np.arange(len(bval_ind_rm0_t)):
-        this_fit_to[bval_ind_rm0_t[bi]] = fit_to_list_t[bi].T[0] - np.mean(fit_to_list_t[bi].T[0])
-
-    npt.assert_equal(mb._fit_it(this_fit_to, mb.design_matrix), mb.model_params[mb.mask][0])
+    npt.assert_equal(mb._fit_it(fit_to_t[0], design_matrix_a), 
+                        mb.model_params[mb.mask][0])
     
 def test_fit():
     diff_means = np.mean(data_t[0,0,0,3:8]) - np.mean(mb.fit[np.where(mask_t)][0])
