@@ -19,8 +19,8 @@ if __name__=="__main__":
                                      radial_diffusivity=0.5,
                                      force_recompute=True)
 
-    nib.Nifti1Header(M.dispersion_index(), M.affine).to_filename(
+    nib.Nifti1Image(M.dispersion_index(), M.affine).to_filename(
                           M.params_file.split(".")[0] + "_DI.nii.gz")
 
-    nib.Nifti1Header(np.sum(M.model_params, -1), M.affine).to_filename(
+    nib.Nifti1Image(np.sum(M.model_params, -1), M.affine).to_filename(
                           M.params_file.split(".")[0] + "_FVF.nii.gz")
