@@ -73,13 +73,13 @@ def test_relative_signal():
     sig_t = data_t[...,np.array([4,5,7])]
     signal_rel_t = sig_t/np.reshape(S0_t, (2,2,2,1))
 
-    npt.assert_equal(signal_rel_t, mb.relative_signal(bval_ind_t[1]))
+    npt.assert_equal(signal_rel_t, mb.relative_signal[..., bval_ind_t[1]])
     
     return signal_rel_t
     
 def test__flat_relative_signal():
     out_flat = test_relative_signal()[np.where(mask_t)]
-    npt.assert_equal(out_flat, mb._flat_relative_signal(bval_ind_t[1]))
+    npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_t[1]])
         
 def test_regressors():
     tensor_regressor_list_t = [mb.rotations(0), mb.rotations(1)]
@@ -87,7 +87,7 @@ def test_regressors():
 
     fit_to_list_t = list()
     for idx, b in enumerate(unique_b_t[1:]):
-        fit_to_list_t.append(mb._flat_relative_signal(bval_ind_t[1:][idx]).T)
+        fit_to_list_t.append(mb._flat_relative_signal[:,bval_ind_t[1:][idx]].T)
         npt.assert_equal(tensor_regressor_list_t[idx], tensor_regressor_list_a[idx])
         npt.assert_equal(fit_to_list_t[idx], fit_to_list_a[idx])
         

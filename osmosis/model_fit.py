@@ -52,7 +52,7 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
         
     # Find the property values for each grouped b values
     idx_mask = np.where(mask)
-    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask, bvals)
+    log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask)
     
     # Fit a first order least squares solution to the specified property versus
     # b value to obtain slopes
@@ -60,6 +60,12 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     
     # Display slopes of property on a mosaic
     slopeProp_all = disp_slopes(mask, ls_fit, prop)
+    
+    # Save all the values
+    np.save('slope{0}_all.npy'.format(prop), slopeProp_all)
+    np.save('log_{0}.npy'.format(prop), log_prop)
+    np.save('ls_fit_{0}.npy'.format(prop), ls_fit[0])
+    np.save('unique_b.npy', unique_b)
     
     return slopeProp_all, log_prop, ls_fit, unique_b
 
@@ -85,7 +91,7 @@ def obtain_data(data, mask):
     """
     if hasattr(data, 'get_data'):
         data = data.get_data()
-        affine = data.get_affine()
+        #affine = data.get_affine()
         
     if mask is not 'None':
         if hasattr(mask, 'get_data'):
@@ -127,7 +133,7 @@ def include_b0vals(idx_array, bval_ind, bval_list):
         
     return bval_ind_wb0, bvals_wb0
 
-def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask, bvals):
+def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask):
     """
     Tensor model calculations of the given property
     
@@ -158,7 +164,6 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_w
     prop_dict = {'FA':'FA', 'MD':'MD', 'mean diffusivity':'MD',
                 'fractional anisotropy':'FA', 'dispersion index':'DI',
                 'DI':'DI'}
-    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
     
     log_prop = list()
     for k in idx_array[:len(idx_array)-1]:
@@ -178,9 +183,9 @@ def log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_w
             prop_val = tensor_prop.mean_diffusivity
             log_prop.append(np.log(prop_val[idx_mask] + 0.01))
         elif prop_dict[prop] is 'DI':
-            sfm_di = sfm.SparseDeconvolutionModel(data[:,:,:,bval_ind[k+1]], bvecs[:,bval_ind[k+1]], bval_list[k+1], mask = mask, params_file = params_file)
+            sfm_di = sfm.SparseDeconvolutionModel(data[:,:,:,bval_ind_wb0[k]], bvecs[:,bval_ind_wb0[k]], bvals_wb0[k], mask = mask, params_file = params_file)
             prop_val = sfm_di.dispersion_index()
-            log_prop.append(np.log(prop_val[idx_mask] + 0.01))
+            log_prop.append(prop_val[idx_mask] + 0.01)
             
     return log_prop
     

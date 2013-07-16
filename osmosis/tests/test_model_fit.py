@@ -59,7 +59,7 @@ def test_log_prop_vals():
     tensor_prop2 = dti.TensorModel(data_t[:,:,:,bval_ind_wb0_t[1]], bvecs_t[:,bval_ind_wb0_t[1]], bvals_wb0_t[1], mask = mask_t, params_file = 'temp')
     
     log_prop_t = [np.log(tensor_prop1.fractional_anisotropy[idx_mask_t]+0.01), np.log(tensor_prop2.fractional_anisotropy[idx_mask_t]+0.01)]
-    log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t, bvals_t)
+    log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t)
     
     npt.assert_equal(log_prop_t[0], log_prop_a[0])
     npt.assert_equal(log_prop_t[1], log_prop_a[1])

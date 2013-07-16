@@ -101,8 +101,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         self.bval_list_rm0, self.b_inds_rm0, self.unique_b_rm0, self.rounded_bvals_rm0 = separate_bvals(bvals, mode = 'remove0')
               
         if 0 in unique_b:
-            self.b0_list = bval_list[0];
-            self.b0_inds = b_inds[0];
+            self.b0_list = bval_list[0]
+            self.b0_idx = b_inds[0]
+            self.b0_inds = b_inds[0]
             ind = 1
         else:
             ind = 0
@@ -111,6 +112,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         self.b_inds = b_inds[ind:]
         self.unique_b = unique_b[ind:]
         self.all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        self.b_idx = self.all_b_idx
         self.rounded_bvals = rounded_bvals
         
         if over_sample is None:
@@ -183,20 +185,29 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         else:
             ind = 0
         bval_list = bval_list[ind:]
-        b_inds = b_inds[ind:]
         unique_b = unique_b[ind:]
         all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        
+        if len(unique_b) > 1:
+            b_inds = b_inds[ind:]
+            this_b_inds = b_inds[b_idx]
+            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
+            these_verts = vertices[:,this_b_inds]
+            these_bvals = np.squeeze(rounded_bvals)[this_b_inds]/1000
+        else:
+            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], 1))
+            this_b_inds = b_inds
+            these_verts = np.reshape(vertices, (3,1))
+            these_bvals = rounded_bvals/1000
                
-        if vertices.shape[0] == len(all_b_idx): 
-            these_bvals = rounded_bvals
+        #if vertices.shape[0] == len(all_b_idx): 
+            #these_bvals = rounded_bvals
         
         evals, evecs = self.response_function(b_idx).decompose
-
-        this_b_inds = b_inds[b_idx]                
-        out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-        for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):
+      
+        for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):               
             # bvec within the rotational vectors
-            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertices[:,this_b_inds], np.squeeze(rounded_bvals)[this_b_inds]/1000)
+            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, these_verts, these_bvals)
             pred_sig = this_rot.predicted_signal(1)
             
             if mode == 'distance':
@@ -232,58 +243,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         of the measurement). 
         """
         return self._calc_rotations(b_idx, self.rounded_bvals/1000, self.bvecs)
-        
-    @desc.auto_attr
-    def S0(self):
-        """
-        Extract and average the signal for volumes in which no b weighting was
-        used (b0 scans)
-        """
-        return np.mean(self.data[...,self.b0_inds],-1)
-        
-    def signal(self, b_inds):
-        """
-        The signal in b-weighted volumes
-        """
-        signal = self.data[...,b_inds]
-            
-        return signal
-        
-    def relative_signal(self, b_inds):
-        """
-        The signal in each b-weighted volume, relative to the mean
-        of the non b-weighted volumes
-        """
-        # Need to broadcast for this to work:
-        signal_rel = self.signal(b_inds)/np.reshape(self.S0, (self.S0.shape + (1,)))
-        # Convert infs to nans:
-        signal_rel[np.isinf(signal_rel)] = np.nan
-        
-        return signal_rel
-
-    def _flat_relative_signal(self, b_inds):
-        """
-        Get the flat relative signal only in the mask
-        """       
-        return np.reshape(self.relative_signal(b_inds)[self.mask],
-                         (-1, b_inds.shape[0]))
-
-
-    def signal_attenuation(self, b_inds):
-        """
-        The amount of attenuation of the signal. This is simply: 
-
-           1-relative_signal
-
-        """
-        return 1 - self.relative_signal(b_inds)
-
-    def _flat_signal_attenuation(self, b_inds):
-        """
-
-        """
-        return 1-self._flat_relative_signal(b_inds)
-              
+                                 
     @desc.auto_attr
     def regressors(self):
         """
@@ -293,16 +253,20 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         iso_pred_sig = list()
         iso_regressor_list = list()
-        fit_to_list = list()
+        #fit_to_list = np.empty((np.sum(self.mask), len(self.all_b_idx)))
+        
+        fit_to_list = []
+        
         tensor_regressor_list = list()
+        
         for idx, b in enumerate(self.unique_b):   
             iso_pred_sig.append(np.exp(-b * self.iso_diffusivity[idx]))
             if self.mode == 'signal_attenuation':
                 iso_regressor = 1 - iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
-                fit_to = self._flat_signal_attenuation(self.b_inds[idx]).T
+                fit_to = self._flat_signal_attenuation[:, self.b_inds[idx]].T
             elif self.mode == 'relative_signal':
                 iso_regressor = iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
-                fit_to = self._flat_relative_signal(self.b_inds[idx]).T
+                fit_to = self._flat_relative_signal[:, self.b_inds[idx]].T
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
@@ -313,7 +277,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 iso_regressor = (np.log(iso_pred_sig[idx]) *
                                 np.ones(self.rotations(idx).shape[0]))
                 fit_to = np.log(self._flat_relative_signal(self.b_inds[idx])).T
-            fit_to_list.append(fit_to)
+            fit_to_list.append(fit_to) # [:, self.b_inds[idx]] = fit_to
             iso_regressor_list.append(iso_regressor)
             
             # The tensor regressor always looks the same regardless of mode: 
@@ -389,7 +353,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # We fit the deviations from the mean signal, which is why we also
             # demean each of the basis functions:
             
-            # rot_vecs by vertices -> vertices by rot_vecs
 
 
             # One basis function per column (instead of rows):
@@ -412,8 +375,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # It doesn't matter what's in the last dimension since we only care
             # about the first 3.  Thus, just pick the array of signals from them
             # first b value.
-            out_params = ozu.nans((self.signal(self.b_inds[0]).shape[:3] + 
-                                        (self.design_matrix.shape[-1],)))
+            out_params = ozu.nans(self.signal.shape[:3] + 
+                                  (self.design_matrix.shape[-1],))
             
             out_params[self.mask] = params
             # Save the params to a file: 
@@ -494,7 +457,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # out_flat[vox] = a*this_pred_sig + b
             out_flat_arr[vox] = this_pred_sig
             
-        out = ozu.nans((self.signal(self.b_inds[0]).shape[:3] + 
+        out = ozu.nans((self.signal.shape[:3] + 
                          (self.design_matrix.shape[-1],)))
         out[self.mask] = out_flat_arr
 
@@ -516,26 +479,33 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         for mpi in np.arange(len(unique_b)):
             tensor_regressor = self._calc_rotations(mpi, new_bvals, vertices)
             this_design_matrix = tensor_regressor.T - np.mean(tensor_regressor, -1)
-            design_matrix[b_inds_rm0[mpi]] = this_design_matrix
+            # In case there is only one b value:
+            if len(unique_b) == 1:
+                design_matrix[b_inds_rm0] = np.squeeze(this_design_matrix)
+            else:
+                design_matrix[b_inds_rm0[mpi]] = this_design_matrix
             
         _, _, fit_to_list = self.regressors
         
-        fit_to = np.zeros(np.concatenate(fit_to_list,0).T.shape)
+        fit_to_mean = np.zeros((np.concatenate(fit_to_list,0).T.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
             for b_fi in np.arange(len(self.unique_b)):
-                fit_to[vox, self.b_inds_rm0[b_fi]] = np.mean(fit_to_list[b_fi].T[vox])
+                if len(unique_b) == 1:
+                    fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to_list[0])
+                else:
+                    fit_to_mean[vox, b_inds_rm0[b_fi]] = np.mean(fit_to_list[b_fi])
         
-        out_flat_arr = np.zeros(fit_to.shape)
+        out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
         for vox in xrange(self._n_vox):    
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0
             
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T) +
-                                    fit_to[vox])
+                                    fit_to_mean[vox])
             else:     
                 this_relative = (np.dot(this_params, design_matrix.T) +
-                                    fit_to[vox])
+                                    fit_to_mean[vox])
             if (self.mode == 'relative_signal' or self.mode=='normalize' or
                 self.mode=='log'):
                 this_pred_sig = this_relative * self._flat_S0[vox] # this_relative = S/S0
@@ -547,10 +517,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # out_flat[vox] = a*this_pred_sig + b
             out_flat_arr[vox] = this_pred_sig
             
-        out = ozu.nans(self.data[...,self.all_b_idx].shape)
-        out[self.mask] = out_flat_arr
+        #out = ozu.nans(self.data[...,self.all_b_idx].shape[:3] + (self.bvecs[:,self.all_b_idx].shape[-1],))
+        #out[self.mask] = out_flat_arr
 
-        return out
+        return out_flat_arr
         
     @desc.auto_attr
     def fit_angle(self):
