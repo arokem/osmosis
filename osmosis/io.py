@@ -637,12 +637,12 @@ def download_data():
     zf.extractall(path=osmosis_path)
 
 
-def get_t1(t1=data_path + 'FP/FP_t1.nii.gz', resample=None):
+def get_t1(subject, resample=None):
     """
     Get the high-res T1-weighted anatomical scan. If requested, resample it to
     the resolution of a nifti file for which the name is provided as input
     """
-
+    t1=data_path + '/%s/%s_t1.nii.gz'%(subject, subject)
     t1_nii = ni.load(t1)
     if resample is not None:
         return ozv.resample_volume(t1, resample).get_data()
