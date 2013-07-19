@@ -114,10 +114,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         self.all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
         self.b_idx = self.all_b_idx
         self.rounded_bvals = rounded_bvals
-        
-        #if over_sample is None:
-            ##self.rot_vecs = np.squeeze(self.bvecs[:, self.all_b_idx])
-            #self.rot_vecs = self.bvecs
             
         # Name the params file, if needed: 
         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
@@ -199,9 +195,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_b_inds = b_inds
             these_verts = np.reshape(vertices, (3,1))
             these_bvals = rounded_bvals/1000
-               
-        #if vertices.shape[0] == len(all_b_idx): 
-            #these_bvals = rounded_bvals
         
         evals, evecs = self.response_function(b_idx).decompose
       
@@ -299,11 +292,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
                 design_matrix[self.b_inds_rm0[idx]] = this_design_matrix
                 
-            #fit_to_list[:, self.b_inds[idx]] = fit_to
             iso_regressor_list.append(iso_regressor)
-            
-            # The tensor regressor always looks the same regardless of mode: 
-            #tensor_regressor_list[:, self.b_inds[idx]] = self.rotations(idx)
 
         return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
         
@@ -369,24 +358,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_fit_to = fit_to.T
             else:
                 this_fit_to = fit_to
-            
-            # We fit the deviations from the mean signal, which is why we also
-            # demean each of the basis functions:
-            
-
-
-            # One basis function per column (instead of rows):
-            # rot_vecs by vertices -> vertices by rot_vecs
-            # design_matrix = np.concatenate(self.design_matrix_list,-1).T
-            
+                       
             # One weight for each rotation
             params = np.empty((self._n_vox, self.rotations(0).shape[0]))
             
             for vox in xrange(self._n_vox):
+                params[vox] = self._fit_it(this_fit_to[vox], design_matrix)
                 if self.verbose:
                     prog_bar.animate(vox, f_name=f_name)
-                
-                params[vox] = self._fit_it(this_fit_to[vox], design_matrix)
             
             # It doesn't matter what's in the last dimension since we only care
             # about the first 3.  Thus, just pick the array of signals from them
@@ -404,22 +383,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
             # And return the params for current use:
             return out_params
-        
-        
-    #@desc.auto_attr    
-    #def design_matrix(self):
-        #""" 
-        
-        #"""
-        #_, tensor_regressor_list, _ = self.regressors
-        
-        #out = np.zeros(np.concatenate(tensor_regressor_list,-1).T.shape)
-        #for mpi in np.arange(len(self.unique_b)):
-            #this_design_matrix = tensor_regressor_list[mpi].T - np.mean(tensor_regressor_list[mpi], -1)
-            #out[self.b_inds_rm0[mpi]] = this_design_matrix
-        
-        #return out
-        
             
     @desc.auto_attr    
     def _flat_params(self):
