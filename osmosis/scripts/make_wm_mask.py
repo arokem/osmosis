@@ -32,7 +32,7 @@ from nipy.labs.datasets import as_volume_img
 
 import osmosis.model as ozm
 
-def make_wm_mask(seg_path, dwi_path, out_path, TensorModel):
+def make_wm_mask(seg_path, dwi_path, out_path, TensorModel, cutoff=2):
   """
   Function to make a conservative WM mask, excluding partial volumed
   voxels
@@ -42,6 +42,9 @@ def make_wm_mask(seg_path, dwi_path, out_path, TensorModel):
   seg_path : the full path to a white matter segmentation generated with the
   itkGray conventions (in particular, 3 and 4 are the classification for WM in
   left and right hemispheres).
+
+  cutoff : how many IQRs away from the median should we cut off from.
+  
   
   """
 
