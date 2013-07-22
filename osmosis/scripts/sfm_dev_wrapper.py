@@ -25,19 +25,19 @@ dwi_dirs =\
     ## '/biac4/wandell/biac2/wandell2/data/WH/003_SP/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/004_JY/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/005_KK/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/006_FP/DTI/dti150ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/006_FP/DTI/dti150ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/007_JW/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/008_AM/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/009_AL/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/010_TD/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/011_HO/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/009_AL/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/010_TD/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/011_HO/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/012_JR/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/013_KH/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/014_HJ/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/015_CS/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/016_CC/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/017_LB/DTI/dti96ls',
-     '/biac4/wandell/biac2/wandell2/data/WH/018_KK/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/014_HJ/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/015_CS/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/016_CC/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/017_LB/DTI/dti96ls',
+     ## '/biac4/wandell/biac2/wandell2/data/WH/018_KK/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/019_LH/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/020_LY/DTI/dti30ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/021_DP/DTI/dti96ls',
@@ -108,10 +108,10 @@ dwi_dirs =\
     ## '/biac4/wandell/biac2/wandell2/data/WH/087_HM/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/088_RM/DTI/dti96ls',
     ## '/biac4/wandell/biac2/wandell2/data/WH/089_SM/DTI/dti96ls',
-    '/biac4/wandell/biac2/wandell2/data/WH/090_EM/DTI/dti96ls'
-    '/biac4/wandell/biac2/wandell2/data/WH/091_RD/DTI/dti96ls'
-    '/biac4/wandell/biac2/wandell2/data/WH/092_LP/DTI/dti96ls'
-    '/biac4/wandell/biac2/wandell2/data/WH/093_LB/DTI/dti96ls'
+    ## '/biac4/wandell/biac2/wandell2/data/WH/090_EM/DTI/dti96ls'
+    ## '/biac4/wandell/biac2/wandell2/data/WH/091_RD/DTI/dti96ls'
+    ## '/biac4/wandell/biac2/wandell2/data/WH/092_LP/DTI/dti96ls'
+    ## '/biac4/wandell/biac2/wandell2/data/WH/093_LB/DTI/dti96ls'
     ## '/biac4/wandell/biac2/wandell2/data/WH/052_NA/DTI/dti96_outExclude',
     ## '/biac4/wandell/biac2/wandell2/data/WH/053_VV/DTI/dti96_outExclude',
     ## '/biac4/wandell/biac2/wandell2/data/WH/054_JR/DTI/dti96_outExclude',
@@ -128,6 +128,18 @@ dwi_dirs =\
     ## '/biac4/wandell/biac2/wandell2/data/WH/071_JK/DTI/dti96_outExclude',
     ## '/biac4/wandell/biac2/wandell2/data/WH/075_LV/DTI/dti96_outExclude',
     ## '/biac4/wandell/biac2/wandell2/data/WH/076_CR/DTI/dti96_outExclude',
+'/biac4/wandell/biac2/wandell2/data/WH/016_CC/DTI/raw/16_DTI_2mm_96dir_2x_b2000_1_0_aligned_trilin',
+'/biac4/wandell/biac2/wandell2/data/WH/014_HJ/DTI/raw/10_DTI_2mm_96dir_b2000_1_0_aligned_trilin',
+'/biac4/wandell/biac2/wandell2/data/WH/059_MR/DTI/raw/0015_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_23_31_38_60_63_71_79_81_88_90_95_99',
+ '/biac4/wandell/biac2/wandell2/data/WH/060_MB/DTI/raw/0016_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_13_16_17_21_22_23_32_34_42',
+ '/biac4/wandell/biac2/wandell2/data/WH/064_EG/DTI/raw/0017_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_10_12_20_38_73_78_79_84_102_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/065_HP/DTI/raw/0015_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_10_23_25_26_27_38_43_60_63_68_71_72_74_75_84_88_92_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/066_AS/DTI/raw/0018_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_20_27_28_38_69_71_79_85',
+ '/biac4/wandell/biac2/wandell2/data/WH/068_JM/DTI/raw/0015_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_25_34_38_43_50_63_71_78_79_103_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/070_SK/DTI/raw/0017_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_95_96_97_103_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/071_JK/DTI/raw/0016_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_20_23_34_38_63_71_78_79_83_90_95_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/075_LV/DTI/raw/0016_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_16_26_34_38_43_63_69_73_79_90_95_97_100_104',
+ '/biac4/wandell/biac2/wandell2/data/WH/076_CR/DTI/raw/0015_01_DTI_2mm_96dir_2x_b2000_aligned_trilin_ex_9_26_38_43_61_63_65_69_78_79_81_96_100',
     ]
 
 batch_sge = []
