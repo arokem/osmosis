@@ -14,7 +14,7 @@ if __name__=="__main__":
     ##                          dt6["files"]["alignedDwBvecs"],
     ##                          dt6["files"]["alignedDwBvals"]]]
 
-    data = [this_dir + ext for ext in ['.nii.gz', '.bvecs', '.bvals']]
+    data = [this_dir + ext for ext in [".nii.gz", ".bvecs", ".bvals"]]
 
     M = sfm.SparseDeconvolutionModel(*data,
                                      axial_diffusivity=1.5,
