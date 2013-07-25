@@ -22,9 +22,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*50
+    low = i*10
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 50, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 10, int(np.sum(wm_data))])
     
     # Preserve memory by getting rid of this data:
     del wm_data
