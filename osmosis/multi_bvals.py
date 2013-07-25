@@ -187,13 +187,13 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         if len(unique_b) > 1:
             b_inds = b_inds[ind:]
             this_b_inds = b_inds[b_idx]
+            these_verts = vertices[:, this_b_inds]
             out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-            these_verts = vertices[:,this_b_inds]
             these_bvals = np.squeeze(rounded_bvals)[this_b_inds]/1000
         else:
-            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], 1))
+            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices.shape[-1]))
             this_b_inds = b_inds
-            these_verts = np.reshape(vertices, (3,1))
+            these_verts = vertices
             these_bvals = rounded_bvals/1000
         
         evals, evecs = self.response_function(b_idx).decompose
@@ -262,20 +262,20 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             iso_pred_sig.append(np.exp(-b * self.iso_diffusivity[idx]))
             if self.mode == 'signal_attenuation':
                 iso_regressor = 1 - iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
-                this_fit_to = self._flat_signal_attenuation[:, self.b_inds[idx]].T
+                this_fit_to = self._flat_signal_attenuation[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'relative_signal':
                 iso_regressor = iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
-                this_fit_to = self._flat_relative_signal[:, self.b_inds[idx]].T
+                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights... 
                 iso_regressor = np.ones(self.rotations(idx).shape[0])
-                this_fit_to = self._flat_relative_signal[:, self.b_inds[idx]].T
+                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'log':
                 iso_regressor = (np.log(iso_pred_sig[idx]) *
                                 np.ones(self.rotations(idx).shape[0]))
-                this_fit_to = np.log(self._flat_relative_signal(self.b_inds[idx])).T
+                this_fit_to = np.log(self._flat_relative_signal(self.b_inds_rm0[idx])).T
             
             this_tensor_regressor = self.rotations(idx)
             
