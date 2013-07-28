@@ -590,38 +590,9 @@ def get_dwi_data(b, subject):
     A function that gets you file-names to a data-set with a certain b value
     provided as input
     """
-    if subject == 'FP':
-        data_files = {
-            1000:[make_data_set(
-                 '0009_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject),
-                 make_data_set(
-                 '0011_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject)],
-            2000:[make_data_set(
-                '0005_01_DTI_2mm_150dir_2x_b2000_aligned_trilin', subject),
-            make_data_set(
-                '0007_01_DTI_2mm_150dir_2x_b2000_aligned_trilin', subject)],
-            4000:[make_data_set(
-                '0005_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject),
-                make_data_set(
-                '0007_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject)]}
-
-    elif subject == 'HT':
-        data_files = {
-            1000:[make_data_set(
-                '0006_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject),
-                make_data_set(
-                '0008_01_DWI_2mm150dir_2x_b1000_aligned_trilin', subject)],
-            2000:[make_data_set(
-                '0015_01_DTI_2mm_b2000_150dir_aligned_trilin', subject),
-                make_data_set(
-                '0017_01_DTI_2mm_b2000_150dir_aligned_trilin', subject)],
-            4000:[make_data_set(
-                '0009_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject),
-                make_data_set(
-                '0010_01_DWI_2mm150dir_2x_b4000_aligned_trilin', subject)]}
-        
-    return data_files[b]
-
+    return [make_data_set(subject + '_b%s_1'%b , subject),
+            make_data_set(subject + '_b%s_2'%b, subject)]
+    
 
 def download_data():
     """
@@ -662,7 +633,7 @@ def get_brain_mask(bm=data_path + 'brainMask.nii.gz',resample=None):
         return ni.load(bm).get_data()
 
 
-def get_wm_mask(wm=data_path + 'FP_wm_mask.nii.gz', resample=None):
+def get_wm_mask(wm=data_path + 'SUB1_wm_mask.nii.gz', resample=None):
     """
     Get me a white matter mask. Resample if need be
     """
@@ -678,7 +649,7 @@ def get_ad_rd(subject, b):
     This is a short-cut to get the axial and radial diffusivity values that we
     have extracted from the data with the notebook GetADandRD.
     """
-    if subject == 'FP':
+    if subject == 'SUB1':
         diffusivities = {1000:[dict(AD=1.6769,  RD=0.3196),
                            dict(AD=1.6643, RD=0.3177)],
                      2000:[dict(AD=1.3798, RD=0.2561),
@@ -686,7 +657,7 @@ def get_ad_rd(subject, b):
                      4000:[dict(AD=0.8494, RD=0.2066),
                            dict(AD=0.8478, RD=0.2046)]}
 
-    elif subject == 'HT':
+    elif subject == 'SUB2':
         diffusivities = {1000:[dict(AD=1.7646,  RD=0.4296),
                            dict(AD=1.7509, RD=0.4299)],
                      2000:[dict(AD=1.4670, RD=0.5156),
