@@ -2,7 +2,7 @@ import numpy as np
 import osmosis.tensor as ozt
 import numpy.testing as npt
 
-import osmosis.alt_multi_bvals as sfm_mb
+import osmosis.multi_bvals as sfm_mb
 
 # Mock b value array to be used in all tests
 bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
@@ -42,7 +42,6 @@ rot_vecs_t = bvecs_t
 # Initalize the sfm multi b values class
 mb = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t, params_file = 'temp')
 
-
 def test_response_function():
     rf_bvecs = bvecs_t[:,np.array([4,5,7])]
     tensor_t = ozt.Tensor(np.diag([1, 0, 0]), rf_bvecs, np.array([1000, 1000, 1000]))
@@ -73,25 +72,25 @@ def test_relative_signal():
     sig_t = data_t[...,np.array([4,5,7])]
     signal_rel_t = sig_t/np.reshape(S0_t, (2,2,2,1))
 
-    npt.assert_equal(signal_rel_t, mb.relative_signal[..., bval_ind_t[1]])
+    npt.assert_equal(signal_rel_t, mb.relative_signal[..., bval_ind_rm0_t[0]])
     
     return signal_rel_t
     
 def test__flat_relative_signal():
     out_flat = test_relative_signal()[np.where(mask_t)]
-    npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_t[1]])
+    npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_rm0_t[0]])
         
 def test_regressors():
     _, tensor_regressor_a, design_matrix_a, fit_to_a, fit_to_means_a = mb.regressors
 
     fit_to_t = np.empty((np.sum(mask_t), len(bvals_scaled_t[3:])))
     fit_to_means = np.empty((np.sum(mask_t), len(bval_ind_t[3:])))
-    
+
     n_columns = len(bvals_scaled_t[np.where(bvals_scaled_t > 0)])
     tensor_regressor_t = np.empty((n_columns, n_columns))
     design_matrix_t = np.empty(tensor_regressor_t.shape)
     for idx, b in enumerate(unique_b_t[1:]):
-        this_fit_to = mb._flat_relative_signal[:, bval_ind_t[1:][idx]].T
+        this_fit_to = mb._flat_relative_signal[:, bval_ind_rm0_t[idx]].T
         for vox in np.arange(4):
             fit_to_t[vox, bval_ind_rm0_t[idx]]  = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
             
@@ -105,7 +104,7 @@ def test_regressors():
             
     npt.assert_equal(tensor_regressor_t, tensor_regressor_a)
     npt.assert_equal(fit_to_t, fit_to_a)
-        
+    
     return tensor_regressor_t, design_matrix_t, fit_to_t
     
 def test__n_vox():
@@ -138,3 +137,20 @@ def test_model_params():
 def test_fit():
     diff_means = np.mean(data_t[0,0,0,3:8]) - np.mean(mb.fit[np.where(mask_t)][0])
     npt.assert_equal(abs(diff_means)<400,1)
+    
+def test_predict():
+    bvec_t = np.reshape(bvecs_t[:,3], (3,1))
+    tensor_regressor_t = mb._calc_rotations(0, np.array([2]), bvec_t)
+    design_matrix_t = tensor_regressor_t.T - np.mean(tensor_regressor_t, 0)
+
+    fit_to_t, _, _, _, _ = mb.regressors
+    fit_to_mean_t = np.zeros((4,1))
+    out_t = np.zeros((4,1))
+    for vox in np.arange(4):
+        fit_to_mean_t[vox] = np.mean(fit_to_t[vox, bval_ind_rm0_t[1]])
+        this_params_t = mb._flat_params[vox]
+        this_params_t[np.isnan(this_params_t)] = 0.0
+        out_t[vox] = (np.dot(this_params_t, design_matrix_t.T) +
+                            fit_to_mean_t[vox]) * mb._flat_S0[vox]
+                            
+    npt.assert_equal(np.squeeze(out_t),mb.predict(bvec_t, np.array([2])))   
