@@ -5,7 +5,7 @@ import numpy as np
 import time
 
 # Predict for all b values
-def predict_n(data, bvals, bvecs, mask, n, vox, b_mode):
+def predict_n(data, bvals, bvecs, mask, n, b_mode):
     """
     Predict like before but for 10% instead of each one.
     
@@ -19,20 +19,17 @@ def predict_n(data, bvals, bvecs, mask, n, vox, b_mode):
     """ 
     t1 = time.time()
     bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
-    bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
                                                                         mode = 'remove0')
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     
-    actual = np.empty(len(all_b_idx))
-    predicted = np.empty(len(all_b_idx))
+    actual = np.empty((np.sum(mask), len(all_b_idx)))
+    predicted = np.empty(actual.shape)
     
     if b_mode == 'all': 
-        full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-                                                     params_file = "temp")
-    if b_mode == 'bvals': 
-        full_mod = sfm.SparseDeconvolutionModel(data, bvecs, bvals, mask = mask,
-                                                       params_file = "temp")
-    
+        full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
+                                                        mask = mask,
+                                                        params_file = "temp")                 
     for bi in np.arange(len(unique_b[1:])):
         
         if b_mode is "all":
@@ -65,7 +62,7 @@ def predict_n(data, bvals, bvecs, mask, n, vox, b_mode):
                 idx.remove(these_b_inds_rm0[choice_idx])
             
             for b_idx in np.arange(len(unique_b[1:])):
-                if b_idx != bi:
+                if np.logical_and(b_idx != bi, b_mode is "all"):
                     idx = np.concatenate((idx, b_inds_rm0[b_idx]),0)
                 
             # Make the list back into an array
@@ -75,38 +72,33 @@ def predict_n(data, bvals, bvecs, mask, n, vox, b_mode):
             these_bvecs = bvecs[:, these_inc0]
             these_bvals = bvals_pool[these_inc0]
             this_data = data[:, :, :, these_inc0]
-                
+            
+            # Need to sort the indices first before indexing full_mod.regressors
+            si = sorted(idx)
+            
             if b_mode is "all":
                 mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                             mask = mask, params_file = "temp")
-                # Need to sort the indices first before indexing full_mod.regressors
-                si = sorted(idx)
+                                                            
                 mod.regressors = [full_mod.regressors[0][:, si],
                                   full_mod.regressors[1][:, si][si, :],
                                   full_mod.regressors[2][:, si][si, :],
                                   full_mod.regressors[3][:, si],
                                   full_mod.regressors[4][:, si]]
                                   
-                predicted[vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[vox]
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])
                 
             elif b_mode is "bvals":
                 mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
                                                     mask = mask, params_file = "temp")
-
-                # Need to sort the indices first before indexing full_mod.regressors
-                si = sorted(idx)
-                mod.regressors = [full_mod.regressors[0][:, si],
-                                  full_mod.regressors[1][:, si][si, :],
-                                  full_mod.regressors[2][:, si][si, :],
-                                  full_mod.regressors[3][:, si],
-                                  full_mod.regressors[4][:, si]]
                                        
-                predicted[vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask][vox]
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
                 
-            actual[vec_combo_rm0] = data[mod.mask][vox, vec_combo]
+            actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
             
         t2 = time.time()
-        print "This program took %4.2f minutes to run."%((t2 - t1)/60)
+        print "This program took %4.2f minutes to run through %3.2f percent of the program."%((t2 - t1)/60,
+                                                                100*((bi+1)/len(unique_b[1:])))
     return actual, predicted
     
 def predict_bvals(data, bvals, bvecs, mask, b_fit_to, b_predict):
