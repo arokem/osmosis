@@ -171,9 +171,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # and rotate them around to each one of these vectors, calculating
         # the predicted signal in the bvecs of the actual measurement (even
         # when over-sampling):
-
-        # If we have as many vertices as b-vectors, we can take the
-        # b-values from the measurement
         
         bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
         if 0 in unique_b:
@@ -240,16 +237,13 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
         return self._calc_rotations(b_idx, self.rounded_bvals/1000, self.bvecs)
         
-                      
-    @desc.auto_attr
+    @desc.auto_attr                  
     def regressors(self):
         """
         Compute the regressors and the signal to fit to, depending on the mode
         you are using  
         """
         
-        iso_pred_sig = list()
-        iso_regressor_list = list()
         fit_to = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_means = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_demeaned = np.empty(fit_to.shape)
@@ -259,22 +253,16 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         design_matrix = np.empty(tensor_regressor.shape)
         
         for idx, b in enumerate(self.unique_b):   
-            iso_pred_sig.append(np.exp(-b * self.iso_diffusivity[idx]))
             if self.mode == 'signal_attenuation':
-                iso_regressor = 1 - iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
                 this_fit_to = self._flat_signal_attenuation[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'relative_signal':
-                iso_regressor = iso_pred_sig[idx] * np.ones(self.rotations(idx).shape[0])
                 this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights... 
-                iso_regressor = np.ones(self.rotations(idx).shape[0])
                 this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
             elif self.mode == 'log':
-                iso_regressor = (np.log(iso_pred_sig[idx]) *
-                                np.ones(self.rotations(idx).shape[0]))
                 this_fit_to = np.log(self._flat_relative_signal(self.b_inds_rm0[idx])).T
             
             this_tensor_regressor = self.rotations(idx)
@@ -291,8 +279,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 # Design matrix - tensor regressors with mean subtracted
                 this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
                 design_matrix[self.b_inds_rm0[idx]] = this_design_matrix
-                
-            iso_regressor_list.append(iso_regressor)
 
         return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
         
@@ -360,7 +346,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_fit_to = fit_to
                        
             # One weight for each rotation
-            params = np.empty((self._n_vox, self.rotations(0).shape[0]))
+            params = np.empty((self._n_vox, self.rot_vecs[:,self.all_b_idx].shape[-1]))
             
             for vox in xrange(self._n_vox):
                 params[vox] = self._fit_it(this_fit_to[vox], design_matrix)
@@ -451,7 +437,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         if len(vertices.shape) == 1:
             vertices = np.reshape(vertices, (3,1))
-            
+        
+        # Create a new design matrix from the given vertices
         design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs[:,self.all_b_idx].shape[-1]))
         for mpi in np.arange(len(unique_b)):
             tensor_regressor = self._calc_rotations(mpi, new_bvals, vertices)
@@ -465,9 +452,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 design_matrix[b_inds_rm0] = np.squeeze(this_design_matrix)
             else:
                 design_matrix[b_inds_rm0[mpi]] = this_design_matrix
-            
+        
         fit_to, _, _, _, _ = self.regressors
-
+        
+        # Find the mean signal across the vertices corresponding to the b values
+        # given.
         fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
             if len(unique_b) == 1:
@@ -480,6 +469,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
         
+        # Now that everthing is set up, predict the signal in the given vertices.
         for vox in xrange(self._n_vox):    
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0
@@ -495,10 +485,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_pred_sig = this_relative * self._flat_S0[vox] # this_relative = S/S0
             elif self.mode == 'signal_attenuation':
                 this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
-
-            # Fit scale and offset:
-            #a,b = np.polyfit(this_pred_sig, self._flat_signal[vox], 1)
-            # out_flat[vox] = a*this_pred_sig + b
+                
             out_flat_arr[vox] = this_pred_sig
             
         #out = ozu.nans(self.data[...,self.all_b_idx].shape[:3] + (self.bvecs[:,self.all_b_idx].shape[-1],))
