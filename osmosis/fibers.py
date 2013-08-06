@@ -142,6 +142,15 @@ class Fiber(desc.ResetMixin):
         directions.
         """
         return ozu.unique_rows(self.coords.T).T
+
+
+    @desc.auto_attr
+    def gradients(self):
+        """
+        The gradients along the fibers
+        """
+        return np.array(np.gradient(self.coords)[1])
+
     
     def tensors(self, axial_diffusivity, radial_diffusivity):
         """
@@ -173,7 +182,8 @@ class Fiber(desc.ResetMixin):
                                       radial_diffusivity,
                                       radial_diffusivity]))
 
-        grad = np.array(np.gradient(self.coords)[1])
+        grad = self.gradients
+        
         # Preallocate:
         tensors = np.empty((grad.shape[-1], 9)) #dtype='object')
 
@@ -405,3 +415,5 @@ class FiberGroup(desc.ResetMixin):
 
         """
         return ozu.unique_rows(self.coords.T).T 
+
+
