@@ -22,9 +22,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*270
+    low = i*70
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 270, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 70, int(np.sum(wm_data))])
     
     # Preserve memory by getting rid of this data:
     del wm_data
@@ -40,9 +40,9 @@ if __name__=="__main__":
                                                 mask, 10, "bvals")
    
     aff = np.eye(4)
-    nib.Nifti1Image(actual_all, aff).to_filename("all_actual%s.nii.gz"%(i))
-    nib.Nifti1Image(predict_all, aff).to_filename("all_predict%s.nii.gz"%(i)) 
-    nib.Nifti1Image(actual_bvals, aff).to_filename("bvals_actual%s.nii.gz"%(i)) 
-    nib.Nifti1Image(predict_bvals, aff).to_filename("bvals_predict%s.nii.gz"%(i)) 
+    nib.Nifti1Image(actual_all, aff).to_filename("/hsgs/nobackup/klchan13/all_actual%s.nii.gz"%(i))
+    nib.Nifti1Image(predict_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i)) 
+    nib.Nifti1Image(actual_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_actual%s.nii.gz"%(i)) 
+    nib.Nifti1Image(predict_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i)) 
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

@@ -47,18 +47,20 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
     t1 = time.time()
     bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
     _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
-                                                                        mode = 'remove0')
+                                                             mode = 'remove0')
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))    
     
     actual = np.empty((np.sum(mask), len(all_b_idx)))
     predicted = np.empty(actual.shape)
     
-    # Generate the regressors in the full model from which we choose the regressors in
-    # the reduced model from.  This is so you won't have 
+    # Generate the regressors in the full model from which we choose the
+    # regressors in the reduced model from.
     if b_mode == 'all': 
         full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
                                                         mask = mask,
-                                                        params_file = "temp")                 
+                                                        params_file = "temp",
+                                 axial_diffusivity = np.array([1.5,1.5,1.5]),
+                                radial_diffusivity = np.array([0.5,0.5,0.5]))                 
     for bi in np.arange(len(unique_b[1:])):
         
         if b_mode is "all":
@@ -76,7 +78,7 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
         np.random.shuffle(vec_pool)
         
         # How many of the indices are you going to leave out at a time?
-        num_choose = (n/100.)*len(these_b_inds) # np.ceil((n/100.)*len(these_b_inds))
+        num_choose = np.ceil((n/100.)*len(these_b_inds))
                 
         for combo_num in np.arange(np.floor(100./n)):
             these_inc0 = list(all_inc_0)
@@ -100,34 +102,42 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
             # Make the list back into an array
             these_inc0 = np.array(these_inc0)
             
-            # Isolate the b vectors, b values, and data not including those to be predicted
+            # Isolate the b vectors, b values, and data not including those
+            # to be predicted
             these_bvecs = bvecs[:, these_inc0]
             these_bvals = bvals_pool[these_inc0]
             this_data = data[:, :, :, these_inc0]
             
-            # Need to sort the indices first before indexing full model's regressors
+            # Need to sort the indices first before indexing full model's
+            # regressors
             si = sorted(idx)
             
             if b_mode is "all":
                 mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                            mask = mask, params_file = "temp")
+                                                 mask = mask, params_file = "temp",
+                                       axial_diffusivity = np.array([1.5,1.5,1.5]),
+                                       radial_diffusivity = np.array([0.5,0.5,0.5]))
                 # Grab regressors from full model's preloaded regressors
                 fit_to = full_mod.regressors[0][:, si]
                 tensor_regressor = full_mod.regressors[1][:, si][si, :]
                 mod.regressors = demean(fit_to, tensor_regressor, mod)
                             
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+                                                             bvals[vec_combo])
 
             elif b_mode is "bvals":
-                mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
-                                                    mask = mask, params_file = "temp")
+                mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs,
+                                                   these_bvals, mask = mask,
+                                                       params_file = "temp",
+                                                    axial_diffusivity = 1.5,
+                                                   radial_diffusivity = 0.5)
                                        
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
             
         t2 = time.time()
         print "This program took %4.2f minutes to run through %3.2f percent."%((t2 - t1)/60,
-                                                                100*((bi+1)/len(unique_b[1:])))
+                                                             100*((bi+1)/len(unique_b[1:])))
     return actual, predicted
     
 def demean(fit_to, tensor_regressor, mod):
@@ -311,8 +321,14 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
     track = 0
     for AD_idx in np.arange(len(AD_combos)):
         for RD_idx in np.arange(len(RD_combos)):
-            actual_b, predicted_b = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 'bvals')
-            actual, predicted = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 'all')
+            actual_b, predicted_b = predict_n(data, bvals, bvecs, mask,
+                                           np.array(AD_combos[AD_idx]),
+                                           np.array(RD_combos[RD_idx]),
+                                                               'bvals')
+            actual, predicted = predict_n(data, bvals, bvecs, mask,
+                                           np.array(AD_combos[AD_idx]),
+                                           np.array(RD_combos[RD_idx]),
+                                                                 'all')
             
             rmse_b[:, track] = np.sqrt(np.mean((actual_b - predicted_b)**2, -1))
             rmse_mb[:, track] = np.sqrt(np.mean((actual - predicted)**2, -1))
@@ -326,7 +342,7 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
     
 def place_predict(files):
     data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
-    file_path = "/hsgs/nobackup/klchan13"
+    file_path = "/hsgs/nobackup/klchan13/predict_AD1RD0_sfm"
 
     # Get file object
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
@@ -336,7 +352,7 @@ def place_predict(files):
     wm_data = wm_data_file.get_data()
     wm_idx = np.where(wm_data==1)
 
-    # b values
+    # Get b values
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals/1000)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
@@ -353,27 +369,26 @@ def place_predict(files):
             sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
             if this_file[0:11] == "all_predict":
                 i = int(this_file.split(".")[0][11:])
-                print "Placing all_predict %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 all_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
             elif this_file[0:13] == "bvals_predict":
                 i = int(this_file.split(".")[0][13:])
-                print "Placing bvals_predict %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 bvals_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
             elif this_file[0:10] == "all_actual":
                 i = int(this_file.split(".")[0][10:])
-                print "Placing actual %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 actual_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
             i_track[i] = 0
         
     missing_files = np.squeeze(np.where(i_track))
-    rmse_b = np.sqrt(np.mean((actual_brain[wm_idx] - bvals_predict_brain[wm_idx])**2,-1))
-    rmse_mb = np.sqrt(np.mean((actual_brain[wm_idx] - all_predict_brain[wm_idx])**2,-1))
+    rmse_b = np.sqrt(np.mean((actual_brain[wm_idx]
+                     - bvals_predict_brain[wm_idx])**2,-1))
+    rmse_mb = np.sqrt(np.mean((actual_brain[wm_idx]
+                     - all_predict_brain[wm_idx])**2,-1))
 
     # Save the rmse and predict data
     aff = data_file.get_affine()
