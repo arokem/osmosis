@@ -51,8 +51,8 @@ from osmosis.model.io import params_file_resolver
 
 
 # For now, let's assume 3 bvalues and let's assume these are the diffusivities:
-AD = [1, 1, 1]
-RD = [0, 0, 0]
+AD = np.ones(17)
+RD = np.zeros(17)
 
 class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     """
@@ -100,7 +100,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
         self.bval_list_rm0, self.b_inds_rm0, self.unique_b_rm0, self.rounded_bvals_rm0 = separate_bvals(bvals, mode = 'remove0')
               
-        if 0 in unique_b:
+        if 0 in np.unique(rounded_bvals):
             self.b0_list = bval_list[0]
             self.b0_idx = b_inds[0]
             self.b0_inds = b_inds[0]
@@ -108,19 +108,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         else:
             ind = 0
         
+        self.bvals = bvals
         self.bval_list = bval_list[ind:]
         self.b_inds = b_inds[ind:]
         self.unique_b = unique_b[ind:]
         self.all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
         self.b_idx = self.all_b_idx
         self.rounded_bvals = rounded_bvals
-            
+        
         # Name the params file, if needed: 
         this_class = str(self.__class__).split("'")[-2].split('.')[-1]
         self.params_file = params_file_resolver(self,
                                                 this_class,
                                                 params_file=params_file)
-
+        if over_sample is None:
+            self.rot_vecs = bvecs
+            
         # Deal with the solver stuff: 
         # For now, the default is ElasticNet:
         if solver is None:
@@ -173,7 +176,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # when over-sampling):
         
         bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
-        if 0 in unique_b:
+        if 0 in np.unique(rounded_bvals):
             ind = 1
         else:
             ind = 0
@@ -186,12 +189,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_b_inds = b_inds[b_idx]
             these_verts = vertices[:, this_b_inds]
             out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-            these_bvals = np.squeeze(rounded_bvals)[this_b_inds]/1000
+            these_bvals = bval_list[b_idx]
         else:
             out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices.shape[-1]))
             this_b_inds = b_inds
             these_verts = vertices
-            these_bvals = rounded_bvals/1000
+            these_bvals = np.array(bval_list)
         
         evals, evecs = self.response_function(b_idx).decompose
       
@@ -224,7 +227,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             elif mode == 'log':
                     # Take the log and divide out the b value:
                     out[idx] = np.log(pred_sig)
-                                
+                       
         return out
 
     def rotations(self, b_idx):
@@ -235,7 +238,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         in all these directions (over-sampling the sphere above the resolution
         of the measurement). 
         """
-        return self._calc_rotations(b_idx, self.rounded_bvals/1000, self.bvecs)
+        return self._calc_rotations(b_idx, self.bvals, self.bvecs)
         
     @desc.auto_attr                  
     def regressors(self):

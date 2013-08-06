@@ -29,16 +29,18 @@ def separate_bvals(bvals, mode = 'None'):
     """
     
     # Round all the b values and find the unique numbers
+    these_bvals = list()
     rounded_bvals = list()
     for j in np.arange(len(bvals)):
         if mode is 'remove0':
             if round(bvals[j]) != 0:
-                rounded_bvals.append(round(bvals[j]))
+                these_bvals.append(bvals[j])
+                rounded_bvals.append(round(bvals[j])*1000)
         else:
-            rounded_bvals.append(round(bvals[j]))
+            these_bvals = bvals
+            rounded_bvals.append(round(bvals[j])*1000)
       
-    unique_b = np.unique(np.array(rounded_bvals))
-    bvals_scaled = np.array(rounded_bvals)*1000
+    unique_b = np.unique(np.array(these_bvals))
     
     # Initialize one list for b values and another list for the indices
     bval_list = list()
@@ -46,11 +48,11 @@ def separate_bvals(bvals, mode = 'None'):
     
     # Find locations where rounded b values equal the unique b values
     for i in np.arange(len(unique_b)):
-      idx_b = np.where(rounded_bvals == unique_b[i])
-      bval_list.append(bvals_scaled[idx_b])
+      idx_b = np.where(these_bvals == unique_b[i])
+      bval_list.append(np.array(these_bvals)[idx_b])
       bval_ind.append(idx_b)
       
-    return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
+    return bval_list, np.squeeze(bval_ind), unique_b, np.array(rounded_bvals)
 
 def b_snr(data, bvals, b, mask):
     """

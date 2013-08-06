@@ -17,6 +17,17 @@ import osmosis.snr as snr
 import osmosis.multi_bvals as sfm_mb
 import osmosis.snr as snr
 
+def partial_round(bvals):
+    """
+    Round only the values about equal to zero.
+    """
+    partially_rounded = bvals
+    for j in np.arange(len(bvals)):
+        if round(bvals[j]) == 0:
+            partially_rounded[j] = 0
+            
+    return partially_rounded*1000
+    
 def predict_n(data, bvals, bvecs, mask, n, b_mode):
     """
     Predicts signals for a certain percentage of the vertices.
@@ -48,43 +59,49 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
     bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
     _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
                                                                         mode = 'remove0')
-    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))    
+    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+    all_b_idx_rm0 = np.arange(len(all_b_idx))
+    partially_rounded = partial_round(bvals)
     
     actual = np.empty((np.sum(mask), len(all_b_idx)))
     predicted = np.empty(actual.shape)
     
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.  This is so you won't have 
-    if b_mode == 'all': 
+    if b_mode is "all": 
         full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
                                                         mask = mask,
-                                                        params_file = "temp")                 
-    for bi in np.arange(len(unique_b[1:])):
+                                                        params_file = "temp")
+        indices = np.array([0])
+    elif b_mode is "bvals":
+        indices = np.arange(len(unique_b[1:]))
+    
+    for bi in indices:
         
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
             bvals_pool = bvals
+            these_b_inds = all_b_idx
+            these_b_inds_rm0 = all_b_idx_rm0
         elif b_mode is "bvals":
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
-            bvals_pool = rounded_bvals
-        
-        these_b_inds = b_inds[1:][bi]
-        these_b_inds_rm0 = b_inds_rm0[bi]
+            bvals_pool = partially_rounded
+            these_b_inds = b_inds[1:][bi]
+            these_b_inds_rm0 = b_inds_rm0[bi]
         vec_pool = np.arange(len(these_b_inds))
         
         # Need to choose random indices so shuffle them!
         np.random.shuffle(vec_pool)
         
         # How many of the indices are you going to leave out at a time?
-        num_choose = (n/100.)*len(these_b_inds) # np.ceil((n/100.)*len(these_b_inds))
+        num_choose = np.ceil((n/100.)*len(these_b_inds))
                 
         for combo_num in np.arange(np.floor(100./n)):
+            idx = list(these_b_inds_rm0)
             these_inc0 = list(all_inc_0)
-            idx = list(b_inds_rm0[bi])
             low = (combo_num)*num_choose
             high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
             vec_pool_inds = vec_pool[low:high]
-            #vec_pool_inds = vec_pool[(combo_num)*num_choose:(combo_num*num_choose + num_choose)]
             vec_combo = these_b_inds[vec_pool_inds]
             vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
                
@@ -92,10 +109,6 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
             for choice_idx in vec_pool_inds:
                 these_inc0.remove(these_b_inds[choice_idx])
                 idx.remove(these_b_inds_rm0[choice_idx])
-            
-            for b_idx in np.arange(len(unique_b[1:])):
-                if np.logical_and(b_idx != bi, b_mode is "all"):
-                    idx = np.concatenate((idx, b_inds_rm0[b_idx]),0)
                 
             # Make the list back into an array
             these_inc0 = np.array(these_inc0)
@@ -120,7 +133,9 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
 
             elif b_mode is "bvals":
                 mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
-                                                    mask = mask, params_file = "temp")
+                                                    mask = mask, params_file = "temp",
+                                                    axial_diffusivity = 1,
+                                                    radial_diffusivity = 0)
                                        
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
