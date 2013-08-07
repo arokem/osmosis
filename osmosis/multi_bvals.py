@@ -426,7 +426,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         return out
         
-    def predict(self, vertices, new_bvals):
+    def predict(self, vertices, new_bvals, left_out_means):
         """
         Predict the signal on a new set of vertices
         """
@@ -462,13 +462,18 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # given.
         fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
+            track = 0
             if len(unique_b) == 1:
                 idx = np.squeeze(np.where(self.unique_b == unique_b[0]))
                 fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
             else:
                 for b_fi in np.arange(len(unique_b)):
                     idx = np.squeeze(np.where(self.unique_b == unique_b[b_fi]))
-                    fit_to_mean[vox, b_inds_rm0[b_fi]] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
+                    if unique_b[b_fi] not in self.unique_b:
+                        fit_to_mean[vox, b_inds_rm0[b_fi]] = left_out_means[track]
+                        track = track + 1
+                    else:
+                        fit_to_mean[vox, b_inds_rm0[b_fi]] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
         
         out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
         
