@@ -45,6 +45,7 @@ import osmosis.tensor as ozt
 from osmosis.snr import separate_bvals
 
 from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel
+import osmosis.model.dti as dti
 #from osmosis.model.canonical_tensor import AD, RD
 from osmosis.model.base import SCALE_FACTOR
 from osmosis.model.io import params_file_resolver
@@ -66,8 +67,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                  solver=None,
                  solver_params=None,
                  params_file=None,
-                 axial_diffusivity=AD,
-                 radial_diffusivity=RD,
+                 axial_diffusivity=AD, # Should be a dict
+                 radial_diffusivity=RD, # Should be a dict
                  affine=None,
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
@@ -150,16 +151,16 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # We reuse the same class instance in all voxels: 
         self.solver = this_solver(**self.solver_params)
         
-    def response_function(self, b_idx):
+    def response_function(self, bval_tensor, vertex):
         """
         Canonical tensors that describes the presumed response of different b values
         """
-        bvecs = self.bvecs[:,self.b_inds[b_idx]]
-        tensor_out = ozt.Tensor(np.diag([self.ad[b_idx], self.rd[b_idx], self.rd[b_idx]]), bvecs, self.bval_list[b_idx])
+        tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor], self.rd[bval_tensor],
+                                self.rd[bval_tensor]]), vertex, np.array([bval_tensor]))
         
         return tensor_out
         
-    def _calc_rotations(self, b_idx, bval_arr, vertices, mode=None, over_sample=None):
+    def _calc_rotations(self, bval, vertex, mode=None, over_sample=None):
         """
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
@@ -175,32 +176,18 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # the predicted signal in the bvecs of the actual measurement (even
         # when over-sampling):
         
-        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
-        if 0 in np.unique(rounded_bvals):
-            ind = 1
-        else:
-            ind = 0
-        bval_list = bval_list[ind:]
-        unique_b = unique_b[ind:]
-        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        if len(vertex.shape) == 1:
+            vertex = np.reshape(vertex, (3,1))
+            
+        out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertex.shape[-1]))
         
-        if len(unique_b) > 1:
-            b_inds = b_inds[ind:]
-            this_b_inds = b_inds[b_idx]
-            these_verts = vertices[:, this_b_inds]
-            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices[:,this_b_inds].shape[-1]))
-            these_bvals = bval_list[b_idx]
-        else:
-            out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertices.shape[-1]))
-            this_b_inds = b_inds
-            these_verts = vertices
-            these_bvals = np.array(bval_list)
-        
-        evals, evecs = self.response_function(b_idx).decompose
+        # Assumes that the b values are already scaled by a certain factor.
+        bval_tensor = round(bval)*SCALE_FACTOR
+        evals, evecs = self.response_function(bval_tensor, vertex).decompose
       
         for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):               
             # bvec within the rotational vectors
-            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, these_verts, these_bvals)
+            this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertex, np.array([bval]))
             pred_sig = this_rot.predicted_signal(1)
             
             #Try saving some memory: 
@@ -230,7 +217,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                        
         return out
 
-    def rotations(self, b_idx):
+    def rotations(self, bval, vertex):
         """
         These are the canonical tensors pointing in the direction of each of
         the bvecs in the sampling scheme. If an over-sample number was
@@ -238,8 +225,25 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         in all these directions (over-sampling the sphere above the resolution
         of the measurement). 
         """
-        return self._calc_rotations(b_idx, self.bvals, self.bvecs)
+        return self._calc_rotations(bval, vertex)
         
+    @desc.auto_attr
+    def _tensor_model(self):
+        """
+        Create a tensor model object in order to get the mean diffusivities
+        """
+        these_bvals = self.bvals
+        these_bvals[self.b0_inds] = 0
+        return dti.TensorModel(self.data, self.bvecs, self.bvals, mask=self.mask)
+    
+    def _flat_rel_sig_avg(self, idx):
+        """
+        Compute the relative signal average for demeaning of the signal.
+        """
+        out = np.exp(-self.bvals[idx]*self._tensor_model.mean_diffusivity[self.mask])
+        
+        return out
+                                                               
     @desc.auto_attr                  
     def regressors(self):
         """
@@ -255,33 +259,36 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
         
-        for idx, b in enumerate(self.unique_b):   
+        for idx, b_idx in enumerate(self.all_b_idx):
             if self.mode == 'signal_attenuation':
-                this_fit_to = self._flat_signal_attenuation[:, self.b_inds_rm0[idx]].T
+                sig_avg = 1 - self._flat_rel_sig_avg(b_idx)
+                this_fit_to = self._flat_signal_attenuation[:, idx]
             elif self.mode == 'relative_signal':
-                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
+                sig_avg = self._flat_rel_sig_avg(b_idx)
+                this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
-                # weights... 
-                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
+                # weights...
+                sig_avg = self._flat_rel_sig_avg(b_idx)
+                this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'log':
-                this_fit_to = np.log(self._flat_relative_signal(self.b_inds_rm0[idx])).T
+                sig_avg = np.log(self._flat_rel_sig_avg)(b_idx)
+                this_fit_to = np.log(self._flat_relative_signal(idx))
             
-            this_tensor_regressor = self.rotations(idx)
+            # Find tensor regressor values and demean by the theoretical average signal
+            this_tensor_regressor = self._calc_rotations(self.bvals[b_idx],
+                                        np.reshape(self.bvecs[:, b_idx], (3,1)))
+            bval_tensor = round(self.bvals[b_idx])*SCALE_FACTOR
+            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
+            tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
+            design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-self.bvals[b_idx]*this_MD)
             
-            for vox in xrange(self._n_vox):                
-                # Tensor regressors
-                tensor_regressor[self.b_inds_rm0[idx]] = this_tensor_regressor.T
-                
-                # Array of signals to fit to - Means only, demeaned, and normal
-                fit_to[vox, self.b_inds_rm0[idx]] = this_fit_to.T[vox]
-                fit_to_demeaned[vox, self.b_inds_rm0[idx]] = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
-                fit_to_means[vox, self.b_inds_rm0[idx]] = np.mean(this_fit_to.T[vox])
-                
-                # Design matrix - tensor regressors with mean subtracted
-                this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
-                design_matrix[self.b_inds_rm0[idx]] = this_design_matrix
+            # Find the signals to fit to and demean them by mean signal calculated from
+            # the mean diffusivity.
+            fit_to[:, idx] = this_fit_to
+            fit_to_demeaned[:, idx] = this_fit_to - sig_avg
+            fit_to_means[:, idx] = sig_avg
 
         return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
         
