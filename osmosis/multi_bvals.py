@@ -216,16 +216,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                     out[idx] = np.log(pred_sig)
                        
         return out
-
-    def rotations(self, bval, vertex):
-        """
-        These are the canonical tensors pointing in the direction of each of
-        the bvecs in the sampling scheme. If an over-sample number was
-        provided, we use the camino points to make canonical tensors pointing
-        in all these directions (over-sampling the sphere above the resolution
-        of the measurement). 
-        """
-        return self._calc_rotations(bval, vertex)
         
     @desc.auto_attr
     def _tensor_model(self):
@@ -236,11 +226,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         these_bvals[self.b0_inds] = 0
         return dti.TensorModel(self.data, self.bvecs, self.bvals, mask=self.mask)
     
-    def _flat_rel_sig_avg(self, idx):
+    def _flat_rel_sig_avg(self, bvals, idx):
         """
         Compute the relative signal average for demeaning of the signal.
         """
-        out = np.exp(-self.bvals[idx]*self._tensor_model.mean_diffusivity[self.mask])
+        out = np.exp(-bvals[idx]*self._tensor_model.mean_diffusivity[self.mask])
         
         return out
                                                                
@@ -261,20 +251,20 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         for idx, b_idx in enumerate(self.all_b_idx):
             if self.mode == 'signal_attenuation':
-                sig_avg = 1 - self._flat_rel_sig_avg(b_idx)
+                sig_avg = 1 - self._flat_rel_sig_avg(self.bvals, b_idx)
                 this_fit_to = self._flat_signal_attenuation[:, idx]
             elif self.mode == 'relative_signal':
-                sig_avg = self._flat_rel_sig_avg(b_idx)
+                sig_avg = self._flat_rel_sig_avg(self.bvals, b_idx)
                 this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights...
-                sig_avg = self._flat_rel_sig_avg(b_idx)
+                sig_avg = self._flat_rel_sig_avg(self.bvals, b_idx)
                 this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'log':
-                sig_avg = np.log(self._flat_rel_sig_avg)(b_idx)
-                this_fit_to = np.log(self._flat_relative_signal(idx))
+                sig_avg = np.log(self._flat_rel_sig_avg)(self.bvals, b_idx)
+                this_fit_to = np.log(self._flat_relative_signal[:, idx])
             
             # Find tensor regressor values and demean by the theoretical average signal
             this_tensor_regressor = self._calc_rotations(self.bvals[b_idx],
@@ -433,7 +423,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         return out
         
-    def predict(self, vertices, new_bvals, left_out_means):
+    def predict(self, vertices, new_bvals):
         """
         Predict the signal on a new set of vertices
         """
@@ -442,46 +432,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             msg += " with %s"%self.solver
             print(msg)
         
-        bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(new_bvals)
-        bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(new_bvals, mode = 'remove0')
-        
         if len(vertices.shape) == 1:
             vertices = np.reshape(vertices, (3,1))
         
-        # Create a new design matrix from the given vertices
         design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs[:,self.all_b_idx].shape[-1]))
-        for mpi in np.arange(len(unique_b)):
-            tensor_regressor = self._calc_rotations(mpi, new_bvals, vertices)
-            if np.logical_or(vertices.shape[0] == 1, vertices.shape[-1] == 1):
-                this_axis = 0
-            else:
-                this_axis = -1
-            this_design_matrix = tensor_regressor.T - np.mean(tensor_regressor, this_axis)
-            # In case there is only one b value:
-            if len(unique_b) == 1:
-                design_matrix[b_inds_rm0] = np.squeeze(this_design_matrix)
-            else:
-                design_matrix[b_inds_rm0[mpi]] = this_design_matrix
-        
-        fit_to, _, _, _, _ = self.regressors
-        
-        # Find the mean signal across the vertices corresponding to the b values
-        # given.
-        fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
-        for vox in xrange(self._n_vox):
-            track = 0
-            if len(unique_b) == 1:
-                idx = np.squeeze(np.where(self.unique_b == unique_b[0]))
-                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
-            else:
-                for b_fi in np.arange(len(unique_b)):
-                    idx = np.squeeze(np.where(self.unique_b == unique_b[b_fi]))
-                    if unique_b[b_fi] not in self.unique_b:
-                        fit_to_mean[vox, b_inds_rm0[b_fi]] = left_out_means[track]
-                        track = track + 1
-                    else:
-                        fit_to_mean[vox, b_inds_rm0[b_fi]] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
-        
+        fit_to_mean = np.zeros((self._n_vox, vertices.shape[-1]))
+        for idx, bval in enumerate(new_bvals):
+            # Create a new design matrix from the given vertices
+            tensor_regressor = self._calc_rotations(bval, np.reshape(vertices[:, idx], (3,1)))
+            bval_tensor = round(bval)*SCALE_FACTOR
+            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
+            design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-bval*this_MD)
+            
+            # Find the mean signal across the vertices corresponding to the b values
+            # given.
+            fit_to_mean[:, idx] = self._flat_rel_sig_avg(new_bvals, idx)
+
         out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
         
         # Now that everthing is set up, predict the signal in the given vertices.
