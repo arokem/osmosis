@@ -47,13 +47,13 @@ from osmosis.snr import separate_bvals
 from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel
 import osmosis.model.dti as dti
 #from osmosis.model.canonical_tensor import AD, RD
-from osmosis.model.base import SCALE_FACTOR
+
+# from osmosis.model.base import SCALE_FACTOR
 from osmosis.model.io import params_file_resolver
 
 
-# For now, let's assume 3 bvalues and let's assume these are the diffusivities:
-AD = np.ones(17)
-RD = np.zeros(17)
+SCALE_FACTOR = 1.0 
+
 
 class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     """
@@ -182,7 +182,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertex.shape[-1]))
         
         # Assumes that the b values are already scaled by a certain factor.
-        bval_tensor = round(bval)*SCALE_FACTOR
+        bval_tensor = round(bval)*1000
         evals, evecs = self.response_function(bval_tensor, vertex).decompose
       
         for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):               
@@ -224,7 +224,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
         these_bvals = self.bvals
         these_bvals[self.b0_inds] = 0
-        return dti.TensorModel(self.data, self.bvecs, self.bvals, mask=self.mask)
+        return dti.TensorModel(self.data, self.bvecs, self.bvals*1000, mask=self.mask,
+                                params_file='temp')
     
     def _flat_rel_sig_avg(self, bvals, idx):
         """
@@ -269,7 +270,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # Find tensor regressor values and demean by the theoretical average signal
             this_tensor_regressor = self._calc_rotations(self.bvals[b_idx],
                                         np.reshape(self.bvecs[:, b_idx], (3,1)))
-            bval_tensor = round(self.bvals[b_idx])*SCALE_FACTOR
+            bval_tensor = round(self.bvals[b_idx])*1000
             this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
             tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
             design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-self.bvals[b_idx]*this_MD)
@@ -440,9 +441,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         for idx, bval in enumerate(new_bvals):
             # Create a new design matrix from the given vertices
             tensor_regressor = self._calc_rotations(bval, np.reshape(vertices[:, idx], (3,1)))
-            bval_tensor = round(bval)*SCALE_FACTOR
+            bval_tensor = round(bval)*1000
             this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
-            design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-bval*this_MD)
+            design_matrix[idx] = np.squeeze(tensor_regressor) - np.exp(-bval*this_MD)
             
             # Find the mean signal across the vertices corresponding to the b values
             # given.

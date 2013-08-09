@@ -28,7 +28,7 @@ def partial_round(bvals):
             
     return partially_rounded*1000
     
-def predict_n(data, bvals, bvecs, mask, n, b_mode):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -71,6 +71,8 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
     if b_mode is "all": 
         full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
                                                         mask = mask,
+                                                        axial_diffusivity = ad,
+                                                        radial_diffusivity = rd,
                                                         params_file = "temp")
         indices = np.array([0])
     elif b_mode is "bvals":
@@ -123,24 +125,16 @@ def predict_n(data, bvals, bvecs, mask, n, b_mode):
             
             if b_mode is "all":
                 mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                            mask = mask, params_file = "temp")
+                                                            mask = mask, axial_diffusivity = ad,
+                                                            radial_diffusivity = rd,
+                                                            params_file = "temp")
                 # Grab regressors from full model's preloaded regressors
                 fit_to = full_mod.regressors[0][:, si]
                 tensor_regressor = full_mod.regressors[1][:, si][si, :]
                 
                 mod.regressors = demean(fit_to, tensor_regressor, mod)
-                #NEW
-                left_out_means = []
-                vc_unique_b = np.unique(bvals[vec_combo])
-                if len(vc_unique_b) != 1:
-                    for b_fi in np.arange(len(vc_unique_b)):
-                        if vc_unique_b[b_fi] not in mod.unique_b:
-                            idx = np.squeeze(np.where(full_mod.unique_b == vc_unique_b[b_fi]))
-                            left_out_means.append(full_mod.regressors[4][:, b_inds_rm0[idx]][0])
-                       
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-                                                          bvals[vec_combo], left_out_means)
-                #NEW
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])
+                
             elif b_mode is "bvals":
                 mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
                                                     mask = mask, params_file = "temp",

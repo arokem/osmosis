@@ -349,14 +349,15 @@ class DWI(desc.ResetMixin):
         """
         The indices into non-zero b values
         """
-        return np.where(self.bvals > 0)[0]
+        return np.where(self.bvals >= 0.005)[0] # Add some tolerance. Some data is corrected for 
+                                                # Interactions betweeen gradients
         
     @desc.auto_attr
     def b0_idx(self):
         """
         The indices into zero b values
         """
-        return np.where(self.bvals==0)[0]
+        return np.where(self.bvals>=0.005)[0]
 
     @desc.auto_attr
     def S0(self):
