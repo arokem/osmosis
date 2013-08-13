@@ -13,6 +13,8 @@ import nibabel as nib
 import osmosis.utils as ozu
 
 import osmosis.model.sparse_deconvolution as sfm
+import osmosis.model.dti as dti
+
 import osmosis.snr as snr
 import osmosis.multi_bvals as sfm_mb
 import osmosis.snr as snr
@@ -137,16 +139,16 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
                 
             elif b_mode is "bvals":
                 mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
-                                                    mask = mask, params_file = "temp",
-                                                    axial_diffusivity = 1,
-                                                    radial_diffusivity = 0)
+                                                   mask = mask, params_file = "temp",
+                                                   axial_diffusivity = ad[unique_b[1:][bi]*1000],
+                                                   radial_diffusivity = rd[unique_b[1:][bi]*1000])
                                        
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
             
-        t2 = time.time()
-        print "This program took %4.2f minutes to run through %3.2f percent."%((t2 - t1)/60,
-                                                                100*((bi+1)/len(unique_b[1:])))
+    t2 = time.time()
+    print "This program took %4.2f minutes to run"%((t2 - t1)/60)
+    
     return actual, predicted
     
 def demean(fit_to, tensor_regressor, mod):
@@ -193,7 +195,7 @@ def demean(fit_to, tensor_regressor, mod):
                                     
     return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]   
     
-def predict_bvals(data, bvals, bvecs, mask, b_fit_to, b_predict):
+def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
     """
     Predict for each b value.
     
@@ -225,11 +227,21 @@ def predict_bvals(data, bvals, bvecs, mask, b_fit_to, b_predict):
                                                                          mode = 'remove0')
     all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][b_fit_to]))
         
-    mod = sfm.SparseDeconvolutionModel(data[:,:,:,all_inc_0], bvecs[:,all_inc_0],
-                                               rounded_bvals[all_inc_0], mask = mask,
-                                                                params_file = 'temp')
-    actual = data[mod.mask][0, b_inds[1:][b_predict]]
-    predicted = mod.predict(bvecs[:, b_inds[1:][b_predict]])[mod.mask][0]
+    mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
+                                                bvecs[:,all_inc_0],
+                                                bvals[all_inc_0],
+                                                mask = mask,
+                                                axial_diffusivity = ad,
+                                                radial_diffusivity = rd,
+                                                params_file = 'temp')
+    # Get mean diffusivity at all b values
+    tm_obj = dti.TensorModel(data, bvecs, bvals*1000, mask=mask, params_file='temp')
+    md = tm_obj.mean_diffusivity[np.where(mask)]
+    
+    predict_inds = b_inds[1:][b_predict]
+    actual = data[mod.mask][:, predict_inds]
+    predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds], md,
+                                                        b_mode = "across_b")
         
     return actual, predicted
 

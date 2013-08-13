@@ -46,7 +46,7 @@ from osmosis.snr import separate_bvals
 
 from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel
 import osmosis.model.dti as dti
-#from osmosis.model.canonical_tensor import AD, RD
+from osmosis.model.canonical_tensor import AD, RD
 
 # from osmosis.model.base import SCALE_FACTOR
 from osmosis.model.io import params_file_resolver
@@ -227,11 +227,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         return dti.TensorModel(self.data, self.bvecs, self.bvals*1000, mask=self.mask,
                                 params_file='temp')
     
-    def _flat_rel_sig_avg(self, bvals, idx):
+    def _flat_rel_sig_avg(self, bvals, idx, md = "None", b_mode = "None"):
         """
         Compute the relative signal average for demeaning of the signal.
         """
-        out = np.exp(-bvals[idx]*self._tensor_model.mean_diffusivity[self.mask])
+        if b_mode is "None":
+            out = np.exp(-bvals[idx]*self._tensor_model.mean_diffusivity[self.mask])
+        elif b_mode is "across_b":
+            out = np.exp(-bvals[idx]*md)
         
         return out
                                                                
@@ -246,7 +249,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to_means = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_demeaned = np.empty(fit_to.shape)
         
-        n_columns = np.sum([len(x) for x in self.b_inds_rm0])
+        if len(self.unique_b) > 1:
+            n_columns = np.sum([len(x) for x in self.b_inds_rm0])
+        else:
+            n_columns = len(self.b_inds_rm0)
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
         
@@ -424,7 +430,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         return out
         
-    def predict(self, vertices, new_bvals):
+    def predict(self, vertices, new_bvals, md = "None", b_mode = "None"):
         """
         Predict the signal on a new set of vertices
         """
@@ -447,7 +453,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             
             # Find the mean signal across the vertices corresponding to the b values
             # given.
-            fit_to_mean[:, idx] = self._flat_rel_sig_avg(new_bvals, idx)
+            fit_to_mean[:, idx] = self._flat_rel_sig_avg(new_bvals, idx, md = md, b_mode = b_mode)
 
         out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
         

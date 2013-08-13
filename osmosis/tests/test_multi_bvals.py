@@ -19,6 +19,8 @@ bvals_scaled_t = np.array([0, 0, 0, 2000, 1000, 1000, 2000, 1000])
 
 unique_b_t = np.array([0,1,2])
 
+all_b_idx_t = np.array([3,4,5,6,7])
+
 bvecs_t = np.zeros([3,8])
 bvecs_t[0,:] = np.array([1,0,0,-1,0,0,1/np.sqrt(3),-1/np.sqrt(3)])
 bvecs_t[1,:] = np.array([0,1,0,0,-1,0,1/np.sqrt(3),-1/np.sqrt(3)])
@@ -26,11 +28,16 @@ bvecs_t[2,:] = np.array([0,0,1,0,0,-1,1/np.sqrt(3),-1/np.sqrt(3)])
 
 # Mock data to be used in all tests
 data_t = np.zeros([2,2,2,8])
-data_t[:,:,:,0:3] = 2000 + abs(np.random.randn(2,2,2,3)*500) #Data for b values 0.005, 0.005, 0.010
-data_t[:,:,:,3] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b value 2.010
-data_t[:,:,:,4:6] = 1000 + abs(np.random.randn(2,2,2,2)*500) #Data for b values 1.005, 0.950
-data_t[:,:,:,6] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b values 1.950
-data_t[:,:,:,7] = np.squeeze(1000 + abs(np.random.randn(2,2,2,1)*500)) #Data for b value 1.000
+#Data for b values 0.005, 0.005, 0.010
+data_t[:,:,:,0:3] = 2000 + abs(np.random.randn(2,2,2,3)*500)
+#Data for b value 2.010
+data_t[:,:,:,3] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200))
+#Data for b values 1.005, 0.950
+data_t[:,:,:,4:6] = 1000 + abs(np.random.randn(2,2,2,2)*500)
+#Data for b values 1.950
+data_t[:,:,:,6] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200))
+#Data for b value 1.000
+data_t[:,:,:,7] = np.squeeze(1000 + abs(np.random.randn(2,2,2,1)*500))
 
 # Mock mask to be used in all tests
 mask_t = np.zeros([2,2,2])
@@ -40,13 +47,18 @@ mask_t[:,:,1] = 1
 rot_vecs_t = bvecs_t
 
 # Initalize the sfm multi b values class
-mb = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t, params_file = 'temp')
+ad = {1000:1.5, 2000:1.5, 3000:1.5}
+rd = {1000:0.5, 2000:0.5, 3000:0.5}
+mb = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t,
+                                           axial_diffusivity = ad,
+                                           radial_diffusivity = rd,
+                                           params_file = 'temp')
 
 def test_response_function():
-    rf_bvecs = bvecs_t[:,np.array([4,5,7])]
-    tensor_t = ozt.Tensor(np.diag([1, 0, 0]), rf_bvecs, np.array([1000, 1000, 1000]))
+    rf_bvec = np.reshape(bvecs_t[:,4],(3,1))
+    tensor_t = ozt.Tensor(np.diag([1.5, 0.5, 0.5]), rf_bvec, np.array([1000]))
     
-    evals_a, evecs_a = mb.response_function(0).decompose
+    evals_a, evecs_a = mb.response_function(1000, rf_bvec).decompose
     evals_t, evecs_t = tensor_t.decompose
     
     npt.assert_equal(evals_t, evals_a)
@@ -56,14 +68,15 @@ def test_response_function():
     
 def test_rotations():
     evals_t, evecs_t = test_response_function()
-    this_b_inds_t = np.array([4,5,7])
-    out_t = np.empty((5, 3))
+    out_t = np.empty((5, 1))
 
     for idx, bvec in enumerate(rot_vecs_t[:,3:8].T):
-        this_rot_t = ozt.rotate_to_vector(bvec, evals_t, evecs_t, bvecs_t[:,this_b_inds_t], bvals_scaled_t[this_b_inds_t]/1000)
+        this_rot_t = ozt.rotate_to_vector(bvec, evals_t, evecs_t,
+               np.reshape(bvecs_t[:,4], (3,1)), np.array([bvals_scaled_t[4]/1000]))
         out_t[idx] = this_rot_t.predicted_signal(1)
         
-    npt.assert_equal(out_t, mb.rotations(0))
+    npt.assert_equal(out_t, mb._calc_rotations(bvals_scaled_t[4]/1000,
+                                     np.reshape(bvecs_t[:,4], (3,1))))
     
     return out_t
     
@@ -89,18 +102,18 @@ def test_regressors():
     n_columns = len(bvals_scaled_t[np.where(bvals_scaled_t > 0)])
     tensor_regressor_t = np.empty((n_columns, n_columns))
     design_matrix_t = np.empty(tensor_regressor_t.shape)
-    for idx, b in enumerate(unique_b_t[1:]):
-        this_fit_to = mb._flat_relative_signal[:, bval_ind_rm0_t[idx]].T
-        for vox in np.arange(4):
-            fit_to_t[vox, bval_ind_rm0_t[idx]]  = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
+    for idx, b_idx in enumerate(all_b_idx_t):
+        this_fit_to = mb._flat_relative_signal[:, idx]
+        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t, b_idx)
             
-            # Check tensor regressors
-            this_tensor_regressor = mb.rotations(idx)
-            tensor_regressor_t[bval_ind_rm0_t[idx]] = this_tensor_regressor.T
-            
-            #Check design matrix
-            this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
-            design_matrix_t[bval_ind_rm0_t[idx]] = this_design_matrix
+        # Check tensor regressors
+        this_tensor_regressor = np.squeeze(mb._calc_rotations(bvals_t[b_idx],
+                                                np.reshape(bvecs_t[:, b_idx], (3,1))))
+        tensor_regressor_t[idx] = this_tensor_regressor
+        
+        #Check design matrix
+        this_MD = (1.5 + 2*0.5)/3
+        design_matrix_t[idx] = this_tensor_regressor - np.exp(-bvals_t[b_idx]*this_MD)
             
     npt.assert_equal(tensor_regressor_t, tensor_regressor_a)
     npt.assert_equal(fit_to_t, fit_to_a)
@@ -112,20 +125,14 @@ def test__n_vox():
 
 def test_design_matrix():
     _, tensor_regressor_a, design_matrix_a, _, _ = mb.regressors
-    
-    for bi in np.arange(len(mb.b_inds_rm0)):
-        evals_a, evecs_a = mb.response_function(bi).decompose
-        this_tr = design_matrix_a[mb.b_inds_rm0[bi]] + np.mean(tensor_regressor_a[mb.b_inds_rm0[bi]], 0)
-        for rv in np.arange(len(mb.rot_vecs[:,3:8].T)):
-            # Check to see if contents of the rotational vectors are equal to the
-            # predicted signal
-            this_rot = ozt.rotate_to_vector(mb.rot_vecs[:,3:8].T[0], evals_a, evecs_a,
-                     mb.bvecs[:,mb.b_inds[bi]], mb.rounded_bvals[mb.b_inds[bi]]/1000)
-            npt.assert_equal(this_tr[:,0],this_rot.predicted_signal(1))
-            
-            # Test to see if the mean across the vertices of the design matrix == 0
-            mean_3rot = np.mean(design_matrix_a[bval_ind_rm0_t[bi]][:,rv])
-            npt.assert_equal(mean_3rot<1*10**-10,1)
+    tensor_regressor_t, design_matrix_t, fit_to_t = test_regressors()
+
+    npt.assert_equal(design_matrix_t, design_matrix_a)
+
+    for rv in np.arange(len(mb.rot_vecs[:,3:8].T)):
+        # Test to see if the mean across the vertices of the design matrix == 0
+        mean_3rot = np.mean(design_matrix_a[:,rv])
+        npt.assert_equal(mean_3rot<0.5,1)
 
 def test_model_params():
     _, _, fit_to_t = test_regressors()
@@ -140,17 +147,21 @@ def test_fit():
     
 def test_predict():
     bvec_t = np.reshape(bvecs_t[:,3], (3,1))
-    tensor_regressor_t = mb._calc_rotations(0, np.array([2]), bvec_t)
-    design_matrix_t = tensor_regressor_t.T - np.mean(tensor_regressor_t, 0)
+    tensor_regressor_t = mb._calc_rotations(np.array([2]), bvec_t)
 
-    fit_to_t, _, _, _, _ = mb.regressors
+    this_MD = (1.5 + 2*0.5)/3
+    design_matrix_t = tensor_regressor_t.T - np.exp(-bvals_t[3]*this_MD)
+
     fit_to_mean_t = np.zeros((4,1))
     out_t = np.zeros((4,1))
+
+    fit_to_mean_t[:, 0] = mb._flat_rel_sig_avg(np.array([2]), 0)
+
     for vox in np.arange(4):
-        fit_to_mean_t[vox] = np.mean(fit_to_t[vox, bval_ind_rm0_t[1]])
         this_params_t = mb._flat_params[vox]
         this_params_t[np.isnan(this_params_t)] = 0.0
         out_t[vox] = (np.dot(this_params_t, design_matrix_t.T) +
                             fit_to_mean_t[vox]) * mb._flat_S0[vox]
                             
-    npt.assert_equal(np.squeeze(out_t),mb.predict(bvec_t, np.array([2])))   
+        npt.assert_equal(abs(np.squeeze(out_t[vox]) - mb.predict(bvec_t,
+                                           np.array([2]))[vox]) < 30, 1)
