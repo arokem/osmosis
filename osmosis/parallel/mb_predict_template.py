@@ -3,6 +3,7 @@
 # i
 import time
 import osmosis.multi_bvals as sfm_mb
+import osmosis.model.dti as dti
 import osmosis.predict_n as pn
 import nibabel as nib
 import os
@@ -22,9 +23,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*270
+    low = i*70
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 270, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 70, int(np.sum(wm_data))])
     
     # Preserve memory by getting rid of this data:
     del wm_data
@@ -34,15 +35,20 @@ if __name__=="__main__":
     mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
 
     # Predict 10% (n = 10)
+    ad = {1000:1.0, 2000:1.0, 3000:1.0}
+    rd = {1000:0, 2000:0, 3000:0}
     actual_all, predict_all = pn.predict_n(data, bvals/1000, bvecs,
-                                                mask, 10, "all")
+                                           mask, ad, rd, 10,"all")
     actual_bvals, predict_bvals = pn.predict_n(data, bvals/1000, bvecs,
-                                                mask, 10, "bvals")
+                                               mask, ad, rd, 10, "bvals")
+    actual_tensor, predict_tensor = pn.kfold_xval(dti.TensorModel, data,
+                                                  bvecs, bvals/1000,
+                                                  "all", 10, mask)
    
     aff = np.eye(4)
-    nib.Nifti1Image(actual_all, aff).to_filename("all_actual%s.nii.gz"%(i))
-    nib.Nifti1Image(predict_all, aff).to_filename("all_predict%s.nii.gz"%(i)) 
-    nib.Nifti1Image(actual_bvals, aff).to_filename("bvals_actual%s.nii.gz"%(i)) 
-    nib.Nifti1Image(predict_bvals, aff).to_filename("bvals_predict%s.nii.gz"%(i)) 
+    nib.Nifti1Image(actual_all, aff).to_filename("/hsgs/nobackup/klchan13/actual%s.nii.gz"%(i))
+    nib.Nifti1Image(predict_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i)) 
+    nib.Nifti1Image(predict_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
+    nib.Nifti1Image(predict_tensor, aff).to_filename("/hsgs/nobackup/klchan13/tensor_predict%s.nii.gz"%(i))
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

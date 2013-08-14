@@ -9,6 +9,7 @@ from math import factorial as f
 import itertools
 import time
 import os
+import inspect
 import nibabel as nib
 import osmosis.utils as ozu
 
@@ -28,7 +29,7 @@ def partial_round(bvals):
         if round(bvals[j]) == 0:
             partially_rounded[j] = 0
             
-    return partially_rounded*1000
+    return partially_rounded
     
 def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
     """
@@ -84,22 +85,28 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
         
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
-            bvals_pool = bvals
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
         elif b_mode is "bvals":
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
-            bvals_pool = partially_rounded
             these_b_inds = b_inds[1:][bi]
             these_b_inds_rm0 = b_inds_rm0[bi]
+        bvals_pool = bvals
         vec_pool = np.arange(len(these_b_inds))
         
         # Need to choose random indices so shuffle them!
         np.random.shuffle(vec_pool)
         
         # How many of the indices are you going to leave out at a time?
-        num_choose = np.ceil((n/100.)*len(these_b_inds))
-                
+        num_choose = (n/100.)*len(these_b_inds)
+        
+        if np.mod(100, n):
+            e = "Data not equally divisible by %d"%n
+            raise ValueError(e)
+        elif abs(num_choose - round(num_choose)) > 0:
+            e = "Number of directions not equally divisible by %d"%n
+            raise ValueError(e)
+ 
         for combo_num in np.arange(np.floor(100./n)):
             idx = list(these_b_inds_rm0)
             these_inc0 = list(all_inc_0)
@@ -135,15 +142,14 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
                 tensor_regressor = full_mod.regressors[1][:, si][si, :]
                 
                 mod.regressors = demean(fit_to, tensor_regressor, mod)
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])
                 
             elif b_mode is "bvals":
-                mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals,
+                mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                    mask = mask, params_file = "temp",
-                                                   axial_diffusivity = ad[unique_b[1:][bi]*1000],
-                                                   radial_diffusivity = rd[unique_b[1:][bi]*1000])
+                                                   axial_diffusivity = ad,
+                                                   radial_diffusivity = rd)
                                        
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
+            predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
             
     t2 = time.time()
@@ -193,7 +199,111 @@ def demean(fit_to, tensor_regressor, mod):
             design_matrix[mod.b_inds_rm0[bidx]] = (tensor_regressor[mod.b_inds_rm0[bidx]]
                                     - np.mean(tensor_regressor[mod.b_inds_rm0[bidx]].T, -1))
                                     
-    return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]   
+    return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
+
+    
+
+def kfold_xval(model_class, data, bvecs, bvals, b_mode, n, mask, **kwargs):
+    """
+    Predicts signals for a certain percentage of the vertices.
+    
+    Parameters
+    ----------
+    k : int 
+       The number of folds. Divide the data into k equal parts.
+      
+    
+    
+    """ 
+    t1 = time.time()
+    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
+                                                                        mode = 'remove0')
+    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+    all_b_idx_rm0 = np.arange(len(all_b_idx))
+    partially_rounded = partial_round(bvals)
+    
+    actual = np.empty((np.sum(mask), len(all_b_idx)))
+    predicted = np.empty(actual.shape)
+    
+    # Generate the regressors in the full model from which we choose the regressors in
+    # the reduced model from.
+    if b_mode is "all": 
+        indices = np.array([0])
+    elif b_mode is "bvals":
+        indices = np.arange(len(unique_b[1:]))
+    
+    for bi in indices:
+        
+        if b_mode is "all":
+            all_inc_0 = np.arange(len(rounded_bvals))
+            these_b_inds = all_b_idx
+            these_b_inds_rm0 = all_b_idx_rm0
+        elif b_mode is "bvals":
+            all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
+            these_b_inds = b_inds[1:][bi]
+            these_b_inds_rm0 = b_inds_rm0[bi]
+        bvals_pool = partially_rounded
+        vec_pool = np.arange(len(these_b_inds))
+        
+        # Need to choose random indices so shuffle them!
+        np.random.shuffle(vec_pool)
+        
+        # How many of the indices are you going to leave out at a time?
+        num_choose = (n/100.)*len(these_b_inds)
+
+        #if np.mod(len(these_b_inds), k): 
+        #   raise ValueError("")
+       
+        if np.mod(100, n):
+            e = "Data not equally divisible by %d"%n
+            raise ValueError(e)
+        elif abs(num_choose - round(num_choose)) > 0:
+            e = "Number of directions not equally divisible by %d"%n
+            raise ValueError(e)
+ 
+        for combo_num in np.arange(100./n):
+            idx = list(these_b_inds_rm0)
+            these_inc0 = list(all_inc_0)
+            low = (combo_num)*num_choose
+            high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
+            vec_pool_inds = vec_pool[low:high]
+            vec_combo = these_b_inds[vec_pool_inds]
+            vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
+               
+            # Remove the chosen indices from the rest of the indices
+            for choice_idx in vec_pool_inds:
+                these_inc0.remove(these_b_inds[choice_idx])
+                idx.remove(these_b_inds_rm0[choice_idx])
+                
+            # Make the list back into an array
+            these_inc0 = np.array(these_inc0)
+            
+            # Isolate the b vectors, b values, and data not including those to be predicted
+            these_bvecs = bvecs[:, these_inc0]
+            these_bvals = bvals_pool[these_inc0]
+            this_data = data[:, :, :, these_inc0]
+            
+            # Need to sort the indices first before indexing full model's regressors
+            si = sorted(idx)
+            
+            mod = model_class(this_data, these_bvecs, these_bvals,
+                                  mask = mask, params_file = "temp", **kwargs)
+            if mod.scaling_factor == 1000:
+                these_bvals = these_bvals*1000
+                mod = model_class(this_data, these_bvecs, these_bvals,
+                              mask = mask, params_file = "temp", **kwargs)
+                                                 
+            if len(inspect.getargspec(model_class.predict)[0]) > 2:
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[mod.mask]
+            elif len(inspect.getargspec(model_class.predict)[0]) == 2:
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
+            
+            actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
+            
+    t2 = time.time()
+    print "This program took %4.2f minutes to run"%((t2 - t1)/60)
+    return actual, predicted
     
 def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
     """

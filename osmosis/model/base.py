@@ -91,7 +91,7 @@ class DWI(desc.ResetMixin):
 
         """
         self.verbose=verbose
-        
+        self.scaling_factor = scaling_factor
         # All inputs are handled essentially the same. Inputs can be either
         # strings, in which case file reads are required, or arrays, in which
         # case no file reads are needed and we assign these arrays into the

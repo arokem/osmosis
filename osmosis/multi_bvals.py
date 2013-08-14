@@ -109,7 +109,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         else:
             ind = 0
         
-        self.bvals = bvals
         self.bval_list = bval_list[ind:]
         self.b_inds = b_inds[ind:]
         self.unique_b = unique_b[ind:]
@@ -476,10 +475,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 
             out_flat_arr[vox] = this_pred_sig
             
-        #out = ozu.nans(self.data[...,self.all_b_idx].shape[:3] + (self.bvecs[:,self.all_b_idx].shape[-1],))
-        #out[self.mask] = out_flat_arr
+        out = ozu.nans(self.data.shape[:3] + (out_flat_arr.shape[-1],))
+        out[self.mask] = out_flat_arr
 
-        return out_flat_arr
+        return out
         
     @desc.auto_attr
     def fit_angle(self):
