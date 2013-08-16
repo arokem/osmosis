@@ -8,8 +8,8 @@ import osmosis.model.sparse_deconvolution as sfm
 import osmosis.predict_n as pn
 
 # Mock b value array to be used in most tests
-bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000, 1.005,
-                    0.995, 2.005,2.010, 1.995])
+bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000, 1005,
+                    995, 2005,2010, 1995])
 
 bval_list_t = [(np.array([0, 0, 0]))]
 bval_list_t.append(np.array([1000, 1000, 1000, 1000, 1000]))
@@ -114,12 +114,12 @@ def test_predict_bvals():
     mask_pv = np.zeros(mask_orig.shape)
     mask_pv[0, 0, 0:2] = 1
 
-    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv/1000, bvecs_pv,
-                                                        mask_pv, ad, rd, 0, 2)
-    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv/1000, bvecs_pv,
-                                                        mask_pv, ad, rd, 1, 2)
-    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv/1000, bvecs_pv,
-                                                        mask_pv, ad, rd, 2, 2)
+    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                   mask_pv, ad, rd, 0, 2)
+    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                   mask_pv, ad, rd, 1, 2)
+    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                   mask_pv, ad, rd, 2, 2)
 
     rmse02 = np.sqrt(np.mean((actual02 - predicted02)**2))
     rmse12 = np.sqrt(np.mean((actual12 - predicted12)**2))

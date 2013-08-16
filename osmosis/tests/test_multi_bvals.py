@@ -5,7 +5,7 @@ import numpy.testing as npt
 import osmosis.multi_bvals as sfm_mb
 
 # Mock b value array to be used in all tests
-bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
+bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000])
 
 b_idx = 1
 bval_list_t = [(np.array([0, 0, 0]))]
@@ -17,7 +17,7 @@ bval_ind_rm0_t = [np.array([1,2,4]), np.array([0,3])]
 
 bvals_scaled_t = np.array([0, 0, 0, 2000, 1000, 1000, 2000, 1000])
 
-unique_b_t = np.array([0,1,2])
+unique_b_t = np.array([0,1000,2000])
 
 all_b_idx_t = np.array([3,4,5,6,7])
 
@@ -104,16 +104,16 @@ def test_regressors():
     design_matrix_t = np.empty(tensor_regressor_t.shape)
     for idx, b_idx in enumerate(all_b_idx_t):
         this_fit_to = mb._flat_relative_signal[:, idx]
-        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t, b_idx)
+        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t/1000., b_idx)
             
         # Check tensor regressors
-        this_tensor_regressor = np.squeeze(mb._calc_rotations(bvals_t[b_idx],
+        this_tensor_regressor = np.squeeze(mb._calc_rotations(bvals_t[b_idx]/1000.,
                                                 np.reshape(bvecs_t[:, b_idx], (3,1))))
         tensor_regressor_t[idx] = this_tensor_regressor
         
         #Check design matrix
         this_MD = (1.5 + 2*0.5)/3
-        design_matrix_t[idx] = this_tensor_regressor - np.exp(-bvals_t[b_idx]*this_MD)
+        design_matrix_t[idx] = this_tensor_regressor - np.exp(-(bvals_t[b_idx]/1000.)*this_MD)
             
     npt.assert_equal(tensor_regressor_t, tensor_regressor_a)
     npt.assert_equal(fit_to_t, fit_to_a)
@@ -150,7 +150,7 @@ def test_predict():
     tensor_regressor_t = mb._calc_rotations(np.array([2]), bvec_t)
 
     this_MD = (1.5 + 2*0.5)/3
-    design_matrix_t = tensor_regressor_t.T - np.exp(-bvals_t[3]*this_MD)
+    design_matrix_t = tensor_regressor_t.T - np.exp(-(bvals_t[3]/1000.)*this_MD)
 
     fit_to_mean_t = np.zeros((4,1))
     out_t = np.zeros((4,1))
@@ -164,4 +164,4 @@ def test_predict():
                             fit_to_mean_t[vox]) * mb._flat_S0[vox]
                             
         npt.assert_equal(abs(np.squeeze(out_t[vox]) - mb.predict(bvec_t,
-                                           np.array([2]))[vox]) < 30, 1)
+                                           np.array([2000]))[np.where(mask_t)][0][vox]) < 30, 1)

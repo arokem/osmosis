@@ -12,6 +12,7 @@ import os
 import inspect
 import nibabel as nib
 import osmosis.utils as ozu
+from osmosis.utils import separate_bvals
 
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
@@ -20,12 +21,12 @@ import osmosis.snr as snr
 import osmosis.multi_bvals as sfm_mb
 import osmosis.snr as snr
 
-def partial_round(bvals):
+def partial_round(bvals, factor = 1000.):
     """
     Round only the values about equal to zero.
     """
     partially_rounded = bvals
-    for j in np.arange(len(bvals)):
+    for j in np.arange(len(bvals/factor)):
         if round(bvals[j]) == 0:
             partially_rounded[j] = 0
             
@@ -59,9 +60,9 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode):
         Predicted signals for the vertices left out of the fit
     """ 
     t1 = time.time()
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
-    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
-                                                                        mode = 'remove0')
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+                                                                    mode = 'remove0')
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     partially_rounded = partial_round(bvals)
@@ -203,7 +204,7 @@ def demean(fit_to, tensor_regressor, mod):
 
     
 
-def kfold_xval(model_class, data, bvecs, bvals, b_mode, n, mask, **kwargs):
+def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwargs):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -216,9 +217,9 @@ def kfold_xval(model_class, data, bvecs, bvals, b_mode, n, mask, **kwargs):
     
     """ 
     t1 = time.time()
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
-    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
-                                                                        mode = 'remove0')
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+                                                                    mode = 'remove0')
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     partially_rounded = partial_round(bvals)
@@ -250,19 +251,12 @@ def kfold_xval(model_class, data, bvecs, bvals, b_mode, n, mask, **kwargs):
         np.random.shuffle(vec_pool)
         
         # How many of the indices are you going to leave out at a time?
-        num_choose = (n/100.)*len(these_b_inds)
+        num_choose = k
 
-        #if np.mod(len(these_b_inds), k): 
-        #   raise ValueError("")
-       
-        if np.mod(100, n):
-            e = "Data not equally divisible by %d"%n
-            raise ValueError(e)
-        elif abs(num_choose - round(num_choose)) > 0:
-            e = "Number of directions not equally divisible by %d"%n
-            raise ValueError(e)
+        if np.mod(len(these_b_inds), k): 
+            raise ValueError("The number of directions are not equally divisible by %d"%k)
  
-        for combo_num in np.arange(100./n):
+        for combo_num in np.arange(len(these_b_inds)/k):
             idx = list(these_b_inds_rm0)
             these_inc0 = list(all_inc_0)
             low = (combo_num)*num_choose
@@ -289,18 +283,18 @@ def kfold_xval(model_class, data, bvecs, bvals, b_mode, n, mask, **kwargs):
             
             mod = model_class(this_data, these_bvecs, these_bvals,
                                   mask = mask, params_file = "temp", **kwargs)
-            if mod.scaling_factor == 1000:
-                these_bvals = these_bvals*1000
-                mod = model_class(this_data, these_bvecs, these_bvals,
-                              mask = mask, params_file = "temp", **kwargs)
+            #if mod.scaling_factor == 1000:
+                #these_bvals = these_bvals*1000
+                #mod = model_class(this_data, these_bvecs, these_bvals,
+                              #mask = mask, params_file = "temp", **kwargs)
                                                  
-            if len(inspect.getargspec(model_class.predict)[0]) > 2:
+            if len(inspect.getargspec(mod.predict)[0]) > 2:
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[mod.mask]
-            elif len(inspect.getargspec(model_class.predict)[0]) == 2:
+            elif len(inspect.getargspec(mod.predict)[0]) == 2:
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo])[mod.mask]
             
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
-            
+
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     return actual, predicted
@@ -332,9 +326,9 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
         Predicted signals for the vertices left out of the fit
     """
     
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
-    bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals,
-                                                                         mode = 'remove0')
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+    bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+                                                                     mode = 'remove0')
     all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][b_fit_to]))
         
     mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
@@ -345,13 +339,13 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
                                                 radial_diffusivity = rd,
                                                 params_file = 'temp')
     # Get mean diffusivity at all b values
-    tm_obj = dti.TensorModel(data, bvecs, bvals*1000, mask=mask, params_file='temp')
+    tm_obj = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file='temp')
     md = tm_obj.mean_diffusivity[np.where(mask)]
     
     predict_inds = b_inds[1:][b_predict]
     actual = data[mod.mask][:, predict_inds]
     predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds], md,
-                                                        b_mode = "across_b")
+                                              b_mode = "across_b")[mod.mask]
         
     return actual, predicted
 
@@ -479,7 +473,7 @@ def place_predict(files):
 
     # b values
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals/1000)
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals/1000)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
 
     all_predict_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))

@@ -25,6 +25,23 @@ def test_unique_coords():
                              [6,7,8],[0,1,0],[1,0,1]])
     
     npt.assert_equal(ozu.unique_rows(arr), arr_w_unique)
+    
+def test_separate_bvals():
+    bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000])
+    unique_b_t = np.array([0,1000,2000])
+    bvals_scaled_t = np.array([0, 0, 0, 2000, 1000, 1000, 2000, 1000])
+    bval_list_t = [(np.array([0, 0, 0]))]
+    bval_list_t.append(np.array([1000, 1000, 1000]))
+    bval_list_t.append(np.array([2000, 2000]))
+    bval_ind_t = [np.array([0,1,2]), np.array([4,5,7]), np.array([3,6])]
+    
+    bval_list, bval_ind, unique_b, bvals_scaled = ozu.separate_bvals(bvals_t)
+    npt.assert_equal(unique_b, unique_b_t)
+    npt.assert_equal(bvals_scaled, bvals_scaled_t)
+    
+    for i in np.arange(len(bval_list)):
+        npt.assert_equal(np.squeeze(bval_list)[i], bval_list_t[i])
+        npt.assert_equal(np.squeeze(bval_ind)[i], bval_ind_t[i])
 
 def test_intersect():
     """
