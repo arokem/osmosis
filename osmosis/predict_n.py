@@ -210,11 +210,26 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
     
     Parameters
     ----------
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    bvecs: 3 dimensional array
+        All the b vectors
+    mask: 3 dimensional array
+        Brain mask of the data
     k : int 
        The number of folds. Divide the data into k equal parts.
-      
+    b_mode: str
+        'all': if fitting to all b values
+        'bvals': if fitting to individual b values
     
-    
+    Returns
+    -------
+    actual: 2 dimensional array
+        Actual signals for the predicted vertices
+    predicted: 2 dimensional array 
+        Predicted signals for the vertices left out of the fit
     """ 
     t1 = time.time()
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
@@ -459,7 +474,7 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
             
     return rmse_b, rmse_mb, AD_order, RD_order
     
-def place_predict(files):
+def place_predict(files, file_names, mask_vox, expected_file_num):
     data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
     file_path = "/hsgs/nobackup/klchan13"
 
@@ -473,7 +488,7 @@ def place_predict(files):
 
     # b values
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
-    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals/1000)
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
 
     all_predict_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))
@@ -481,26 +496,24 @@ def place_predict(files):
     actual_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))
     
     # Keep track of files in case there are any missing ones
-    i_track = np.ones(1832)
+    i_track = np.ones(expected_file_num)
     for f_idx in np.arange(len(files)):
         this_file = files[f_idx]
         if this_file[(len(this_file)-6):len(this_file)] == "nii.gz":
             sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
             if this_file[0:11] == "all_predict":
                 i = int(this_file.split(".")[0][11:])
-                print "Placing all_predict %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 all_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
             elif this_file[0:13] == "bvals_predict":
                 i = int(this_file.split(".")[0][13:])
-                print "Placing bvals_predict %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 bvals_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
             elif this_file[0:10] == "all_actual":
                 i = int(this_file.split(".")[0][10:])
-                print "Placing actual %4.2f of 1832"%(i+1)
+                #print "Placing actual %4.2f of 1832"%(i+1)
                 low = i*70
                 high = np.min([(i+1) * 70, int(np.sum(wm_data))])
                 actual_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
@@ -515,7 +528,7 @@ def place_predict(files):
     nib.Nifti1Image(all_predict_brain, aff).to_filename("all_predict_brain.nii.gz")
     nib.Nifti1Image(bvals_predict_brain, aff).to_filename("bvals_predict_brain.nii.gz")
 
-    np.save("rmse_b_flat.npy", rmse_b)
-    np.save("rmse_mb_flat.npy", rmse_mb)
+    #np.save("rmse_b_flat.npy", rmse_b)
+    #np.save("rmse_mb_flat.npy", rmse_mb)
     
     return missing_files, rmse_b, rmse_mb, all_predict_brain, bvals_predict_brain
