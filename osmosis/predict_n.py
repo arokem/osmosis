@@ -474,9 +474,9 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
             
     return rmse_b, rmse_mb, AD_order, RD_order
     
-def place_predict(files, file_names, mask_vox, expected_file_num):
+def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No"):
     data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
-    file_path = "/hsgs/nobackup/klchan13"
+    files = os.listdir(file_path)
 
     # Get file object
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
@@ -490,45 +490,28 @@ def place_predict(files, file_names, mask_vox, expected_file_num):
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-
-    all_predict_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))
-    bvals_predict_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))
-    actual_brain = ozu.nans((wm_data_file.shape + all_b_idx.shape))
+    
+    vol_list = []
     
     # Keep track of files in case there are any missing ones
     i_track = np.ones(expected_file_num)
-    for f_idx in np.arange(len(files)):
-        this_file = files[f_idx]
-        if this_file[(len(this_file)-6):len(this_file)] == "nii.gz":
-            sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
-            if this_file[0:11] == "all_predict":
-                i = int(this_file.split(".")[0][11:])
-                low = i*70
-                high = np.min([(i+1) * 70, int(np.sum(wm_data))])
-                all_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
-            elif this_file[0:13] == "bvals_predict":
-                i = int(this_file.split(".")[0][13:])
-                low = i*70
-                high = np.min([(i+1) * 70, int(np.sum(wm_data))])
-                bvals_predict_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
-            elif this_file[0:10] == "all_actual":
-                i = int(this_file.split(".")[0][10:])
-                #print "Placing actual %4.2f of 1832"%(i+1)
-                low = i*70
-                high = np.min([(i+1) * 70, int(np.sum(wm_data))])
-                actual_brain[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
-            i_track[i] = 0
-        
+    for fn in file_names:
+        vol = ozu.nans((wm_data_file.shape + all_b_idx.shape))
+        for f_idx in np.arange(len(files)):
+            this_file = files[f_idx]
+            if this_file[(len(this_file)-6):len(this_file)] == "nii.gz":
+                sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
+                if this_file[0:len(fn)] == fn:
+                    i = int(this_file.split(".")[0][len(fn):])
+                    low = i*mask_vox_num
+                    high = np.min([(i+1) * mask_vox_num, int(np.sum(wm_data))])
+                    vol[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
+                    i_track[i] = 0
+        vol_list.append(vol)
+        if save is "Yes":
+            aff = data_file.get_affine()
+            nib.Nifti1Image(vol, aff).to_filename("vol_%s.nii.gz"%fn)
+            
     missing_files = np.squeeze(np.where(i_track))
-    rmse_b = np.sqrt(np.mean((actual_brain[wm_idx] - bvals_predict_brain[wm_idx])**2,-1))
-    rmse_mb = np.sqrt(np.mean((actual_brain[wm_idx] - all_predict_brain[wm_idx])**2,-1))
 
-    # Save the rmse and predict data
-    aff = data_file.get_affine()
-    nib.Nifti1Image(all_predict_brain, aff).to_filename("all_predict_brain.nii.gz")
-    nib.Nifti1Image(bvals_predict_brain, aff).to_filename("bvals_predict_brain.nii.gz")
-
-    #np.save("rmse_b_flat.npy", rmse_b)
-    #np.save("rmse_mb_flat.npy", rmse_mb)
-    
-    return missing_files, rmse_b, rmse_mb, all_predict_brain, bvals_predict_brain
+    return missing_files, vol_list
