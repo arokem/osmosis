@@ -452,17 +452,19 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
         The groups of radial diffusivities in the order they were chosen
     """
     AD_combos, RD_combos = choose_AD_RD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num)
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+    num_bvals = len(unique_b[1:])
     
     AD_order = []
     RD_order = []
-    rmse_b = np.empty((np.sum(mask), nchoosek(AD_num,3)*nchoosek(RD_num,3)))
+    rmse_b = np.empty((np.sum(mask), nchoosek(AD_num, num_bvals)*nchoosek(RD_num, num_bvals)))
     rmse_mb = np.empty(rmse_b.shape)
 
     track = 0
     for AD_idx in np.arange(len(AD_combos)):
         for RD_idx in np.arange(len(RD_combos)):
-            actual_b, predicted_b = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 'bvals')
-            actual, predicted = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 'all')
+            actual_b, predicted_b = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'bvals')
+            actual, predicted = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'all')
             
             rmse_b[:, track] = np.sqrt(np.mean((actual_b - predicted_b)**2, -1))
             rmse_mb[:, track] = np.sqrt(np.mean((actual - predicted)**2, -1))
@@ -491,6 +493,7 @@ def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.ge
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     
+    # For producing the volumes as an output
     vol_list = []
     
     # Keep track of files in case there are any missing ones
@@ -502,7 +505,7 @@ def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.ge
             if this_file[(len(this_file)-6):len(this_file)] == "nii.gz":
                 sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
                 if this_file[0:len(fn)] == fn:
-                    i = int(this_file.split(".")[0][len(fn):])
+                    i = int(this_file.split(".")[0][len(fn):]) 
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(wm_data))])
                     vol[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data

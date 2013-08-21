@@ -5,6 +5,7 @@ import time
 import osmosis.multi_bvals as sfm_mb
 import osmosis.model.dti as dti
 import osmosis.predict_n as pn
+from osmosis.utils import separate_bvals
 import nibabel as nib
 import os
 import numpy as np
@@ -37,13 +38,17 @@ if __name__=="__main__":
     # Predict 10% (n = 10)
     ad = {1000:1.0, 2000:1.0, 3000:1.0}
     rd = {1000:0, 2000:0, 3000:0}
-    actual_all, predict_all = pn.predict_n(data, bvals/1000, bvecs,
+    actual_all, predict_all = pn.predict_n(data, bvals, bvecs,
                                            mask, ad, rd, 10,"all")
-    actual_bvals, predict_bvals = pn.predict_n(data, bvals/1000, bvecs,
+    actual_bvals, predict_bvals = pn.predict_n(data, bvals, bvecs,
                                                mask, ad, rd, 10, "bvals")
-    actual_tensor, predict_tensor = pn.kfold_xval(dti.TensorModel, data,
-                                                  bvecs, bvals/1000,
-                                                  "all", 10, mask)
+                                               
+    # Predict tensor
+    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
+    inds = np.concatenate((b_inds[0], b_inds[1:][0]))
+    actual_tensor, predict_tensor = pn.kfold_xval(dti.TensorModel, data[:,:,:,inds],
+                                                  bvecs[:,inds], bvals[inds], 9,
+                                                  mask)
    
     aff = np.eye(4)
     nib.Nifti1Image(actual_all, aff).to_filename("/hsgs/nobackup/klchan13/actual%s.nii.gz"%(i))

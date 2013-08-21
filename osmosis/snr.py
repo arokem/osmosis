@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from scipy.special import gamma
 
-def separate_bvals(bvals, mode = 'None'):
+def separate_bvals(bvals, mode = 'None', factor=1000.):
     """
     Separates b values into groups with similar values
     Returns the grouped b values and their corresponding indices.
@@ -15,7 +15,13 @@ def separate_bvals(bvals, mode = 'None'):
     ----------
     bvals: ndarray
         b values to be separated
-        
+    mode: str (optional)
+       "None": Outputs indices in reference to the original array
+       "remove0": Outputs indices in reference to an array not containing b = 0 values.
+    factor: float
+       This is a tolerance factor. This function will divide the bvalues to the closest 
+       factor. That is, when this is 1000, we will get things divided to 1000, 2000, etc.
+       
     Returns
     -------
     bval_list: list
@@ -28,6 +34,8 @@ def separate_bvals(bvals, mode = 'None'):
         Array of all the unique b values found
     """
     
+    bvals = bvals/factor
+    
     # Round all the b values and find the unique numbers
     rounded_bvals = list()
     for j in np.arange(len(bvals)):
@@ -37,8 +45,8 @@ def separate_bvals(bvals, mode = 'None'):
         else:
             rounded_bvals.append(round(bvals[j]))
       
-    unique_b = np.unique(np.array(rounded_bvals))
-    bvals_scaled = np.array(rounded_bvals)*1000
+    unique_b = np.unique(np.array(rounded_bvals))*factor
+    bvals_scaled = np.array(rounded_bvals)*factor
     
     # Initialize one list for b values and another list for the indices
     bval_list = list()
@@ -46,10 +54,10 @@ def separate_bvals(bvals, mode = 'None'):
     
     # Find locations where rounded b values equal the unique b values
     for i in np.arange(len(unique_b)):
-      idx_b = np.where(rounded_bvals == unique_b[i])
+      idx_b = np.where(bvals_scaled == unique_b[i])
       bval_list.append(bvals_scaled[idx_b])
       bval_ind.append(idx_b)
-      
+
     return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
 
 def b_snr(data, bvals, b, mask):
