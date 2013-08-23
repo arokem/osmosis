@@ -94,7 +94,6 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         self.params_file = params_file_resolver(self,
                                                 this_class,
                                                 params_file=params_file)
-
         # Deal with the solver stuff: 
         # For now, the default is ElasticNet:
         if solver is None:

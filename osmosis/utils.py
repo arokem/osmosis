@@ -50,6 +50,60 @@ def intersect(arr_list):
         arr = np.intersect1d(arr, this_arr.ravel())
 
     return arr
+    
+def separate_bvals(bvals, mode = 'None', factor=1000.):
+    """
+    Separates b values into groups with similar values
+    Returns the grouped b values and their corresponding indices.
+    
+    Parameters
+    ----------
+    bvals: ndarray
+        b values to be separated
+    mode: str (optional)
+       "None": Outputs indices in reference to the original array
+       "remove0": Outputs indices in reference to an array not containing b = 0 values.
+    factor: float
+       This is a tolerance factor. This function will divide the bvalues to the closest 
+       factor. That is, when this is 1000, we will get things divided to 1000, 2000, etc.
+       
+    Returns
+    -------
+    bval_list: list
+        List of separated b values.  Each index contains an array of grouped b values
+        with similar values
+    bval_ind: list
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indices to the grouped b values with similar values
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+    """
+    
+    bvals = bvals/factor
+    
+    # Round all the b values and find the unique numbers
+    rounded_bvals = list()
+    for j in np.arange(len(bvals)):
+        if mode is 'remove0':
+            if round(bvals[j]) != 0:
+                rounded_bvals.append(round(bvals[j]))
+        else:
+            rounded_bvals.append(round(bvals[j]))
+      
+    unique_b = np.unique(np.array(rounded_bvals))*factor
+    bvals_scaled = np.array(rounded_bvals)*factor
+    
+    # Initialize one list for b values and another list for the indices
+    bval_list = list()
+    bval_ind = list()
+    
+    # Find locations where rounded b values equal the unique b values
+    for i in np.arange(len(unique_b)):
+      idx_b = np.where(bvals_scaled == unique_b[i])
+      bval_list.append(bvals_scaled[idx_b])
+      bval_ind.append(idx_b)
+
+    return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
 
 def unique_rows(in_array, dtype='f4'): 
     """
