@@ -122,7 +122,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                                                 this_class,
                                                 params_file=params_file)
         if over_sample is None:
-            self.rot_vecs = bvecs
+            self.rot_vecs = bvecs[:, self.all_b_idx]
+        elif np.logical_and(isinstance(over_sample, int), over_sample<len(self.bvals[self.all_b_idx])):
+            self.rot_vecs = ozu.get_camino_pts(over_sample)
             
         # Deal with the solver stuff: 
         # For now, the default is ElasticNet:
@@ -178,12 +180,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         if len(vertex.shape) == 1:
             vertex = np.reshape(vertex, (3,1))
             
-        out = np.empty((self.rot_vecs[:,self.all_b_idx].shape[-1], vertex.shape[-1]))
+        out = np.empty((self.rot_vecs.shape[-1], vertex.shape[-1]))
         
         bval_tensor = round(bval)*self.scaling_factor
         evals, evecs = self.response_function(bval_tensor, vertex).decompose
       
-        for idx, bvec in enumerate(self.rot_vecs[:,self.all_b_idx].T):               
+        for idx, bvec in enumerate(self.rot_vecs.T):               
             # bvec within the rotational vectors
             this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertex, np.array([bval]))
             pred_sig = this_rot.predicted_signal(1)
@@ -246,11 +248,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_means = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_demeaned = np.empty(fit_to.shape)
-        
-        if len(self.unique_b) > 1:
-            n_columns = np.sum([len(x) for x in self.b_inds_rm0])
-        else:
-            n_columns = len(self.b_inds_rm0)
+        n_columns = len(self.rot_vecs[0,:])
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
         
@@ -275,7 +273,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_tensor_regressor = self._calc_rotations(self.bvals[b_idx],
                                         np.reshape(self.bvecs[:, b_idx], (3,1)))
             bval_tensor = round(self.bvals[b_idx])*self.scaling_factor
-            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
+            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
             tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
             design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-self.bvals[b_idx]*this_MD)
             
@@ -351,7 +349,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_fit_to = fit_to
                        
             # One weight for each rotation
-            params = np.empty((self._n_vox, self.rot_vecs[:,self.all_b_idx].shape[-1]))
+            params = np.empty((self._n_vox, self.rot_vecs.shape[-1]))
             
             for vox in xrange(self._n_vox):
                 params[vox] = self._fit_it(this_fit_to[vox], design_matrix)
@@ -443,13 +441,13 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         if len(vertices.shape) == 1:
             vertices = np.reshape(vertices, (3,1))
         
-        design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs[:,self.all_b_idx].shape[-1]))
+        design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs.shape[-1]))
         fit_to_mean = np.zeros((self._n_vox, vertices.shape[-1]))
         for idx, bval in enumerate(new_bvals):
             # Create a new design matrix from the given vertices
             tensor_regressor = self._calc_rotations(bval, np.reshape(vertices[:, idx], (3,1)))
             bval_tensor = round(bval)*self.scaling_factor
-            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3
+            this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
             design_matrix[idx] = np.squeeze(tensor_regressor) - np.exp(-bval*this_MD)
             
             # Find the mean signal across the vertices corresponding to the b values
@@ -476,7 +474,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_pred_sig =  (1 - this_relative) * self._flat_S0[vox]
                 
             out_flat_arr[vox] = this_pred_sig
-            
+           
         out = ozu.nans(self.data.shape[:3] + (out_flat_arr.shape[-1],))
         out[self.mask] = out_flat_arr
 
