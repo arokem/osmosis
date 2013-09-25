@@ -27,12 +27,12 @@ def partial_round(bvals, factor = 1000.):
     """
     partially_rounded = bvals
     for j in np.arange(len(bvals/factor)):
-        if round(bvals[j]) == 0:
+        if round(bvals[j]/factor) == 0:
             partially_rounded[j] = 0
             
     return partially_rounded
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, bvecs_predict=None, over_sample = None, solver = None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -61,10 +61,17 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
     """ 
     t1 = time.time()
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
-                                                                    mode = 'remove0')
-    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-    all_b_idx_rm0 = np.arange(len(all_b_idx))
+
+    if bvals_predict != None:
+        _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals_predict,
+                                                                        mode = 'remove0')
+        all_b_idx = np.arange(len(bvals_predict))
+        all_b_idx_rm0 = np.arange(len(all_b_idx))
+    else:
+        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        all_b_idx_rm0 = np.arange(len(all_b_idx))
+        _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+                                                                        mode = 'remove0')
     partially_rounded = partial_round(bvals)
     
     actual = np.empty((np.sum(mask), len(all_b_idx)))
@@ -78,6 +85,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
                                                         axial_diffusivity = ad,
                                                         radial_diffusivity = rd,
                                                         over_sample = over_sample,
+                                                        solver = solver,
                                                         params_file = "temp")
         indices = np.array([0])
     elif b_mode is "bvals":
@@ -112,8 +120,10 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
         for combo_num in np.arange(np.floor(100./n)):
             idx = list(these_b_inds_rm0)
             these_inc0 = list(all_inc_0)
+            
             low = (combo_num)*num_choose
             high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
+            
             vec_pool_inds = vec_pool[low:high]
             vec_combo = these_b_inds[vec_pool_inds]
             vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
@@ -141,6 +151,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
                                                             mask = mask, axial_diffusivity = ad,
                                                             radial_diffusivity = rd,
                                                             over_sample = over_sample,
+                                                            solver = solver,
                                                             params_file = "temp")
                 # Grab regressors from full model's preloaded regressors
                 fit_to = full_mod.regressors[0][:, si]
@@ -153,20 +164,26 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, over_sample = None):
                 
             elif b_mode is "bvals":
                 mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                   mask = mask, params_file = "temp",
-                                                   axial_diffusivity = ad,
-                                                   radial_diffusivity = rd,
-                                                   over_sample = over_sample)
-                                       
-            predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[mod.mask]
-            actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
+                                                            mask = mask, params_file = "temp",
+                                                            axial_diffusivity = ad,
+                                                            radial_diffusivity = rd,
+                                                            solver = solver,
+                                                            over_sample = over_sample)
+            if bvals_predict != None:                                                
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs_predict[:, vec_combo],
+                                                          bvals_predict[vec_combo])[mod.mask]
+                actual = None
+            else:
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+                                                          bvals[vec_combo])[mod.mask]
+                actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
             
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
     return actual, predicted
     
-def predict_grid(data, bvals, bvecs, mask, ad, rd, n):
+def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -264,7 +281,9 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n):
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                 mask = mask, params_file = "temp",
                                                 axial_diffusivity = ad,
-                                                radial_diffusivity = rd)
+                                                radial_diffusivity = rd,
+                                                over_sample = over_sample,
+                                                solver = solver)
                                        
             predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo])[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
@@ -306,8 +325,12 @@ def demean(fit_to, tensor_regressor, mod):
     fit_to_demeaned = np.empty(fit_to.shape)
     fit_to_means = np.empty(fit_to.shape)
     design_matrix = np.empty(tensor_regressor.shape)
-    
-    for bidx, b in enumerate(mod.unique_b):
+           
+    for bidx in np.arange(len(mod.unique_b)):
+        
+        if isinstance(mod.b_inds_rm0, numpy.ndarray):
+            bidx = None
+            
         for vox in xrange(mod._n_vox):
             # Need to demean everything across the vertices that were fitted to
             fit_to_demeaned[vox, mod.b_inds_rm0[bidx]] = (fit_to[vox, mod.b_inds_rm0[bidx]]
@@ -426,7 +449,7 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     return actual, predicted
     
-def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
+def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, this_md = "no_mean", solver = "nnls", mode = None):
     """
     Predict for each b value.
     
@@ -464,18 +487,32 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict):
                                                 mask = mask,
                                                 axial_diffusivity = ad,
                                                 radial_diffusivity = rd,
+                                                solver = solver,
                                                 params_file = 'temp')
     # Get mean diffusivity at all b values
     tm_obj = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file='temp')
-    md = tm_obj.mean_diffusivity[np.where(mask)]
+    
+    if this_md == "no_mean":
+        md = "no_mean"
+    elif this_md == "b_mean":
+        md = tm_obj.mean_diffusivity[np.where(mask)]
     
     predict_inds = b_inds[1:][b_predict]
     actual = data[mod.mask][:, predict_inds]
-    predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds], md,
-                                              b_mode = "across_b")[mod.mask]
+    
+    if mode == "kfold_xval":
+        _, predicted = predict_n(data[:,:,:,all_inc_0], bvals[all_inc_0],
+                                 bvecs[:,all_inc_0], mask, ad, rd, 10,
+                                 b_mode = "all",
+                                 bvals_predict = bvals[predict_inds],
+                                 bvecs_predict = bvecs[:, predict_inds],
+                                 solver = solver)
+    else:
+        predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds],
+                                md = md, b_mode = "across_b")[mod.mask]
         
     return actual, predicted
-
+    
 def nchoosek(n,k):
     """
     Finds all the number of unique combinations from choosing groups of k from a pool of n.
@@ -589,7 +626,7 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
     return rmse_b, rmse_mb, AD_order, RD_order
     
 def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No"):
-
+    
     data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
     files = os.listdir(file_path)
 
