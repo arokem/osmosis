@@ -63,6 +63,7 @@ mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_dat
 mask_pv = np.zeros(mask_orig.shape)
 mask_pv[0, 0, 0:2] = 1
 
+actual_all = np.squeeze(data_pv[np.where(mask_pv)][:, all_b_inds])
 actual_t = data_pv[np.where(mask_pv)][:, b_inds[3]]
 actual_t_demeaned = (data_pv[np.where(mask_pv)][:, b_inds[3]] -
                      np.mean(data_pv[np.where(mask_pv)][:, b_inds[3]],-1)[..., None])
@@ -109,18 +110,34 @@ def test_regressors():
 def test_all_predict():
     # Now check to see if the values for multi b values is around a
     # value we want
-    actual_vals, predicted_vals = pn.predict_n(data_t, bvals_t, bvecs_t, mask_t,
+    actual_vals, predicted_vals = pn.predict_n(data_pv, bvals_pv, bvecs_pv, mask_pv,
                                                               ad, rd, 20, "all")
     npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
+    
+    # Let's see if the RMSE is reasonable.
+    this_rmse = np.sqrt(np.mean((actual_vals - predicted_vals)**2))
+    npt.assert_equal(this_rmse<350, 1)
+    
+def test_grid_predict():
+    actual_vals, predicted_vals = pn.predict_grid(data_pv, bvals_pv, bvecs_pv, mask_pv,
+                                                              ad, rd, 10)
+    npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
+    npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
+    
+    this_rmse = np.sqrt(np.mean((actual_all - predicted_vals)**2))
+    npt.assert_equal(this_rmse<350, 1)
 
-#def test_bval_predict():
+def test_bval_predict():
     # Now check to see if the values for individual b values is
     # around a value we want
-    #actual_vals, predicted_vals = pn.predict_n(data_t, bvals_t, bvecs_t, mask_t,
-                                                            #ad, rd, 20, "bvals")
-    #npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
-    #npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
+    actual_vals, predicted_vals = pn.predict_n(data_pv, bvals_pv, bvecs_pv, mask_pv,
+                                                            ad, rd, 10, "bvals")
+    npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
+    npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
+    
+    this_rmse = np.sqrt(np.mean((actual_all - predicted_vals)**2))
+    npt.assert_equal(this_rmse<350, 1)
     
 def test_kfold_xval_bvals_with_mean():
     actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
