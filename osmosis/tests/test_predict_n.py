@@ -6,6 +6,7 @@ import os
 import osmosis.multi_bvals as sfm_mb
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.predict_n as pn
+import osmosis.utils as ozu
 
 # Mock b value array to be used in most tests
 bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000, 1005,
@@ -47,8 +48,24 @@ data_t[:,:,:,10:13] = np.squeeze(500 + abs(np.random.randn(2,2,2,3)*200))#For b=
 mask_t = np.zeros([2,2,2])
 mask_t[:,:,1] = 1
 
-ad = {1000:1.5, 2000:1.5, 3000:1.5}
-rd = {1000:0.5, 2000:0.5, 3000:0.5}
+ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
+rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
+
+data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
+data_pv = nib.load(os.path.join(data_path, "red_data.nii.gz")).get_data()
+bvals_pv = np.loadtxt(os.path.join(data_path, "bvals"))
+bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
+
+bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals_pv)
+all_b_inds = np.where(rounded_bvals != 0)
+
+mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_data()
+mask_pv = np.zeros(mask_orig.shape)
+mask_pv[0, 0, 0:2] = 1
+
+actual_t = data_pv[np.where(mask_pv)][:, b_inds[3]]
+actual_t_demeaned = (data_pv[np.where(mask_pv)][:, b_inds[3]] -
+                     np.mean(data_pv[np.where(mask_pv)][:, b_inds[3]],-1)[..., None])
 
 def test_regressors():
     full_mod_t = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t,
@@ -97,36 +114,89 @@ def test_all_predict():
     npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
 
-def test_bval_predict():
+#def test_bval_predict():
     # Now check to see if the values for individual b values is
     # around a value we want
-    actual_vals, predicted_vals = pn.predict_n(data_t, bvals_t, bvecs_t, mask_t,
-                                                            ad, rd, 20, "bvals")
-    npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
-    npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
+    #actual_vals, predicted_vals = pn.predict_n(data_t, bvals_t, bvecs_t, mask_t,
+                                                            #ad, rd, 20, "bvals")
+    #npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
+    #npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
     
-def test_predict_bvals():
-    data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
-    data_pv = nib.load(os.path.join(data_path, "red_data.nii.gz")).get_data()
-    bvals_pv = np.loadtxt(os.path.join(data_path, "bvals"))
-    bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
-    mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_data()
-    mask_pv = np.zeros(mask_orig.shape)
-    mask_pv[0, 0, 0:2] = 1
-
+def test_kfold_xval_bvals_with_mean():
     actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                   mask_pv, ad, rd, 0, 2)
+                                                mask_pv, ad, rd, 0, 2,
+                                                md = "b_mean", mode = "kfold_xval")
     actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                   mask_pv, ad, rd, 1, 2)
+                                                mask_pv, ad, rd, 1, 2,
+                                                md = "b_mean", mode = "kfold_xval")
     actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                   mask_pv, ad, rd, 2, 2)
+                                                mask_pv, ad, rd, 2, 2,
+                                                md = "b_mean", mode = "kfold_xval")
 
-    rmse02 = np.sqrt(np.mean((actual02 - predicted02)**2))
-    rmse12 = np.sqrt(np.mean((actual12 - predicted12)**2))
-    rmse22 = np.sqrt(np.mean((actual22 - predicted22)**2))
+    rmse02 = np.sqrt(np.mean((actual_t - predicted02)**2))
+    rmse12 = np.sqrt(np.mean((actual_t - predicted12)**2))
+    rmse22 = np.sqrt(np.mean((actual_t - predicted22)**2))
 
-    npt.assert_equal(rmse02>rmse12, 1)
-    npt.assert_equal(rmse12>rmse22, 1)
+    npt.assert_equal(rmse02<300, 1)
+    npt.assert_equal(rmse12<300, 1)
+    npt.assert_equal(rmse22<300, 1)
+    
+def test_kfold_xval_bvals_no_mean():
+    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 0, 2,
+                                                md = "no_mean", mode = "kfold_xval")
+    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 1, 2,
+                                                md = "no_mean", mode = "kfold_xval")
+    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 2, 2,
+                                                md = "no_mean", mode = "kfold_xval")
+    
+    rmse02 = np.sqrt(np.mean((actual_t_demeaned - predicted02)**2))
+    rmse12 = np.sqrt(np.mean((actual_t_demeaned - predicted12)**2))
+    rmse22 = np.sqrt(np.mean((actual_t_demeaned - predicted22)**2))
+
+    npt.assert_equal(rmse02<400, 1)
+    npt.assert_equal(rmse12<400, 1)
+    npt.assert_equal(rmse22<400, 1)
+    
+def test_predict_bvals_no_mean():
+    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 0, 2,
+                                                md = "no_mean")
+    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 1, 2,
+                                                md = "no_mean")
+    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 2, 2,
+                                                md = "no_mean")
+
+    rmse02 = np.sqrt(np.mean((actual_t_demeaned - predicted02)**2))
+    rmse12 = np.sqrt(np.mean((actual_t_demeaned - predicted12)**2))
+    rmse22 = np.sqrt(np.mean((actual_t_demeaned - predicted22)**2))
+
+    npt.assert_equal(rmse02<400, 1)
+    npt.assert_equal(rmse12<400, 1)
+    npt.assert_equal(rmse22<400, 1)
+    
+def test_predict_bvals_with_mean():
+    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 0, 2,
+                                                md = "b_mean")
+    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 1, 2,
+                                                md = "b_mean")
+    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, ad, rd, 2, 2,
+                                                md = "b_mean")
+
+    rmse02 = np.sqrt(np.mean((actual_t - predicted02)**2))
+    rmse12 = np.sqrt(np.mean((actual_t - predicted12)**2))
+    rmse22 = np.sqrt(np.mean((actual_t - predicted22)**2))
+
+    npt.assert_equal(rmse02<300, 1)
+    npt.assert_equal(rmse12<300, 1)
+    npt.assert_equal(rmse22<300, 1)
     
 #def test_predict_RD_AD():
     #rmse_b, rmse_mb, AD_order, RD_order = pn.predict_RD_AD(1.3, 2.0, 0.5, 0.9,

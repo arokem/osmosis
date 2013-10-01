@@ -51,7 +51,7 @@ def intersect(arr_list):
 
     return arr
     
-def separate_bvals(bvals, mode = 'None', factor=1000.):
+def separate_bvals(bvals, mode = None, factor=1000.):
     """
     Separates b values into groups with similar values
     Returns the grouped b values and their corresponding indices.
@@ -61,7 +61,7 @@ def separate_bvals(bvals, mode = 'None', factor=1000.):
     bvals: ndarray
         b values to be separated
     mode: str (optional)
-       "None": Outputs indices in reference to the original array
+       None: Outputs indices in reference to the original array
        "remove0": Outputs indices in reference to an array not containing b = 0 values.
     factor: float
        This is a tolerance factor. This function will divide the bvalues to the closest 

@@ -32,7 +32,7 @@ def partial_round(bvals, factor = 1000.):
             
     return partially_rounded
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, bvecs_predict=None, over_sample = None, solver = None):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, bvecs_predict=None, md="no_mean", over_sample=None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -61,17 +61,15 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
     """ 
     t1 = time.time()
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-
-    if bvals_predict != None:
+    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+    
+    if bvals_predict is not None:
         _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals_predict,
                                                                         mode = 'remove0')
-        all_b_idx = np.arange(len(bvals_predict))
-        all_b_idx_rm0 = np.arange(len(all_b_idx))
     else:
-        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-        all_b_idx_rm0 = np.arange(len(all_b_idx))
         _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
                                                                         mode = 'remove0')
+    all_b_idx_rm0 = np.arange(len(all_b_idx))
     partially_rounded = partial_round(bvals)
     
     actual = np.empty((np.sum(mask), len(all_b_idx)))
@@ -154,13 +152,14 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
                                                             solver = solver,
                                                             params_file = "temp")
                 # Grab regressors from full model's preloaded regressors
-                fit_to = full_mod.regressors[0][:, si]
-                if over_sample is None:
-                    tensor_regressor = full_mod.regressors[1][:, si][si, :]
-                else:
-                    tensor_regressor = full_mod.regressors[1][si, :]
-                
-                mod.regressors = demean(fit_to, tensor_regressor, mod)
+                #if bvals_predict == None:
+                #    fit_to = full_mod.regressors[0][:, si]
+                #    if over_sample is None:
+                #        tensor_regressor = full_mod.regressors[1][:, si][si, :]
+                #    else:
+                #        tensor_regressor = full_mod.regressors[1][si, :]
+
+                #    mod.regressors = demean(fit_to, tensor_regressor, mod)
                 
             elif b_mode is "bvals":
                 mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
@@ -170,14 +169,15 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
                                                             solver = solver,
                                                             over_sample = over_sample)
             if bvals_predict != None:                                                
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs_predict[:, vec_combo],
-                                                          bvals_predict[vec_combo])[mod.mask]
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs_predict[:, vec_combo_rm0],
+                                                          bvals_predict[vec_combo_rm0],
+                                                          md = md, b_mode = "across_b")[mod.mask]
                 actual = None
             else:
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
                                                           bvals[vec_combo])[mod.mask]
                 actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
-            
+
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
@@ -328,15 +328,17 @@ def demean(fit_to, tensor_regressor, mod):
            
     for bidx in np.arange(len(mod.unique_b)):
         
-        if isinstance(mod.b_inds_rm0, numpy.ndarray):
-            bidx = None
+        #if isinstance(mod.b_inds_rm0, np.ndarray):
+            #bidx = None
             
         for vox in xrange(mod._n_vox):
             # Need to demean everything across the vertices that were fitted to
             fit_to_demeaned[vox, mod.b_inds_rm0[bidx]] = (fit_to[vox, mod.b_inds_rm0[bidx]]
                                                 - np.mean(fit_to[vox, mod.b_inds_rm0[bidx]]))
             fit_to_means[vox, mod.b_inds_rm0[bidx]] = np.mean(fit_to[vox, mod.b_inds_rm0[bidx]])
-            design_matrix[mod.b_inds_rm0[bidx]] = (tensor_regressor[mod.b_inds_rm0[bidx]]
+
+            tr = np.squeeze(tensor_regressor[mod.b_inds_rm0[bidx]])                
+            design_matrix[mod.b_inds_rm0[bidx]] = (tr
                                     - np.mean(tensor_regressor[mod.b_inds_rm0[bidx]].T, -1))
                                     
     return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
@@ -449,7 +451,7 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     return actual, predicted
     
-def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, this_md = "no_mean", solver = "nnls", mode = None):
+def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, md = "no_mean", solver = "nnls", mode = None):
     """
     Predict for each b value.
     
@@ -492,9 +494,9 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, this_md
     # Get mean diffusivity at all b values
     tm_obj = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file='temp')
     
-    if this_md == "no_mean":
+    if md == "no_mean":
         md = "no_mean"
-    elif this_md == "b_mean":
+    elif md == "b_mean":
         md = tm_obj.mean_diffusivity[np.where(mask)]
     
     predict_inds = b_inds[1:][b_predict]
@@ -506,6 +508,7 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, this_md
                                  b_mode = "all",
                                  bvals_predict = bvals[predict_inds],
                                  bvecs_predict = bvecs[:, predict_inds],
+                                 md = md,
                                  solver = solver)
     else:
         predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds],
