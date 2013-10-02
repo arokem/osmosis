@@ -787,7 +787,57 @@ def ipr(a,alpha=5):
     score1 = stats.scoreatpercentile(a, 100 - alpha/2.0)
     score2 = stats.scoreatpercentile(a, alpha/2.0)
     return score1 - score2
+
+
+def sph_cc(vertices,  s1, s2, n=20.):
+    """
+    Calculate a spherical cross-correlation function
+
+    Parameters
+    ----------
+    vertices : n x 3 array
+        measurement locations on the surface of the sphere (unit vectors)
+
+    s1 : float array
+        A signal in each one of the vertices 
+        
+    s2 : float array  
+        A signal in each one of the vertices
+
+    n : integer
+        The number of bins in the correlation function. 
+        
+    Returns
+    -------
+    A ticks, cc tuple, where: 
+
+    degs: ndarray of length `n`
+        The left edge of the bins of angles over which the correlation function
+        is calculated
+
+    cc: A spherical cross correlation function
     
+    """
+    with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ang = np.rad2deg(np.arccos(np.dot(vertices,vertices.T))).ravel()
+            ang[np.isnan(ang)] = 0
+            
+    s1 = (s1.reshape(1, -1) + np.ones((s1.shape[0], s1.shape[0]))).ravel()
+    s2 = (s2.reshape(-1, 1) + np.ones((s2.shape[0], s2.shape[0]))).ravel()
+
+    max_ang = np.max(ang)
+    max_ang = np.max(ang) + float(max_ang)/n
+    step = float(max_ang)/n
+    degs = np.linspace(0, max_ang, n)
+    cc = np.ones(len(degs)) * np.nan
+    for ii, d in enumerate(degs):
+        idx = np.where(np.logical_and(ang>=d, ang<=d+step))
+        if len(idx[0])>0:
+            cc[ii] = np.corrcoef(s1[idx], s2[idx])[0,1]
+
+    return degs, cc
+
 
 def start_parallel(imports_str=None):
     """
