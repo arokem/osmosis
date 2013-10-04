@@ -74,6 +74,7 @@ def optimize_MD_params(data, bvals, mask, func, initial):
     param_num = len(inspect.getargspec(func)[0])
     param_out = np.zeros((int(np.sum(mask)), param_num - 1))
     ss_err = ozu.nans(np.sum(mask))
+    fit_out = ozu.nans(ss_err.shape + (len(all_b_idx),))
     
     for vox in np.arange(np.sum(mask)).astype(int):
         s0 = np.mean(flat_data[vox, b_inds[0]], -1)
@@ -81,9 +82,10 @@ def optimize_MD_params(data, bvals, mask, func, initial):
         params, _ = opt.leastsq(err_func, initial, args=(b, s_prime, func))
         
         param_out[vox] = np.squeeze(params)
-        ss_err[vox] = np.sum((s_prime - func(b, *params))**2)
+        fit_out[vox] = func(b, *params)
+        ss_err[vox] = np.sum((s_prime - fit_out[vox])**2)
         
-    return param_out, ss_err
+    return param_out, fit_out, ss_err
     
 def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n):
     """
@@ -113,11 +115,11 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n):
                                                 all_b_idx, vec_pool,
                                                 num_choose, combo_num)
         this_flat_data = this_data[np.where(mask)]
+        
         for vox in np.arange(np.sum(mask)).astype(int):
             s0 = np.mean(flat_data[vox, b_inds[0]], -1)
             these_b = b_scaled[vec_combo]
             
-            s_prime_predict = np.log(flat_data[vox, vec_combo]/s0)
             s_prime_fit = np.log(flat_data[vox, these_inc0]/s0)
             
             params, _ = opt.leastsq(err_func, initial, args=(b_scaled[these_inc0],
@@ -125,6 +127,8 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n):
             
             predict = func(these_b, *params)
             predict_out[vox, vec_combo_rm0] = func(these_b, *params)
-            ss_err[vox] = np.sum((s_prime_predict - predict)**2)
+    # s0 = np.mean(flat_data[:, b_inds[0]], -1)
+    s_prime_predict = np.log(flat_data[:, all_b_idx]/s0) #s0[..., None]
+    ss_err = np.sum((s_prime_predict - predict_out)**2, -1)
 
     return ss_err, predict_out
