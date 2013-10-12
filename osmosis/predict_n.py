@@ -31,8 +31,44 @@ def partial_round(bvals, factor = 1000.):
             partially_rounded[j] = 0
             
     return partially_rounded
+def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_inc_0, vec_pool, num_choose, combo_num):
+    """
+    Helper function for the cross-validation functions
+    """
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, bvecs_predict=None, md="no_mean", over_sample=None, solver=None):
+    idx = list(these_b_inds_rm0)
+    these_inc0 = list(all_inc_0)
+    
+    low = (combo_num)*num_choose
+    high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
+    
+    vec_pool_inds = vec_pool[low:high]
+    vec_combo = these_b_inds[vec_pool_inds]
+    vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
+        
+    # Remove the chosen indices from the rest of the indices
+    for choice_idx in vec_pool_inds:
+        these_inc0.remove(these_b_inds[choice_idx])
+        idx.remove(these_b_inds_rm0[choice_idx])
+        
+    # Make the list back into an array
+    these_inc0 = np.array(these_inc0)
+    
+    # Isolate the b vectors, b values, and data not including those
+    # to be predicted
+    these_bvecs = bvecs[:, these_inc0]
+    these_bvals = bvals_pool[these_inc0]
+    this_data = data[:, :, :, these_inc0]
+    
+    # Need to sort the indices first before indexing full model's
+    # regressors
+    si = sorted(idx)
+    
+    return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
+    
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode,
+              bvals_predict=None, bvecs_predict=None, over_sample=None,
+              bounds = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -60,15 +96,13 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
         Predicted signals for the vertices left out of the fit
     """ 
     t1 = time.time()
+    
+    # Separating b values and grabbing indices
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     
-    if bvals_predict is not None:
-        _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals_predict,
-                                                                        mode = 'remove0')
-    else:
-        _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
-                                                                        mode = 'remove0')
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+                                                                    mode = 'remove0')
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     partially_rounded = partial_round(bvals)
     
@@ -76,23 +110,27 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
     predicted = np.empty(actual.shape)
     
     # Generate the regressors in the full model from which we choose the regressors in
-    # the reduced model from.  This is so you won't have 
+    # the reduced model from.  This is so you won't have to recalculate the regressors
+    # each time you do cross-validation.
     if b_mode is "all": 
         full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
                                                         mask = mask,
                                                         axial_diffusivity = ad,
                                                         radial_diffusivity = rd,
                                                         over_sample = over_sample,
+                                                        bounds = bounds,
                                                         solver = solver,
                                                         params_file = "temp")
         indices = np.array([0])
+        mean = None
     elif b_mode is "bvals":
         indices = np.arange(len(unique_b[1:]))
-    
-    for bi in indices:
+        mean = "empirical"
         
+    for bi in indices:
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
+            # Indices are locations of all non-b = 0
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
         elif b_mode is "bvals":
@@ -115,77 +153,54 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, bvals_predict=None, b
             e = "Number of directions not equally divisible by %d"%n
             raise ValueError(e)
  
-        for combo_num in np.arange(np.floor(100./n)):
-            idx = list(these_b_inds_rm0)
-            these_inc0 = list(all_inc_0)
-            
-            low = (combo_num)*num_choose
-            high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
-            
-            vec_pool_inds = vec_pool[low:high]
-            vec_combo = these_b_inds[vec_pool_inds]
-            vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
-               
-            # Remove the chosen indices from the rest of the indices
-            for choice_idx in vec_pool_inds:
-                these_inc0.remove(these_b_inds[choice_idx])
-                idx.remove(these_b_inds_rm0[choice_idx])
+        for combo_num in np.arange(np.floor(100./n)):           
+            (si, vec_combo, vec_combo_rm0,
+            these_bvecs, these_bvals,
+            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
+                                                                  these_b_inds,
+                                                                  these_b_inds_rm0,
+                                                                  all_inc_0, vec_pool,
+                                                                  num_choose, combo_num)
                 
-            # Make the list back into an array
-            these_inc0 = np.array(these_inc0)
-            
-            # Isolate the b vectors, b values, and data not including those
-            # to be predicted
-            these_bvecs = bvecs[:, these_inc0]
-            these_bvals = bvals_pool[these_inc0]
-            this_data = data[:, :, :, these_inc0]
-            
-            # Need to sort the indices first before indexing full model's
-            # regressors
-            si = sorted(idx)
-            
-            if b_mode is "all":
-                mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                            mask = mask, axial_diffusivity = ad,
-                                                            radial_diffusivity = rd,
-                                                            over_sample = over_sample,
-                                                            solver = solver,
-                                                            params_file = "temp")
-                # Grab regressors from full model's preloaded regressors
-                #if bvals_predict == None:
-                #    fit_to = full_mod.regressors[0][:, si]
-                #    if over_sample is None:
-                #        tensor_regressor = full_mod.regressors[1][:, si][si, :]
-                #    else:
-                #        tensor_regressor = full_mod.regressors[1][si, :]
+            mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
+                                                        mask = mask, axial_diffusivity = ad,
+                                                        radial_diffusivity = rd,
+                                                        over_sample = over_sample,
+                                                        bounds = bounds,
+                                                        solver = solver,
+                                                        mean = mean,
+                                                        params_file = "temp")
+                                                            
+            # Grab regressors from full model's preloaded regressors.  This only works if
+            # not predicting across b values.
+            if (bvals_predict == None) & (b_mode is "all"):
+                fit_to = full_mod.regressors[0][:, si]
+                if over_sample is None:
+                    tensor_regressor = full_mod.regressors[1][:, si][si, :]
+                else:
+                    tensor_regressor = full_mod.regressors[1][si, :]
 
-                #    mod.regressors = demean(fit_to, tensor_regressor, mod)
+                # Have to demean the tensor regressors and signals to fit to again.
+                mod.regressors = demean(fit_to, tensor_regressor, mod)
                 
-            elif b_mode is "bvals":
-                mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                            mask = mask, params_file = "temp",
-                                                            axial_diffusivity = ad,
-                                                            radial_diffusivity = rd,
-                                                            solver = solver,
-                                                            over_sample = over_sample)
-            if bvals_predict != None:                                                
+            if bvals_predict != None:
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs_predict[:, vec_combo_rm0],
-                                                          bvals_predict[vec_combo_rm0],
-                                                          md = md, b_mode = "across_b")[mod.mask]
+                                                        bvals_predict[vec_combo_rm0])[mod.mask]
                 actual = None
             else:
                 predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-                                                          bvals[vec_combo])[mod.mask]
+                                                        bvals[vec_combo])[mod.mask]
                 actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
+                
 
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
     return actual, predicted
     
-def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None):
+def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None, bounds = None):
     """
-    Predicts signals for a certain percentage of the vertices.
+    Predicts signals for a certain percentage of the vertices with all b values.
     
     Parameters
     ----------
@@ -257,31 +272,19 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
             raise ValueError(e)
  
         for combo_num in np.arange(np.floor(100./n)):
-            idx = list(these_b_inds_rm0)
-            these_inc0 = list(all_inc_0)
-            low = (combo_num)*num_choose
-            high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
-            vec_pool_inds = vec_pool[low:high]
-            vec_combo = these_b_inds[vec_pool_inds]
-            vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
-               
-            # Remove the chosen indices from the rest of the indices
-            for choice_idx in vec_pool_inds:
-                these_inc0.remove(these_b_inds[choice_idx])
-                idx.remove(these_b_inds_rm0[choice_idx])
-                
-            # Make the list back into an array
-            these_inc0 = np.array(these_inc0)
-            
-            # Isolate the b vectors, b values, and data not including those to be predicted
-            these_bvecs = bvecs[:, these_inc0]
-            these_bvals = bvals_pool[these_inc0]
-            this_data = data[:, :, :, these_inc0]
+            (si, vec_combo, vec_combo_rm0,
+            these_bvecs, these_bvals,
+            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
+                                                                  these_b_inds,
+                                                                  these_b_inds_rm0,
+                                                                  all_inc_0, vec_pool,
+                                                                  num_choose, combo_num)
             
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                 mask = mask, params_file = "temp",
                                                 axial_diffusivity = ad,
                                                 radial_diffusivity = rd,
+                                                bounds = bounds,
                                                 over_sample = over_sample,
                                                 solver = solver)
                                        
@@ -327,10 +330,6 @@ def demean(fit_to, tensor_regressor, mod):
     design_matrix = np.empty(tensor_regressor.shape)
            
     for bidx in np.arange(len(mod.unique_b)):
-        
-        #if isinstance(mod.b_inds_rm0, np.ndarray):
-            #bidx = None
-            
         for vox in xrange(mod._n_vox):
             # Need to demean everything across the vertices that were fitted to
             fit_to_demeaned[vox, mod.b_inds_rm0[bidx]] = (fit_to[vox, mod.b_inds_rm0[bidx]]
@@ -341,7 +340,7 @@ def demean(fit_to, tensor_regressor, mod):
             design_matrix[mod.b_inds_rm0[bidx]] = (tr
                                     - np.mean(tensor_regressor[mod.b_inds_rm0[bidx]].T, -1))
                                     
-    return [fit_to, tensor_regressor, design_matrix, fit_to_demeaned, fit_to_means]
+    return [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means]
 
     
 
@@ -391,7 +390,6 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
         indices = np.arange(len(unique_b[1:]))
     
     for bi in indices:
-        
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
             these_b_inds = all_b_idx
@@ -413,29 +411,13 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
             raise ValueError("The number of directions are not equally divisible by %d"%k)
  
         for combo_num in np.arange(len(these_b_inds)/k):
-            idx = list(these_b_inds_rm0)
-            these_inc0 = list(all_inc_0)
-            low = (combo_num)*num_choose
-            high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
-            vec_pool_inds = vec_pool[low:high]
-            vec_combo = these_b_inds[vec_pool_inds]
-            vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
-               
-            # Remove the chosen indices from the rest of the indices
-            for choice_idx in vec_pool_inds:
-                these_inc0.remove(these_b_inds[choice_idx])
-                idx.remove(these_b_inds_rm0[choice_idx])
-                
-            # Make the list back into an array
-            these_inc0 = np.array(these_inc0)
-            
-            # Isolate the b vectors, b values, and data not including those to be predicted
-            these_bvecs = bvecs[:, these_inc0]
-            these_bvals = bvals_pool[these_inc0]
-            this_data = data[:, :, :, these_inc0]
-            
-            # Need to sort the indices first before indexing full model's regressors
-            si = sorted(idx)
+            (si, vec_combo, vec_combo_rm0,
+            these_bvecs, these_bvals,
+            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
+                                                                  these_b_inds,
+                                                                  these_b_inds_rm0,
+                                                                  all_inc_0, vec_pool,
+                                                                  num_choose, combo_num)
             
             mod = model_class(this_data, these_bvecs, these_bvals,
                                   mask = mask, params_file = "temp", **kwargs)
@@ -451,7 +433,7 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     return actual, predicted
     
-def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, md = "no_mean", solver = "nnls", mode = None):
+def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, n = None, md = "no_mean", solver = "nnls", mode = None):
     """
     Predict for each b value.
     
@@ -495,16 +477,19 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, md = "n
     tm_obj = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file='temp')
     
     if md == "no_mean":
+        # Instead of demeaning afterwards to compare the resulting signals, we
+        # can just not add the mean at all.
         md = "no_mean"
     elif md == "b_mean":
         md = tm_obj.mean_diffusivity[np.where(mask)]
     
+    # Get data and indices of the directions to predict.
     predict_inds = b_inds[1:][b_predict]
     actual = data[mod.mask][:, predict_inds]
     
     if mode == "kfold_xval":
         _, predicted = predict_n(data[:,:,:,all_inc_0], bvals[all_inc_0],
-                                 bvecs[:,all_inc_0], mask, ad, rd, 10,
+                                 bvecs[:,all_inc_0], mask, ad, rd, n,
                                  b_mode = "all",
                                  bvals_predict = bvals[predict_inds],
                                  bvecs_predict = bvecs[:, predict_inds],
@@ -512,7 +497,7 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, md = "n
                                  solver = solver)
     else:
         predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds],
-                                md = md, b_mode = "across_b")[mod.mask]
+                                md = md)[mod.mask]
         
     return actual, predicted
     
