@@ -37,5 +37,5 @@ for i in range(65):
 
 # Add some header stuff:
 batch_sge = ['#!/bin/bash'] + batch_sge
-sge.write_file_ssh(ssh, batch_sge, '/home/klchan13/batch_sge.sh')
+sge.write_file_ssh(ssh, batch_sge, '/home/klchan13/batch_sge_oversample.sh')
 

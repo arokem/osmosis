@@ -59,6 +59,9 @@ bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
 bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals_pv)
 all_b_inds = np.where(rounded_bvals != 0)
 
+#these_inds = np.concatenate((b_inds[1][0:10], b_inds[2][0:10], b_inds[3][0:10]
+#data_pv = data_pre[..., np.concatenate((b_inds[0], these_inds)
+
 mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_data()
 mask_pv = np.zeros(mask_orig.shape)
 mask_pv[0, 0, 0:2] = 1
@@ -141,13 +144,13 @@ def test_bval_predict():
     
 def test_kfold_xval_bvals_with_mean():
     actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2,
+                                                mask_pv, ad, rd, 0, 2, n = 10,
                                                 md = "b_mean", mode = "kfold_xval")
     actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2,
+                                                mask_pv, ad, rd, 1, 2, n = 10,
                                                 md = "b_mean", mode = "kfold_xval")
     actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2,
+                                                mask_pv, ad, rd, 2, 2, n = 10,
                                                 md = "b_mean", mode = "kfold_xval")
 
     rmse02 = np.sqrt(np.mean((actual_t - predicted02)**2))
@@ -160,13 +163,13 @@ def test_kfold_xval_bvals_with_mean():
     
 def test_kfold_xval_bvals_no_mean():
     actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2,
+                                                mask_pv, ad, rd, 0, 2, n = 10,
                                                 md = "no_mean", mode = "kfold_xval")
     actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2,
+                                                mask_pv, ad, rd, 1, 2, n = 10,
                                                 md = "no_mean", mode = "kfold_xval")
     actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2,
+                                                mask_pv, ad, rd, 2, 2, n = 10,
                                                 md = "no_mean", mode = "kfold_xval")
     
     rmse02 = np.sqrt(np.mean((actual_t_demeaned - predicted02)**2))

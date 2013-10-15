@@ -23,7 +23,9 @@ mask_pv[0, 0, 0:2] = 1
 def test_optimize_MD_params():
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, mask_pv,
                                                         mdm.decaying_exp, -0.5)
+    # Check to see if the right number of parameters are found
     npt.assert_equal(np.shape(param_out) == (2,1), 1)
+    # Check to see if the sum of the squared errors is around the values that we want.
     npt.assert_equal(np.mean(ss_err) < 200, 1)
     
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, mask_pv,
@@ -42,6 +44,7 @@ def test_kfold_xval_MD_mod():
     ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
                                                 mask_pv, mdm.decaying_exp,
                                                 -0.5, 10)
+    # Check to see if the sum of the squared errors is around the values that we want.
     npt.assert_equal(np.mean(ss_err) < 200, 1)
     
     ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,

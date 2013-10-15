@@ -506,8 +506,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
                 this_fit_to_mean = fit_to_means[vox]
             else:
-                design_matrix = tensor_regressor - this_fit_to_mean[:, None]
                 this_fit_to_mean = np.exp(self.func(new_bvals, *params_out[vox]))
+                design_matrix = tensor_regressor - this_fit_to_mean[:, None]
             
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T) +

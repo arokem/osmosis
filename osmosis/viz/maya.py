@@ -217,7 +217,7 @@ def plot_signal_interp(bvecs, signal, origin=[0,0,0], maya=True, cmap='jet',
 def plot_signal(bvecs, signal, origin=[0,0,0],
                 maya=True, cmap='jet', file_name=None,
                 colorbar=False, figure=None, vmin=None, vmax=None,
-                offset=0, azimuth=60, elevation=90, roll=0):
+                offset=0, azimuth=60, elevation=90, roll=0, non_neg=False):
 
     """
 
@@ -243,7 +243,9 @@ def plot_signal(bvecs, signal, origin=[0,0,0],
 
     r, phi, theta = geo.cart2sphere(x,y,z)
     x_plot, y_plot, z_plot = geo.sphere2cart(signal, phi, theta)
-
+    
+    if non_neg:
+        signal[np.where(signal<0)] = 0
 
     # Call and return straightaway:
     return _display_maya_voxel(x_plot, y_plot, z_plot, faces,
@@ -372,7 +374,7 @@ def plot_cut_planes(vol,
         overlay_copy = np.copy(overlay)
         if np.any(np.isnan(overlay)):
             nans_exist = True
-            overlay_copy[np.isnan(overlay_copy)] = 0
+            overlay_copy[np.isnan(overlay_copy)] = np.nanmin(overlay_copy)
         overlay_planes = []
         for i in range(n_planes):
             overlay_planes.append(maya.pipeline.image_plane_widget(

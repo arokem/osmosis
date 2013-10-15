@@ -209,7 +209,7 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, bounds = None)
                                              args = (b_scaled[these_inc0],
                                                      s_prime_fit, func),
                                              bounds = bounds)
-            params = lsq_b_out[0]
+                params = lsq_b_out[0]
             
             predict = func(these_b, *params)
             predict_out[vox, vec_combo_rm0] = func(these_b, *params)
