@@ -9,3 +9,6 @@ If you use this code, please cite:
 Evaluating models of diffusion-weighted MRI data with cross-validation
 (2013). Ariel Rokem, Jason D. Yeatman, Franco Pestilli, Kendrick N. Kay, Aviv
 Mezer, Stefan van der Walt, & Brian A. Wandell. Annual meeting of the OHBM 2013.
+
+
+The full data-set is available here: http://purl.stanford.edu/ng782rw8378

@@ -34,7 +34,7 @@ from nipy.labs.datasets import as_volume_img
 
 import osmosis.model.dti as ozm
 
-def make_wm_mask(seg_path, dwi, out_path):
+def make_wm_mask(seg_path, dwi, out_path, cutoff=2):
    """
    Function to make a conservative WM mask, excluding partial volumed
    voxels
@@ -55,6 +55,8 @@ def make_wm_mask(seg_path, dwi, out_path):
    out_path : the full path to where you want to put the wm mask once it's
    calculated
 
+   cutoff : how many IQR away from median should we cut off on.
+   
    Note
    ----
    Don't forget to look at your data, to make sure that things are sane. 
@@ -67,7 +69,7 @@ def make_wm_mask(seg_path, dwi, out_path):
    if isinstance(dwi, str):
       dwi_ni = ni.load(dwi + '.nii.gz')
    else:
-      dwi_ni = ni.load(TensorModel.data_file)
+      dwi_ni = ni.load(dwi.data_file)
   
    vimg = as_volume_img(seg_ni)
    # This does the magic - resamples using nearest neighbor interpolation:
@@ -83,24 +85,25 @@ def make_wm_mask(seg_path, dwi, out_path):
    vol = np.zeros(seg_resamp.shape)
    vol[wm_idx] = 1
 
-   if isinstance(dwi, str):
-      # OK - now we need to find and exclude MD outliers: 
-      TensorModel = ozm.TensorModel(dwi + '.nii.gz',
-                                    dwi + '.bvecs',
-                                    dwi + '.bvals', mask=vol,
-                                    params_file='temp')
-   else:
-      TensorModel = dwi
+   if cutoff:
+      if isinstance(dwi, str):
+         # OK - now we need to find and exclude MD outliers: 
+         TensorModel = ozm.TensorModel(dwi + '.nii.gz',
+                                       dwi + '.bvecs',
+                                       dwi + '.bvals', mask=vol,
+                                       params_file='temp')
+      else:
+         TensorModel = dwi
 
-   MD = TensorModel.mean_diffusivity
+      MD = TensorModel.mean_diffusivity
     
-   IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
-         stats.scoreatpercentile(MD[np.isfinite(MD)],25))
-   cutoff = np.median(MD[np.isfinite(MD)]) + 2 * IQR
-   cutoff_idx = np.where(MD > cutoff)
+      IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
+             stats.scoreatpercentile(MD[np.isfinite(MD)],25))
+      co = np.median(MD[np.isfinite(MD)]) + cutoff * IQR
+      co_idx = np.where(MD > co)
 
    # Null 'em out:
-   vol[cutoff_idx] = 0
+   vol[co_idx] = 0
 
    # Now, let's save some output:
    ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)

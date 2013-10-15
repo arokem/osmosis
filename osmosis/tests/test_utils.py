@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.testing as npt
 import scipy.linalg as la
+import dipy.data as dpd
 
 import osmosis.utils as ozu
 
@@ -266,4 +267,28 @@ def test_xform():
     aff = np.eye(3)
     
     npt.assert_raises(ValueError, ozu.xform, coords, aff)
+    
+def test_sph_cc():
+    """
+    Test that computation of spherical cross-correlation makes sense.
+
+    """
+    bvecs = dpd.get_sphere('symmetric362').vertices
+
+    for i1 in range(bvecs.shape[0]):
+        s1 = np.zeros(bvecs.shape[0])
+        s1[i1] = 1
+        s2 = np.zeros(bvecs.shape[0])
+        s2[0] = 1
+        n = 25
+        deg,cc = ozu.sph_cc(bvecs, s1, s2, n=n)
+        diff = np.rad2deg(ozu.vector_angle(bvecs[0], bvecs[i1]))
+        # We find the one that is closest to the angular separation between the
+        # two vectors: 
+        deg_idx = np.argmin(np.abs(deg-diff))
+        # Our comparison doesn't know how to deal with nans: 
+        cc[np.isnan(cc)] = 0
+        npt.assert_equal(deg_idx, np.argmax(cc))
+    
+    
     
