@@ -789,14 +789,12 @@ def ipr(a,alpha=5):
     return score1 - score2
 
 
-def sph_cc(vertices,  s1, s2, n=20.):
+def sph_cc(s1, s2, vertices1, vertices2=None, n=20.):
     """
     Calculate a spherical cross-correlation function
 
     Parameters
     ----------
-    vertices : n x 3 array
-        measurement locations on the surface of the sphere (unit vectors)
 
     s1 : float array
         A signal in each one of the vertices 
@@ -804,6 +802,14 @@ def sph_cc(vertices,  s1, s2, n=20.):
     s2 : float array  
         A signal in each one of the vertices
 
+    vertices1 : n x 3 array
+        measurement locations on the surface of the sphere (unit vectors)
+
+    vertices2 : n x 3 array, optional
+        measurement locations on the surface of the sphere (unit vectors). If
+        not provided, assume that s1 and s2 are represented with the same set of
+        vertices (given by `vertices1`).
+ 
     n : integer
         The number of bins in the correlation function. 
         
@@ -818,9 +824,11 @@ def sph_cc(vertices,  s1, s2, n=20.):
     cc: A spherical cross correlation function
     
     """
+    if vertices2 is None:
+        vertices2 = vertices1
     with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            ang = np.rad2deg(np.arccos(np.dot(vertices,vertices.T))).ravel()
+            ang = np.rad2deg(np.arccos(np.dot(vertices1,vertices2.T))).ravel()
             ang[np.isnan(ang)] = 0
             
     s1 = (s1.reshape(1, -1) + np.ones((s1.shape[0], s1.shape[0]))).ravel()
