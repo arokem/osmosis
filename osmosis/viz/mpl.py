@@ -345,7 +345,7 @@ def scatter_density(x,y, res=100, cmap=matplotlib.cm.hot_r, size=None,
         if np.isnan(this_x) or np.isnan(this_y):
             pass
         else: 
-            data_arr[np.floor(this_x), np.floor(this_y)] += 1
+            data_arr[int(np.floor(this_x)), int(np.floor(this_y))] += 1
 
     
     fig = plt.figure()
