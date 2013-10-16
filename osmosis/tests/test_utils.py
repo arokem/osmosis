@@ -281,7 +281,7 @@ def test_sph_cc():
         s2 = np.zeros(bvecs.shape[0])
         s2[0] = 1
         n = 25
-        deg,cc = ozu.sph_cc(bvecs, s1, s2, n=n)
+        deg,cc = ozu.sph_cc(s1, s2, bvecs, n=n)
         diff = np.rad2deg(ozu.vector_angle(bvecs[0], bvecs[i1]))
         # We find the one that is closest to the angular separation between the
         # two vectors: 
