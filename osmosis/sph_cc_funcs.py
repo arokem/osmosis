@@ -31,25 +31,28 @@ def sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals, all_thresh, bval_thresh, tol =
                         (cod_bval_mod < bval_thresh + tol/2) &
                         (cod_bval_mod > bval_thresh - tol/2))
         
-    return inds, b_inds, all_b_inds
+    return np.squeeze(inds), b_inds, all_b_inds
     
-def across_sph_cc(cod_all_mod, cod_bval_mod, vol_b_list, bvals,
-                bvecs, mask, all_thresh, bval_thresh, idx = None,
-                vol_mp_all = None, tol = 0.1, n = 20, ri = None):
+def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
+                  cod_bval_mod = None, all_thresh = None,
+                  bval_thresh = None, idx = None, vol_mp_all = None,
+                  tol = 0.1, n = 20, ri = None):
     """
     Calculates the spherical cross correlation at a certain index for all b values fit
     together and b values fit separately.
     """
-    
-    inds, b_inds, all_b_inds = sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals,
-                                           all_thresh, bval_thresh, tol)
+    if (all_thresh != None) & (bval_thresh != None):
+        inds, b_inds, all_b_inds = sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals,
+                                            all_thresh, bval_thresh, tol = tol)
+    else:
+        inds = np.arange(int(np.sum(mask)))
     
     if idx is not None:
         if ri is None:
-            ri = np.random.randint(0, len(inds[0]))
+            ri = np.random.randint(0, len(inds))
         else:
             ri = ri
-        idx = inds[0][ri]
+        idx = inds[ri]
     
     data_list = []
     bvecs_b_list = []
@@ -88,30 +91,37 @@ def across_sph_cc(cod_all_mod, cod_bval_mod, vol_b_list, bvals,
     
     return deg_list, cc_list, combos, idx, cod_all_mod[idx], cod_bval_mod[idx]
     
-def all_across_sph_cc(cod_all_mod, cod_bval_mod, vol_b_list, bvals,
-                      bvecs, mask, all_thresh, bval_thresh, idx = None,
-                      vol_mp_all = None, tol = 0.1, n = 20, ri = None):
+def all_across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
+                      cod_bval_mod = None, all_thresh = None,
+                      bval_thresh = None, vol_mp_all = None,
+                      tol = 0.1, n = 20, ri = None):
                           
     """
     Calculates the spherical cross correlation at different indices for all b values
     fit to gether and b values fit separately.
     """
     
-    inds, b_inds, all_b_inds = sph_cc_ineq(cod_all_modulation, cod_bval_modulation, bvals,
-                                           all_thresh, bval_thresh, tol = 0.1)
+    if (all_thresh != None) & (bval_thresh != None):
+        inds, b_inds, all_b_inds = sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals,
+                                            all_thresh, bval_thresh, tol = 0.1)
+    else:
+        inds = np.arange(int(np.sum(mask)))
 
     all_deg_list = []
     all_cc_list = []
     ai_count = 0
     for vol_b in np.arange(len(vol_b_list)):
-        all_deg_list.append(np.zeros((len(inds[0]), n-1)))
-        all_cc_list.append(np.zeros((len(inds[0]), n-1)))
+        all_deg_list.append(np.zeros((len(inds), n-1)))
+        all_cc_list.append(np.zeros((len(inds), n-1)))
         
-    for ai in inds[0]:
+    for ai in inds:
         [deg_list, cc_list, combos, idx,
-         cod_all_idx, cod_bval_idx] = across_sph_cc(cod_all_modulation, cod_bval_modulation,
-                                                    vol_b_list, bvals, bvecs, wm_data,
-                                                    all_thresh, bval_thresh, idx = ai)
+         cod_all_idx, cod_bval_idx] = across_sph_cc(vol_b_list, bvals, bvecs, mask,
+                                                    cod_all_mod = cod_all_mod,
+                                                    cod_bval_mod = cod_bval_mod,
+                                                    all_thresh = all_thresh,
+                                                    bval_thresh = bval_thresh,
+                                                    idx = ai)
         for dli in np.arange(len(deg_list)):
             all_deg_list[dli][ai_count] = deg_list[dli]
             all_cc_list[dli][ai_count] = cc_list[dli]
