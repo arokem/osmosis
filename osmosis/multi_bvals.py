@@ -631,7 +631,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
         if self.verbose:
             print("Calculating quantitative anisotropy:")
-            prog_bar = ozu.ProgressBar(self._flat_signal_all.shape[0])
+            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
             this_class = str(self.__class__).split("'")[-2].split('.')[-1]
             f_name = this_class + '.' + inspect.stack()[0][3]
 
@@ -649,7 +649,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             if self.verbose:
                 prog_bar.animate(vox, f_name=f_name)
 
-        qa = np.zeros(self.signal[0].shape[:3] + (Np,))
+        qa = np.zeros(self.signal.shape[:3] + (Np,))
         qa[self.mask] = qa_flat
         inds = np.zeros(qa.shape)
         inds[self.mask] = inds_flat
@@ -718,7 +718,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                     di_flat[vox] = np.dot(this_mp[1:]**2/np.sum(this_mp**2),
                                           angles)
 
-        out = ozu.nans(self.signal[0].shape[:3])
+        out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = di_flat
         return out
         
