@@ -6,6 +6,7 @@ Some functions that call to sph_cc in osmosis utilities.
 
 import osmosis.utils as ozu
 import numpy as np
+import os
 import itertools
 
 def sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals, all_thresh, bval_thresh, tol = 0.1):
@@ -46,6 +47,8 @@ def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
                                             all_thresh, bval_thresh, tol = tol)
     else:
         inds = np.arange(int(np.sum(mask)))
+        bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
+        all_b_inds = np.where(rounded_bvals != 0)
     
     if idx is not None:
         if ri is None:
@@ -89,7 +92,14 @@ def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
         deg_list.append(deg)
         cc_list.append(cc)
     
-    return deg_list, cc_list, combos, idx, cod_all_mod[idx], cod_bval_mod[idx]
+    if (all_thresh != None) & (bval_thresh != None):
+        cod_all_val = cod_all_mod[idx]
+        cod_bval_val = cod_bval_mod[idx]
+    else:
+        cod_all_val = None
+        cod_bval_val = None
+        
+    return deg_list, cc_list, combos, idx, cod_all_val, cod_bval_val
     
 def all_across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
                       cod_bval_mod = None, all_thresh = None,
@@ -129,3 +139,41 @@ def all_across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
         ai_count = ai_count + 1
         
     return all_deg_list, all_cc_list
+    
+def place_sph_cc(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No"):
+    """
+    Function to aggregate sub data files from spherical cross correlation.
+    """
+    files = os.listdir(file_path)
+
+    # Get file object
+    wm_data_file = nib.load(os.path.join(data_path,"wm_mask_registered.nii.gz"))
+
+    # Get data and indices
+    wm_data = wm_data_file.get_data()
+    
+    sph_cc_list = []
+    # Keep track of files in case there are any missing ones
+    i_track = np.ones(expected_file_num)
+    for fn in file_names:
+        sph_cc = np.zeros(int(np.sum(wm_data)))
+        for f_idx in np.arange(len(files)):
+            this_file = files[f_idx]
+            if this_file[(len(this_file)-4):len(this_file)] == ".npy":
+                sub_data = np.load(os.path.join(file_path, this_file))
+                if this_file[0:len(fn)] == fn:
+                    i = int(this_file.split(".")[0][len(fn):])
+                    
+                    low = i*mask_vox_num
+                    high = np.min([(i+1) * mask_vox_num, int(np.sum(wm_data))])
+                    
+                    sph_cc[low:high] = sub_data[:, 0]
+                        
+                    i_track[i] = 0        
+        sph_cc_list.append(sph_cc)
+        if save is "Yes":
+            np.save("sph_cc_%s.nii.gz"%fn, sph_cc)
+            
+    missing_files = np.squeeze(np.where(i_track))
+    
+    return missing_files, sph_cc_list
