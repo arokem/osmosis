@@ -613,7 +613,7 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
             
     return rmse_b, rmse_mb, AD_order, RD_order
     
-def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No"):
+def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No", file_vol = "No"):
     
     data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
     files = os.listdir(file_path)
@@ -643,10 +643,20 @@ def place_predict(file_names, mask_vox_num, expected_file_num, file_path = os.ge
             if this_file[(len(this_file)-6):len(this_file)] == "nii.gz":
                 sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
                 if this_file[0:len(fn)] == fn:
-                    i = int(this_file.split(".")[0][len(fn):]) 
+                    i = int(this_file.split(".")[0][len(fn):])
+                    
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(wm_data))])
-                    vol[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = sub_data
+                    
+                    # Now set the mask:
+                    mask = np.zeros(wm_data_file.shape)
+                    mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
+                    
+                    if file_vol is "No":
+                        vol[np.where(mask)] = sub_data
+                    elif file_vol is "Yes":
+                        vol[np.where(mask)] = sub_data[np.where(mask)]
+                        
                     i_track[i] = 0
         vol_list.append(vol)
         if save is "Yes":
