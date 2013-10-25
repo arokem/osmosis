@@ -274,7 +274,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         return sig_out, params_out
         
     @desc.auto_attr
-    def _fit_flat_rel_sig_avg(self):
+    def fit_flat_rel_sig_avg(self):
         """
         The relative signal average of the data
         """
@@ -295,7 +295,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
         
-        sig_out, _ = self._fit_flat_rel_sig_avg
+        sig_out, _ = self.fit_flat_rel_sig_avg
         for idx, b_idx in enumerate(self.all_b_idx):
             if self.mode == 'signal_attenuation':
                 sig_avg = 1 - sig_out[:, idx]
@@ -370,7 +370,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 f_name = this_class + '.' + inspect.stack()[0][3]
             
             fit_to_with_mean, tensor_regressor, fit_to, _  = self.regressors
-            sig_out, _ = self._fit_flat_rel_sig_avg
+            sig_out, _ = self.fit_flat_rel_sig_avg
             
             if self._n_vox==1:
                 # We have to be a bit (too) clever here, so that the indexing
@@ -443,7 +443,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             print(msg)
         
         _, tensor_regressor, _, fit_to_means = self.regressors
-        sig_out, _ = self._fit_flat_rel_sig_avg
+        sig_out, _ = self.fit_flat_rel_sig_avg
         
         out_flat_arr = np.zeros(fit_to_means.shape)
         for vox in xrange(self._n_vox):    
@@ -470,7 +470,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         return out
         
-    def predict(self, vertices, new_bvals):
+    def predict(self, vertices, new_bvals, new_params = None):
         """
         Predict the signal on a new set of vertices
         """
@@ -494,8 +494,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         out_flat_arr = np.zeros((self._n_vox, vertices.shape[-1]))
         
-        # Grab the parameters for fitting the mean
-        sig_out, params_out = self._fit_flat_rel_sig_avg
+        # If new parameters are given, use those instead.
+        if new_params is not None:
+            params_out = new_params
+        else:
+            # Grab the parameters for fitting the mean
+            _, params_out = self.fit_flat_rel_sig_avg
         
         # Now that everthing is set up, predict the signal in the given vertices.
         for vox in xrange(self._n_vox):    
