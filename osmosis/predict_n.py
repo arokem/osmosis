@@ -67,7 +67,7 @@ def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_i
     return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
     
 def new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs, mask, ad, rd, over_sample,
-                    bounds, solver, mean):
+                    bounds, solver, mean, b_inds, b_fit_to, b_predict):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     """
@@ -76,7 +76,7 @@ def new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs, mask, ad, rd, ove
     
     # Remove combo indices from the indices from all the b values.
     for vc in vec_combo:
-        inds_list.remove(vc)
+        inds_list.remove(b_inds[)
 
     inds_arr = np.array(inds_list)
     
@@ -96,9 +96,9 @@ def new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs, mask, ad, rd, ove
 
     return new_params
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx = 0,
-              bvals_predict=None, bvecs_predict=None, over_sample=None,
-              bounds = None, new_mean = None, solver=None):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
+			  b_predict = 0, bvals_predict=None, bvecs_predict=None,
+			  over_sample=None, bounds = None, new_mean = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -528,7 +528,8 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, n = 10,
         _, predicted = predict_n(data, bvals, bvecs, mask, ad, rd, n,
                                  b_mode = "all", bvals_predict = bvals[predict_inds],
                                  bvecs_predict = bvecs[:, predict_inds],
-                                 b_idx = b_fit_to, new_mean = "Yes", solver = solver)
+                                 b_fit_to = b_fit_to, b_predict = b_predict,
+								 new_mean = "Yes", solver = solver)
     else:
         mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
                                                     bvecs[:,all_inc_0],
