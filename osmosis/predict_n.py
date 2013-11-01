@@ -235,10 +235,9 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 else:
                     this_b_idx = b_idx1
 					
-                predicted_across[:, b_inds_rm0[this_b_idx
-                                ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
-                                                                bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
-                                                                new_params = new_params)[mod.mask]
+                predicted_across[:, vec_pool_inds] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
+                                                                 bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
+                                                                 new_params = new_params)[mod.mask]
             predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
                                                          bvals[vec_combo],
                                                          new_params = new_params)[mod.mask]		
