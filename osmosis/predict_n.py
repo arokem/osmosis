@@ -547,7 +547,7 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
                                                     solver = solver,
                                                     params_file = 'temp')
         predicted11 = mod.predict(bvecs[:, predict_inds], bvals[predict_inds])[mod.mask]
-		actual1 = actual
+        actual1 = actual
         
     return actual1, actual2, predicted11, predicted12, predicted22, predicted21
     
