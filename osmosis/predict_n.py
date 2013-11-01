@@ -238,8 +238,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 predicted_across[:, vec_pool_inds] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
                                                                  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
                                                                  new_params = new_params)[mod.mask]
-            predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-                                                         bvals[vec_combo],
+            predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                          new_params = new_params)[mod.mask]		
         if b_idx2 != None:
             if bi == b_idx1:
@@ -533,10 +532,11 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
     actual = data[np.where(mask)][:, predict_inds]
     
     if mode == "kfold_xval":
-        _, predicted = predict_n(data, bvals, bvecs, mask, ad, rd, n,
-                                 b_mode = "bvals", b_idx1 = b_idx1,
-                                 b_idx2 = b_idx2, new_mean = "Yes",
-                                 solver = solver)
+        [actual1, actual2, predicted11,
+        predicted12, predicted22, predicted21] = predict_n(data, bvals, bvecs, mask, ad, rd, n,
+                                                           b_mode = "bvals", b_idx1 = b_idx1,
+                                                           b_idx2 = b_idx2, new_mean = "Yes",
+                                                           solver = solver)
     else:
         mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
                                                     bvecs[:,all_inc_0],
@@ -546,9 +546,10 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
                                                     radial_diffusivity = rd,
                                                     solver = solver,
                                                     params_file = 'temp')
-        predicted = mod.predict(bvecs[:, predict_inds], bvals[predict_inds])[mod.mask]
+        predicted11 = mod.predict(bvecs[:, predict_inds], bvals[predict_inds])[mod.mask]
+		actual1 = actual
         
-    return actual, predicted
+    return actual1, actual2, predicted11, predicted12, predicted22, predicted21
     
 def nchoosek(n,k):
     """
