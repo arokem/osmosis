@@ -136,7 +136,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     
-    # Preallocate the outputs
+    # Preallocate the predicted output
     predicted_to = np.empty(data.shape[:3] + (len(all_b_idx),))
     
     # Generate the regressors in the full model from which we choose the regressors in
