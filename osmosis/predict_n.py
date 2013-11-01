@@ -97,7 +97,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
 
     return new_params
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = None,
 			  b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
@@ -152,7 +152,6 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
                                                         solver = solver,
                                                         params_file = "temp")
         indices = np.array([b_idx1])
-        mean = None
     elif b_mode is "bvals":
         if b_idx2 is None:
             mean = "empirical"
