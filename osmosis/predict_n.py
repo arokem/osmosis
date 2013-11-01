@@ -154,6 +154,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
         indices = np.array([b_idx1])
         mean = None
     elif b_mode is "bvals":
+<<<<<<< HEAD
 	if b_idx2 is None:
 		mean = "empirical"
 		indices = np.arange(len(unique_b[1:]))
@@ -167,6 +168,21 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
 		indices = np.array([b_idx1, b_idx2])
 		predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
 		predicted_across = np.empty(predicted_to.shape)
+=======
+        if b_idx2 is None:
+            mean = "empirical"
+            indices = np.arange(len(unique_b[1:]))
+			# These are only for predicting across b values:
+            predicted12 = None
+            predicted22 = None
+            predicted21 = None
+        else:
+			# Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
+			# b_idx2 to b_idx1
+            indices = np.array([b_idx1, b_idx2])
+            predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
+            predicted_across = np.empty(predicted_to.shape)
+>>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
         
     for bi in indices:
         if b_mode is "all":
@@ -196,6 +212,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
         
         for combo_num in np.arange(np.floor(100./n)):
 			
+<<<<<<< HEAD
   	    (si, vec_combo, vec_combo_rm0,
 	     vec_pool_inds, these_bvecs, these_bvals,
 	     this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
@@ -203,6 +220,15 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
 						   these_b_inds_rm0,
 						   all_inc_0, vec_pool,
 						   num_choose, combo_num)                
+=======
+            (si, vec_combo, vec_combo_rm0,
+            vec_pool_inds, these_bvecs, these_bvals,
+            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
+													these_b_inds,
+													these_b_inds_rm0,
+													all_inc_0, vec_pool,
+													num_choose, combo_num)                
+>>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
                 
              mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                          mask = mask, axial_diffusivity = ad,
@@ -230,6 +256,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
                  # Have to demean the tensor regressors and signals to fit to again.
                  mod.regressors = demean(fit_to, tensor_regressor, mod)
                 
+<<<<<<< HEAD
              if b_idx2 != None:
 		 vec_combo_rm0 = vec_pool_inds
 			 if bi == b_idx1:
@@ -242,6 +269,20 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
 																  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
 																  new_params = new_params)[mod.mask]
 		 predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+=======
+            if b_idx2 != None:
+                vec_combo_rm0 = vec_pool_inds
+                if bi == b_idx1:
+       	            this_b_idx = b_idx2
+				else:
+                    this_b_idx = b_idx1
+					
+                    predicted_across[:, b_inds_rm0[this_b_idx
+                                  ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
+																  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
+																  new_params = new_params)[mod.mask]
+                predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+>>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
 														 bvals[vec_combo],
 														 new_params = new_params)[mod.mask]		
 		 if b_idx2 != None:
