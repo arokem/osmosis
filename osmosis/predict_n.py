@@ -77,7 +77,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
     # Remove combo indices from the indices from all the b values.
     for vc in vec_pool_inds:
         inds_list.remove(b_inds[1:][b_idx1][vc])
-	inds_list.remove(b_inds[1:][b_idx2][vc])
+        inds_list.remove(b_inds[1:][b_idx2][vc])
 
     inds_arr = np.array(inds_list)
     
@@ -154,21 +154,6 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
         indices = np.array([b_idx1])
         mean = None
     elif b_mode is "bvals":
-<<<<<<< HEAD
-	if b_idx2 is None:
-		mean = "empirical"
-		indices = np.arange(len(unique_b[1:]))
-		# These are only for predicting across b values:
-		predicted12 = None
-		predicted22 = None
-		predicted21 = None
-	else:
-		# Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
-		# b_idx2 to b_idx1
-		indices = np.array([b_idx1, b_idx2])
-		predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
-		predicted_across = np.empty(predicted_to.shape)
-=======
         if b_idx2 is None:
             mean = "empirical"
             indices = np.arange(len(unique_b[1:]))
@@ -177,13 +162,12 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
             predicted22 = None
             predicted21 = None
         else:
-			# Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
-			# b_idx2 to b_idx1
+            # Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
+            # b_idx2 to b_idx1
             indices = np.array([b_idx1, b_idx2])
             predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
             predicted_across = np.empty(predicted_to.shape)
->>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
-        
+      
     for bi in indices:
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
@@ -211,24 +195,13 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
             raise ValueError(e)
         
         for combo_num in np.arange(np.floor(100./n)):
-			
-<<<<<<< HEAD
-  	    (si, vec_combo, vec_combo_rm0,
-	     vec_pool_inds, these_bvecs, these_bvals,
-	     this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
-	   					   these_b_inds,
-						   these_b_inds_rm0,
-						   all_inc_0, vec_pool,
-						   num_choose, combo_num)                
-=======
             (si, vec_combo, vec_combo_rm0,
             vec_pool_inds, these_bvecs, these_bvals,
             this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
-													these_b_inds,
-													these_b_inds_rm0,
-													all_inc_0, vec_pool,
-													num_choose, combo_num)                
->>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
+                                                    these_b_inds,
+                                                    these_b_inds_rm0,
+                                                    all_inc_0, vec_pool,
+                                                    num_choose, combo_num)                
                 
              mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                          mask = mask, axial_diffusivity = ad,
@@ -240,7 +213,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
                  # Get the parameters from fitting a mean model to all b values not including
                  # the ones left out
                  new_params = new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd,
-		 									 over_sample, bounds, solver, mean, b_inds, b_idx1, b_idx2)
+                                              over_sample, bounds, solver, mean, b_inds, b_idx1, b_idx2)
              else:
                  new_params = None
                                                             
@@ -256,48 +229,33 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
                  # Have to demean the tensor regressors and signals to fit to again.
                  mod.regressors = demean(fit_to, tensor_regressor, mod)
                 
-<<<<<<< HEAD
-             if b_idx2 != None:
-		 vec_combo_rm0 = vec_pool_inds
-			 if bi == b_idx1:
-				 this_b_idx = b_idx2
-			 else:
-				 this_b_idx = b_idx1
-					
-                 predicted_across[:, b_inds_rm0[this_b_idx
-				 ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
-																  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
-																  new_params = new_params)[mod.mask]
-		 predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-=======
             if b_idx2 != None:
                 vec_combo_rm0 = vec_pool_inds
                 if bi == b_idx1:
        	            this_b_idx = b_idx2
-				else:
+                else:
                     this_b_idx = b_idx1
 					
                     predicted_across[:, b_inds_rm0[this_b_idx
                                   ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
-																  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
-																  new_params = new_params)[mod.mask]
+                                                                  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
+                                                                  new_params = new_params)[mod.mask]
                 predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
->>>>>>> a2fd280ae6f856dd130f747bbf7aad9b460f0299
-														 bvals[vec_combo],
-														 new_params = new_params)[mod.mask]		
-		 if b_idx2 != None:
-			 if bi == b_idx1:
-				 predicted11 = predicted_to
-				 predicted12 = predicted_across
-			 elif bi == b_idx2:
-				 predicted22 = predicted_to
-				 predicted21 = predicted_across
+                                                             bvals[vec_combo],
+                                                             new_params = new_params)[mod.mask]		
+        if b_idx2 != None:
+            if bi == b_idx1:
+                predicted11 = predicted_to
+                predicted12 = predicted_across
+            elif bi == b_idx2:
+                predicted22 = predicted_to
+                predicted21 = predicted_across
 		
     actual1 = data[mod.mask][:, b_inds[b_idx1]]
     actual2 = None
     if b_idx2 != None:
-    	actual2 = data[mod.mask][:, b_inds[b_idx2]]
-    	predicted11 = predicted_to
+        actual2 = data[mod.mask][:, b_inds[b_idx2]]
+        predicted11 = predicted_to
 		
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
@@ -579,8 +537,8 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
     if mode == "kfold_xval":
         _, predicted = predict_n(data, bvals, bvecs, mask, ad, rd, n,
                                  b_mode = "bvals", b_idx1 = b_idx1,
-				 b_idx2 = b_idx2, new_mean = "Yes",
-				 solver = solver)
+                                 b_idx2 = b_idx2, new_mean = "Yes",
+                                 solver = solver)
     else:
         mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
                                                     bvecs[:,all_inc_0],
