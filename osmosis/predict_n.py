@@ -247,7 +247,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
             elif bi == b_idx2:
                 predicted22 = predicted_to
                 predicted21 = predicted_across
-		
+	1/0.	
     actual1 = data[mod.mask][:, b_inds[1:][b_idx1]]
     actual2 = None
     if b_idx2 != None:
