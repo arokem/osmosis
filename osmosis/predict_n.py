@@ -137,7 +137,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     
     # Preallocate the predicted output
-    predicted_to = np.empty(data.shape[:3] + (len(all_b_idx),))
+    predicted_to = np.empty((int(np.sum(mask)),) + (len(all_b_idx),))
     
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.  This is so you won't have to recalculate the regressors
@@ -164,7 +164,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
             # Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
             # b_idx2 to b_idx1
             indices = np.array([b_idx1, b_idx2])
-            predicted_to = np.empty(data.shape[:3] + (len(b_inds[1]),))
+            predicted_to = np.empty((int(np.sum(mask)),) + (len(b_inds[1]),))
             predicted_across = np.empty(predicted_to.shape)
       
     for bi in indices:
@@ -235,13 +235,13 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 else:
                     this_b_idx = b_idx1
 					
-                    predicted_across[:, b_inds_rm0[this_b_idx
-                                  ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
-                                                                  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
-                                                                  new_params = new_params)[mod.mask]
-                predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-                                                             bvals[vec_combo],
-                                                             new_params = new_params)[mod.mask]		
+                predicted_across[:, b_inds_rm0[this_b_idx
+                                ][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
+                                                                bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
+                                                                new_params = new_params)[mod.mask]
+            predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+                                                         bvals[vec_combo],
+                                                         new_params = new_params)[mod.mask]		
         if b_idx2 != None:
             if bi == b_idx1:
                 predicted11 = predicted_to
@@ -250,10 +250,10 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 predicted22 = predicted_to
                 predicted21 = predicted_across
 		
-    actual1 = data[mod.mask][:, b_inds[b_idx1]]
+    actual1 = data[mod.mask][:, b_inds[1:][b_idx1]]
     actual2 = None
     if b_idx2 != None:
-        actual2 = data[mod.mask][:, b_inds[b_idx2]]
+        actual2 = data[mod.mask][:, b_inds[1:][b_idx2]]
         predicted11 = predicted_to
 		
     t2 = time.time()
