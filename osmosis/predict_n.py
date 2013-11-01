@@ -64,26 +64,27 @@ def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_i
     # regressors
     si = sorted(idx)
     
-    return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
+    return si, vec_combo, vec_combo_rm0, vec_pool_inds, these_bvecs, these_bvals, this_data, these_inc0
     
-def new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs, mask, ad, rd, over_sample,
-                    bounds, solver, mean, b_inds, b_fit_to, b_predict):
+def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample,
+                    bounds, solver, mean, b_inds, b_idx1, b_idx2):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     """
     
-    inds_list = list(np.arange(len(all_bvals)))
+    inds_list = list(np.arange(len(bvals)))
     
     # Remove combo indices from the indices from all the b values.
-    for vc in vec_combo:
-        inds_list.remove(b_inds[)
+    for vc in vec_pool_inds:
+        inds_list.remove(b_inds[1:][b_idx1][vc])
+		inds_list.remove(b_inds[1:][b_idx2][vc])
 
     inds_arr = np.array(inds_list)
     
     # New data with removed indices.
-    fit_all_data = all_data[..., inds_arr]
-    fit_all_bvecs = all_bvecs[:, inds_arr]
-    fit_all_bvals = all_bvals[inds_arr]
+    fit_all_data = data[..., inds_arr]
+    fit_all_bvecs = bvecs[:, inds_arr]
+    fit_all_bvals = bvals[inds_arr]
     
     # Now put this into SFM multi_b class in order to grab the calculated mean
     mod = sfm_mb.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
@@ -96,9 +97,8 @@ def new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs, mask, ad, rd, ove
 
     return new_params
     
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
-			  b_predict = 0, bvals_predict=None, bvecs_predict=None,
-			  over_sample=None, bounds = None, new_mean = None, solver=None):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
+			  b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -132,6 +132,12 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
     
     _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
                                                                     mode = 'remove0')
+	# Grab the indices where b is not equal to 0
+    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+    all_b_idx_rm0 = np.arange(len(all_b_idx))
+    
+    # Preallocate the outputs
+	predicted_to = np.empty(data.shape[:3] + (len(all_b_idx),))
     
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.  This is so you won't have to recalculate the regressors
@@ -145,34 +151,22 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
                                                         bounds = bounds,
                                                         solver = solver,
                                                         params_file = "temp")
-        indices = np.array([b_idx])
+        indices = np.array([b_idx1])
         mean = None
+		
     elif b_mode is "bvals":
-        mean = "empirical"
-        indices = np.arange(len(unique_b[1:]))
-    
-    if new_mean is not None:
-        # Reassign the data to different variables
-        all_data = data
-        all_bvals = bvals
-        all_bvecs = bvecs
-        
-        # Reduce the current data to use only b values that you want to fit to.
-        red_inds = np.concatenate((b_inds[0], b_inds[1:][b_idx]))
-        data = data[..., red_inds]
-        bvecs = bvecs[:, red_inds]
-        bvals = bvals[red_inds]
-    
-    # Separate the b values again in case they changed in the above code.
-    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-    
-    # Grab the indices where b is not equal to 0
-    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-    all_b_idx_rm0 = np.arange(len(all_b_idx))
-    
-    # Preallocate the outputs
-    actual = np.empty((np.sum(mask), len(all_b_idx)))
-    predicted = np.empty(actual.shape)
+		if b_idx2 is None:
+			mean = "empirical"
+			indices = np.arange(len(unique_b[1:]))
+			predicted12 = None
+			predicted22 = None
+			predicted21 = None
+		else:
+			# Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
+			# b_idx2 to b_idx1
+			indices = np.array([b_idx1, b_idx2])
+			predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
+			predicted_across = np.empty(predicted_to.shape)
         
     for bi in indices:
         if b_mode is "all":
@@ -200,14 +194,15 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
             e = "Number of directions not equally divisible by %d"%n
             raise ValueError(e)
         
-        for combo_num in np.arange(np.floor(100./n)):           
-            (si, vec_combo, vec_combo_rm0,
-            these_bvecs, these_bvals,
-            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
-                                                    these_b_inds,
-                                                    these_b_inds_rm0,
-                                                    all_inc_0, vec_pool,
-                                                    num_choose, combo_num)                
+        for combo_num in np.arange(np.floor(100./n)):
+			
+			(si, vec_combo, vec_combo_rm0,
+			vec_pool_inds, these_bvecs, these_bvals,
+			this_data, these_inc0) = create_combos(bvecs, bvals_pool, data,
+													these_b_inds,
+													these_b_inds_rm0,
+													all_inc_0, vec_pool,
+													num_choose, combo_num)                
                 
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                         mask = mask, axial_diffusivity = ad,
@@ -218,14 +213,14 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
             if new_mean is not None:
                 # Get the parameters from fitting a mean model to all b values not including
                 # the ones left out
-                new_params = new_mean_combos(vec_combo, all_data, all_bvals, all_bvecs,
-                                             mask, ad, rd, over_sample, bounds, solver, mean)
+                new_params = new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd,
+											 over_sample, bounds, solver, mean, b_inds, b_idx1, b_idx2)
             else:
                 new_params = None
                                                             
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
-            if (bvals_predict == None) & (b_mode is "all"):
+            if (b_idx2 == None) & (b_mode is "all"):
                 fit_to = full_mod.regressors[0][:, si]
                 if over_sample is None:
                     tensor_regressor = full_mod.regressors[1][:, si][si, :]
@@ -235,22 +230,38 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_fit_to = 0,
                 # Have to demean the tensor regressors and signals to fit to again.
                 mod.regressors = demean(fit_to, tensor_regressor, mod)
                 
-            if bvals_predict != None:
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs_predict[:, vec_combo_rm0],
-                                                          bvals_predict[vec_combo_rm0], 
-                                                          new_params = new_params)[mod.mask]
-                actual = None
-            else:
-                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
-                                                          bvals[vec_combo],
-                                                          new_params = new_params)[mod.mask]
-                actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
-                
-
+            if b_idx2 != None:
+				vec_combo_rm0 = vec_pool_inds
+				if bi == b_idx1:
+					this_b_idx = b_idx2
+				else:
+					this_b_idx = b_idx1
+					
+                predicted_across[:, b_inds_rm0[this_b_idx
+								][vec_pool_inds]] = mod.predict(bvecs[:, b_inds[1:][this_b_idx][vec_pool_inds]],
+																  bvals[b_inds[1:][this_b_idx][vec_pool_inds]], 
+																  new_params = new_params)[mod.mask]
+			predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+														 bvals[vec_combo],
+														 new_params = new_params)[mod.mask]		
+		if b_idx2 != None:
+			if bi == b_idx1:
+				predicted11 = predicted_to
+				predicted12 = predicted_across
+			elif bi == b_idx2:
+				predicted22 = predicted_to
+				predicted21 = predicted_across
+		
+	actual1 = data[mod.mask][:, b_inds[b_idx1]]
+	actual2 = None
+	if b_idx2 != None:
+		actual2 = data[mod.mask][:, b_inds[b_idx2]]
+		predicted11 = predicted_to
+		
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
-    return actual, predicted
+    return actual1, actual2, predicted11, predicted12, predicted22, predicted21
     
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None, bounds = None):
     """
@@ -487,7 +498,7 @@ def kfold_xval(model_class, data, bvecs, bvals, k, mask, b_mode = "all", **kwarg
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     return actual, predicted
     
-def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, n = 10,
+def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
                   solver = "nnls", mode = None):
     """
     Predict for each b value.
@@ -502,9 +513,9 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, n = 10,
         All the b vectors
     mask: 3 dimensional array
         Brain mask of the data
-    b_fit_to: int
+    b_idx1: int
         Unique b value index of the b value to fit to.
-    b_predict: int
+    b_idx2: int
         Unique b value index of the b value to predict.
         
     Returns
@@ -518,17 +529,17 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_fit_to, b_predict, n = 10,
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
                                                                      mode = 'remove0')
-    all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][b_fit_to]))
+    all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][b_idx1]))
    
     # Get data and indices of the directions to predict.
-    predict_inds = b_inds[1:][b_predict]
+    predict_inds = b_inds[1:][b_idx2]
     actual = data[np.where(mask)][:, predict_inds]
     
     if mode == "kfold_xval":
         _, predicted = predict_n(data, bvals, bvecs, mask, ad, rd, n,
-                                 b_mode = "all", bvals_predict = bvals[predict_inds],
-                                 bvecs_predict = bvecs[:, predict_inds],
-                                 b_fit_to = b_fit_to, b_predict = b_predict,
+                                 b_mode = "all", bvals2 = bvals[predict_inds],
+                                 bvecs2 = bvecs[:, predict_inds],
+                                 b_idx1 = b_idx1, b_idx2 = b_idx2,
 								 new_mean = "Yes", solver = solver)
     else:
         mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
