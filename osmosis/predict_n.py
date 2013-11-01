@@ -153,11 +153,11 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
                                                         params_file = "temp")
         indices = np.array([b_idx1])
         mean = None
-		
     elif b_mode is "bvals":
 		if b_idx2 is None:
 			mean = "empirical"
 			indices = np.arange(len(unique_b[1:]))
+			# These are only for predicting across b values:
 			predicted12 = None
 			predicted22 = None
 			predicted21 = None
@@ -537,10 +537,9 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
     
     if mode == "kfold_xval":
         _, predicted = predict_n(data, bvals, bvecs, mask, ad, rd, n,
-                                 b_mode = "all", bvals2 = bvals[predict_inds],
-                                 bvecs2 = bvecs[:, predict_inds],
-                                 b_idx1 = b_idx1, b_idx2 = b_idx2,
-								 new_mean = "Yes", solver = solver)
+                                 b_mode = "bvals", b_idx1 = b_idx1,
+								 b_idx2 = b_idx2, new_mean = "Yes",
+								 solver = solver)
     else:
         mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
                                                     bvecs[:,all_inc_0],
