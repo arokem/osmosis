@@ -165,7 +165,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
             # Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
             # b_idx2 to b_idx1
             indices = np.array([b_idx1, b_idx2])
-            predicted_to = np.empty(actual.shape[:3] + (len(b_inds[1]),))
+            predicted_to = np.empty(data.shape[:3] + (len(b_inds[1]),))
             predicted_across = np.empty(predicted_to.shape)
       
     for bi in indices:
