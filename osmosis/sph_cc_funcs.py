@@ -8,6 +8,7 @@ import osmosis.utils as ozu
 import numpy as np
 import os
 import itertools
+import nibabel as nib
 
 def sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals, all_thresh, bval_thresh, tol = 0.1):
     """
@@ -34,9 +35,8 @@ def sph_cc_ineq(cod_all_mod, cod_bval_mod, bvals, all_thresh, bval_thresh, tol =
         
     return np.squeeze(inds), b_inds, all_b_inds
     
-def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
-                  cod_bval_mod = None, all_thresh = None,
-                  bval_thresh = None, idx = None, vol_mp_all = None,
+def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None, cod_bval_mod = None,
+                  all_thresh = None, bval_thresh = None, idx = None, vol_mp_all = None,
                   tol = 0.1, n = 20, ri = None):
     """
     Calculates the spherical cross correlation at a certain index for all b values fit
@@ -140,40 +140,64 @@ def all_across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_all_mod = None,
         
     return all_deg_list, all_cc_list
     
-def place_sph_cc(file_names, mask_vox_num, expected_file_num, file_path = os.getcwd(), save = "No"):
+def place_files(file_names, mask_vox_num, expected_file_num,
+                 file_path = os.getcwd(), vol = "No",
+                 f_type = "npy",save = "No", num_dirs = 270):
     """
     Function to aggregate sub data files from spherical cross correlation.
     """
     files = os.listdir(file_path)
-
-    # Get file object
+    data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
+    
+    # Get file objects
+    data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     wm_data_file = nib.load(os.path.join(data_path,"wm_mask_registered.nii.gz"))
 
     # Get data and indices
     wm_data = wm_data_file.get_data()
+    wm_idx = np.where(wm_data)
     
-    sph_cc_list = []
+    aggre_list = []
     # Keep track of files in case there are any missing ones
     i_track = np.ones(expected_file_num)
     for fn in file_names:
-        sph_cc = np.zeros(int(np.sum(wm_data)))
+        
+        if vol is "No":
+            aggre = np.zeros(int(np.sum(wm_data)))
+        else:
+            aggre = ozu.nans((wm_data_file.shape + (num_dirs,)))
+            
         for f_idx in np.arange(len(files)):
             this_file = files[f_idx]
-            if this_file[(len(this_file)-4):len(this_file)] == ".npy":
-                sub_data = np.load(os.path.join(file_path, this_file))
+            if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
+                
+                if f_type is "npy":
+                    sub_data = np.load(os.path.join(file_path, this_file))
+                elif f_type is "nii.gz":
+                    sub_data = nib.load(os.path.join(file_path, this_file))
+                    
                 if this_file[0:len(fn)] == fn:
                     i = int(this_file.split(".")[0][len(fn):])
-                    
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(wm_data))])
                     
-                    sph_cc[low:high] = sub_data[:, 0]
+                    if vol is "No":
+                        aggre[low:high] = sub_data
+                    else:
+                        mask = np.zeros(wm_data_file.shape)
+                        mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
+                        aggre[np.where(mask)] = sub_data
                         
                     i_track[i] = 0        
-        sph_cc_list.append(sph_cc)
+        aggre_list.append(aggre)
+        
         if save is "Yes":
-            np.save("sph_cc_%s.nii.gz"%fn, sph_cc)
+            if vol is "No":
+                np.save("aggre_%s.npy"%fn, aggre)
+            else:
+                aff = data_file.get_affine()
+                nib.Nifti1Image(aggre, aff).to_filename("vol_%s.nii.gz"%fn)            
             
     missing_files = np.squeeze(np.where(i_track))
     
-    return missing_files, sph_cc_list
+    return missing_files, aggre_list
