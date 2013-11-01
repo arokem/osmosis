@@ -240,7 +240,8 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                                                                  new_params = new_params)[mod.mask]
             predicted_to[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                          new_params = new_params)[mod.mask]		
-        if b_idx2 != None:
+        1/0.
+		if b_idx2 != None:
             if bi == b_idx1:
                 predicted11 = predicted_to
                 predicted12 = predicted_across
