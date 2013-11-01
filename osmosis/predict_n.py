@@ -252,11 +252,11 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0,
 				predicted22 = predicted_to
 				predicted21 = predicted_across
 		
-	actual1 = data[mod.mask][:, b_inds[b_idx1]]
-	actual2 = None
-	if b_idx2 != None:
-		actual2 = data[mod.mask][:, b_inds[b_idx2]]
-		predicted11 = predicted_to
+    actual1 = data[mod.mask][:, b_inds[b_idx1]]
+    actual2 = None
+    if b_idx2 != None:
+    	actual2 = data[mod.mask][:, b_inds[b_idx2]]
+    	predicted11 = predicted_to
 		
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
