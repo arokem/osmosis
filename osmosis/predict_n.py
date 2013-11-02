@@ -240,7 +240,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                     predicted21[:, vec_pool_inds] = mod.predict(bvecs[:, b_inds[1:][b_idx1][vec_pool_inds]],
                                                                  bvals[b_inds[1:][b_idx1][vec_pool_inds]], 
                                                                  new_params = new_params)[mod.mask]
-		            predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
+                    predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                  new_params = new_params)[mod.mask]
             else:
                 predicted11[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
