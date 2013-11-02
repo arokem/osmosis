@@ -228,7 +228,6 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
 
                  # Have to demean the tensor regressors and signals to fit to again.
                 mod.regressors = demean(fit_to, tensor_regressor, mod)
-                
             if b_idx2 != None:
                 vec_combo_rm0 = vec_pool_inds
                 if bi == b_idx1:
