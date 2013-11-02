@@ -48,10 +48,9 @@ if __name__=="__main__":
                                                                 mask, ad, rd, b_idx1,
                                                                 b_idx2, n = 10, mode = "kfold_xval")
                                                    
-    aff = np.eye(4)
     np.save("/hsgs/nobackup/klchan13/predict_bvals11_%d.npy"%i, predicted11)
-	np.save("/hsgs/nobackup/klchan13/predict_bvals13_%d.npy"%i, predicted13)
-	np.save("/hsgs/nobackup/klchan13/predict_bvals33_%d.npy"%i, predicted33)
-	np.save("/hsgs/nobackup/klchan13/predict_bvals31_%d.npy"%i, predicted31)
+    np.save("/hsgs/nobackup/klchan13/predict_bvals13_%d.npy"%i, predicted13)
+    np.save("/hsgs/nobackup/klchan13/predict_bvals33_%d.npy"%i, predicted33)
+    np.save("/hsgs/nobackup/klchan13/predict_bvals31_%d.npy"%i, predicted31)
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)
