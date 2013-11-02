@@ -43,11 +43,15 @@ if __name__=="__main__":
     ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
     rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
     
-    _, predicted = pn.predict_bvals(data, bvals, bvecs,
-                                    mask, ad, rd, b_fit_to,
-                                    b_predict, n = 10, mode = "kfold_xval")
+    [actual1, actual2, predicted11,
+     predicted13, predicted33, predicted31] = pn.predict_bvals(data, bvals, bvecs,
+                                                                mask, ad, rd, b_idx1,
+                                                                b_idx2, n = 10, mode = "kfold_xval")
                                                    
     aff = np.eye(4)
-    np.save("/hsgs/nobackup/klchan13/predict_bvals_pieces_%d.npy"%i, predicted)
+    np.save("/hsgs/nobackup/klchan13/predict_bvals11_%d.npy"%i, predicted11)
+	np.save("/hsgs/nobackup/klchan13/predict_bvals13_%d.npy"%i, predicted13)
+	np.save("/hsgs/nobackup/klchan13/predict_bvals33_%d.npy"%i, predicted33)
+	np.save("/hsgs/nobackup/klchan13/predict_bvals31_%d.npy"%i, predicted31)
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)
