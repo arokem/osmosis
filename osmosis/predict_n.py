@@ -94,9 +94,11 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
                                                 over_sample = over_sample,
                                                 bounds = bounds, solver = solver,
                                                 mean = mean, params_file = "temp")
-    _, new_params = mod.fit_flat_rel_sig_avg
+	_, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
+	
+    sig_out, new_params = mod.fit_flat_rel_sig_avg
 
-    return new_params
+    return sig_out, new_params, b_inds_ar[b_idx1]
 
 def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = None,
               b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
@@ -213,11 +215,14 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                     b_mean1 = bi
                 elif b_idx2 is not None:
                     b_mean1 = b_idx1
-                new_params = new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd,
-                                    over_sample, bounds, solver, mean, b_inds, b_mean1, b_idx2)
+                sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
+                           mask, ad, rd, over_sample, bounds, solver, mean, b_inds, b_mean1, b_idx2)
             else:
                 new_params = None
-                                                            
+
+            if b_mode is "bvals":
+                mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
+				1/0.
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
             if (b_idx2 == None) & (b_mode is "all"):
