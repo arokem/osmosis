@@ -232,11 +232,8 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 else:
                     tensor_regressor = full_mod.regressors[1][si, :]
                 fit_to_demeaned = full_mod.regressors[2][:, si]
-                if new_mean is not None:
-                    fit_to_means = sig_out
-                else:
-                    fit_to_means = full_mod.regressors[3]
-                mod.regressors = [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means]
+                sig_out,_ = mod.fit_flat_rel_sig_avg
+                mod.regressors = [fit_to, tensor_regressor, fit_to_demeaned, sig_out]
 
             if b_idx2 != None:
                 vec_combo_rm0 = vec_pool_inds
