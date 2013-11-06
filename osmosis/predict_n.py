@@ -222,7 +222,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
 
             if b_mode is "bvals":
                 mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
-                1/0.
+
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
             if (b_idx2 == None) & (b_mode is "all"):
