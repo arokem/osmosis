@@ -36,9 +36,9 @@ if __name__=="__main__":
     ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
     rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
     
-    #actual_pn_all, predicted_pn_all = pn.predict_n(data, bvals, bvecs,
-    #                                               mask, ad, rd, 10, "all",
-    #                                               solver = "nnls")
+    actual_pn_all, predicted_pn_all = pn.predict_n(data, bvals, bvecs,
+                                                   mask, ad, rd, 10, "all",
+                                                   solver = "nnls")
     actual_pn_bvals, predicted_pn_bvals = pn.predict_n(data, bvals, bvecs,
                                                        mask, ad, rd, 10, "bvals",
                                                        new_mean = "Yes", solver = "nnls")
@@ -46,7 +46,7 @@ if __name__=="__main__":
     #                                                   mask, ad, rd, 10,
     #                                                   solver = "nnls")
     aff = np.eye(4)
-    #nib.Nifti1Image(predicted_pn_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i))
+    nib.Nifti1Image(predicted_pn_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i))
     nib.Nifti1Image(predicted_pn_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
     #nib.Nifti1Image(predicted_pn_grid, aff).to_filename("/hsgs/nobackup/klchan13/grid_predict%s.nii.gz"%(i))
     #actual_all, predict_all = pn.predict_n(data, bvals, bvecs,
