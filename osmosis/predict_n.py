@@ -225,15 +225,15 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
 
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
-            if (b_idx2 == None) & (b_mode is "all"):
-                fit_to = full_mod.regressors[0][:, si]
-                if over_sample is None:
-                    tensor_regressor = full_mod.regressors[1][:, si][si, :]
-                else:
-                    tensor_regressor = full_mod.regressors[1][si, :]
+            #if (b_idx2 == None) & (b_mode is "all"):
+            #    fit_to = full_mod.regressors[0][:, si]
+            #    if over_sample is None:
+            #        tensor_regressor = full_mod.regressors[1][:, si][si, :]
+            #    else:
+            #        tensor_regressor = full_mod.regressors[1][si, :]
 
                  # Have to demean the tensor regressors and signals to fit to again.
-                mod.regressors = demean(fit_to, tensor_regressor, mod)
+            #    mod.regressors = demean(fit_to, tensor_regressor, mod)
             if b_idx2 != None:
                 vec_combo_rm0 = vec_pool_inds
                 if bi == b_idx1:
