@@ -77,7 +77,8 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
     # Remove combo indices from the indices from all the b values.
     for vc in vec_pool_inds:
         inds_list.remove(b_inds[1:][b_idx1][vc])
-        inds_list.remove(b_inds[1:][b_idx2][vc])
+        if b_idx2 is not None:
+            inds_list.remove(b_inds[1:][b_idx2][vc])
 
     inds_arr = np.array(inds_list)
     
@@ -98,7 +99,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
     return new_params
 
 def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = None,
-			  b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
+              b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -132,12 +133,11 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
     
     _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
                                                                     mode = 'remove0')
-	# Grab the indices where b is not equal to 0
+    # Grab the indices where b is not equal to 0
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     
-    # Preallocate the predicted output
-    predicted11 = np.empty((int(np.sum(mask)),) + (len(all_b_idx),))
+    predicted = np.empty((int(np.sum(mask)), len(all_b_idx)))
     
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.  This is so you won't have to recalculate the regressors
@@ -154,12 +154,8 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
         indices = np.array([b_idx1])
     elif b_mode is "bvals":
         if b_idx2 is None:
-            mean = "empirical"
+            #mean = "empirical"
             indices = np.arange(len(unique_b[1:]))
-			# These are only for predicting across b values:
-            predicted12 = None
-            predicted22 = None
-            predicted21 = None
         else:
             # Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
             # b_idx2 to b_idx1
@@ -168,6 +164,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
             predicted12 = np.empty(predicted11.shape)
             predicted21 = np.empty(predicted11.shape)
             predicted22 = np.empty(predicted11.shape)
+
     for bi in indices:
         if b_mode is "all":
             all_inc_0 = np.arange(len(rounded_bvals))
@@ -212,8 +209,12 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
             if new_mean is not None:
                 # Get the parameters from fitting a mean model to all b values not including
                 # the ones left out
+                if (b_mode is "bvals") & (b_idx2 == None):
+                    b_mean1 = bi
+                elif b_idx2 is not None:
+                    b_mean1 = b_idx1
                 new_params = new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd,
-                                              over_sample, bounds, solver, mean, b_inds, b_idx1, b_idx2)
+                                    over_sample, bounds, solver, mean, b_inds, b_mean1, b_idx2)
             else:
                 new_params = None
                                                             
@@ -243,18 +244,18 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                     predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                  new_params = new_params)[mod.mask]
             else:
-                predicted11[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
-                                                            new_params = new_params)[mod.mask]		
-	
-    actual1 = data[mod.mask][:, b_inds[1:][b_idx1]]
-    actual2 = None
-    if b_idx2 != None:
-        actual2 = data[mod.mask][:, b_inds[1:][b_idx2]]
-		
+                predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
+                                                            new_params = new_params)[mod.mask]          
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
-    return actual1, actual2, predicted11, predicted12, predicted22, predicted21
+    if b_idx2 != None:
+        actual1 = data[mod.mask][:, b_inds[1:][b_idx1]]
+        actual2 = data[mod.mask][:, b_inds[1:][b_idx2]]
+        return actual1, actual2, predicted11, predicted12, predicted22, predicted21
+    else:
+        actual = data[mod.mask][:, all_b_idx]
+        return actual, predicted
     
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None, bounds = None):
     """
