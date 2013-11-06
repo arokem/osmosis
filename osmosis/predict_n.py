@@ -94,7 +94,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
                                                 over_sample = over_sample,
                                                 bounds = bounds, solver = solver,
                                                 mean = mean, params_file = "temp")
-	_, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
+    _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
 	
     sig_out, new_params = mod.fit_flat_rel_sig_avg
 
