@@ -41,7 +41,7 @@ if __name__=="__main__":
                                                    solver = "nnls")
     actual_pn_bvals, predicted_pn_bvals = pn.predict_n(data, bvals, bvecs,
                                                        mask, ad, rd, 10, "bvals",
-                                                       new_mean = "Yes", solver = "nnls")
+                                                       mean = "mean_model", solver = "nnls")
     #actual_pn_grid, predicted_pn_grid = pn.predict_grid(data, bvals, bvecs,
     #                                                   mask, ad, rd, 10,
     #                                                   solver = "nnls")

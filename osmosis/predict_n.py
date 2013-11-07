@@ -67,7 +67,7 @@ def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_i
     return si, vec_combo, vec_combo_rm0, vec_pool_inds, these_bvecs, these_bvals, this_data, these_inc0
     
 def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample,
-                    bounds, solver, mean, b_inds, b_idx1, b_idx2):
+                    bounds, solver, b_inds, b_idx1, b_idx2):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     """
@@ -93,15 +93,15 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
                                                 radial_diffusivity = rd,
                                                 over_sample = over_sample,
                                                 bounds = bounds, solver = solver,
-                                                mean = mean, params_file = "temp")
+                                                params_file = "temp")
     _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
 	
     sig_out, new_params = mod.fit_flat_rel_sig_avg
 
     return sig_out, new_params, b_inds_ar[b_idx1]
 
-def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = None,
-              b_idx2 = None, over_sample=None, bounds = None, new_mean = None, solver=None):
+def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "mean_model",
+              b_idx2 = None, over_sample=None, bounds = None, demean_eqn = True, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -152,16 +152,18 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                                                         over_sample = over_sample,
                                                         bounds = bounds,
                                                         solver = solver,
+                                                        demean_eqn = demean_eqn,
                                                         params_file = "temp")
         indices = np.array([b_idx1])
     elif b_mode is "bvals":
         if b_idx2 is None:
-            #mean = "empirical"
             indices = np.arange(len(unique_b[1:]))
         else:
+            # Predict across b values if given a second b_idx (b_idx2)
             # Order of predicted: b_idx1 to b_idx1, b_idx1 to b_idx2, b_idx2 to b_idx2
             # b_idx2 to b_idx1
             indices = np.array([b_idx1, b_idx2])
+            # Initialize 4 different outputs - one for each prediction.
             predicted11 = np.empty((int(np.sum(mask)),) + (len(b_inds[1]),))
             predicted12 = np.empty(predicted11.shape)
             predicted21 = np.empty(predicted11.shape)
@@ -201,27 +203,29 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                                                     these_b_inds_rm0,
                                                     all_inc_0, vec_pool,
                                                     num_choose, combo_num)                
-                
+            # Initial a model object with reduced data (not including the chosen combinations)    
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                          mask = mask, axial_diffusivity = ad,
                                                          radial_diffusivity = rd,
                                                          over_sample = over_sample,
+                                                         demean_eqn = demean_eqn,
                                                          bounds = bounds, solver = solver,
                                                          mean = mean, params_file = "temp")
-            if new_mean is not None:
+            if (mean is "mean_model") & (b_mode is not "all"):
                 # Get the parameters from fitting a mean model to all b values not including
                 # the ones left out
                 if (b_mode is "bvals") & (b_idx2 == None):
                     b_mean1 = bi
                 elif b_idx2 is not None:
                     b_mean1 = b_idx1
+                # Fit a new mean model to all data except the chosen combinations.
                 sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
-                           mask, ad, rd, over_sample, bounds, solver, mean, b_inds, b_mean1, b_idx2)
+                           mask, ad, rd, over_sample, bounds, solver, b_inds, b_mean1, b_idx2)
+                if b_mode is "bvals":
+                    # Replace the relative signal average of the model object with one calculated.
+                    mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
             else:
                 new_params = None
-
-            if b_mode is "bvals":
-                mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
 
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
@@ -230,12 +234,22 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = No
                 if over_sample is None:
                     tensor_regressor = full_mod.regressors[1][:, si][si, :]
                 else:
+                    # If over or under sampling, the rotational vectors are not equal to
+                    # the original b vectors.
                     tensor_regressor = full_mod.regressors[1][si, :]
+                # Add some ones to the end of each row if not demeaning the equation
+                if mean is "no_demean":
+                    tr_vec_num = tensor_regressor.shape[0]
+                    tensor_regressor = np.concatenate((tensor_regressor, np.ones((tr_vec_num, 1))),-1)
+                        
                 fit_to_demeaned = full_mod.regressors[2][:, si]
-                sig_out,_ = mod.fit_flat_rel_sig_avg
+                # Want the average signal from mean model fit to just the reduced data
+                sig_out,_ = mod.fit_flat_rel_sig_avg 
                 mod.regressors = [fit_to, tensor_regressor, fit_to_demeaned, sig_out]
 
             if b_idx2 != None:
+                # Since we're using a separate output for each prediction, and not indexing
+                # into one big array, use the indices starting from 0.
                 vec_combo_rm0 = vec_pool_inds
                 if bi == b_idx1:
                     predicted12[:, vec_pool_inds] = mod.predict(bvecs[:, b_inds[1:][b_idx2][vec_pool_inds]],
