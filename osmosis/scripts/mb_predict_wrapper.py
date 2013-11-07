@@ -19,7 +19,7 @@ template = sge.getsourcelines(mb_template)[0]
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='klchan13', port=22)
 
 batch_sge = []
-for i in range(1973): 
+for i in range(65): 
     params_dict = dict(i=i)
     code = sge.add_params(template,params_dict)
     name = 'sfm_mb_start%s'%(i)

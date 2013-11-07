@@ -24,9 +24,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*65
+    low = i*2000
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 65, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 2000, int(np.sum(wm_data))])
 
     # Now set the mask:
     mask = np.zeros(wm_data_file.shape)
@@ -39,15 +39,15 @@ if __name__=="__main__":
     actual_pn_all, predicted_pn_all = pn.predict_n(data, bvals, bvecs,
                                                    mask, ad, rd, 10, "all",
                                                    solver = "nnls")
-    actual_pn_bvals, predicted_pn_bvals = pn.predict_n(data, bvals, bvecs,
-                                                       mask, ad, rd, 10, "bvals",
-                                                       mean = "mean_model", solver = "nnls")
+    #actual_pn_bvals, predicted_pn_bvals = pn.predict_n(data, bvals, bvecs,
+    #                                                   mask, ad, rd, 10, "bvals",
+    #                                                   mean = "mean_model", solver = "nnls")
     #actual_pn_grid, predicted_pn_grid = pn.predict_grid(data, bvals, bvecs,
     #                                                   mask, ad, rd, 10,
     #                                                   solver = "nnls")
     aff = np.eye(4)
     nib.Nifti1Image(predicted_pn_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i))
-    nib.Nifti1Image(predicted_pn_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
+    #nib.Nifti1Image(predicted_pn_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
     #nib.Nifti1Image(predicted_pn_grid, aff).to_filename("/hsgs/nobackup/klchan13/grid_predict%s.nii.gz"%(i))
     #actual_all, predict_all = pn.predict_n(data, bvals, bvecs,
                                            #mask, ad, rd, 10,"all")
