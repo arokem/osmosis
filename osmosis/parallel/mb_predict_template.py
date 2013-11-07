@@ -24,9 +24,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*2000
+    low = i*65
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 2000, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 65, int(np.sum(wm_data))])
 
     # Now set the mask:
     mask = np.zeros(wm_data_file.shape)
