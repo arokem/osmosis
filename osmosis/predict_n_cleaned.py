@@ -370,7 +370,7 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
              this_data, these_inc0) = create_combos(bvecs, bvals, data, these_b_inds,
                                                         these_b_inds_rm0, all_inc_0,
                                                         vec_pool, num_choose, combo_num)
-
+            1/0.
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                         mask = mask, params_file = "temp",
                                                         axial_diffusivity = ad,
