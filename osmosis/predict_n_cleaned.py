@@ -53,7 +53,7 @@ def create_combos(bvecs, bvals_pool, data, these_b_inds,
         idx.remove(these_b_inds_rm0[choice_idx])
 
     # Make the list back into an array
-    these_inc0 = np.array(these_inc0)
+    these_inc0 = np.array(sorted(these_inc0))
     
     # Isolate the b vectors, b values, and data not including those
     # to be predicted
@@ -370,7 +370,7 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
              this_data, these_inc0) = create_combos(bvecs, bvals, data, these_b_inds,
                                                         these_b_inds_rm0, all_inc_0,
                                                         vec_pool, num_choose, combo_num)
-            1/0.
+            
             mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                         mask = mask, params_file = "temp",
                                                         axial_diffusivity = ad,
