@@ -297,7 +297,7 @@ class TensorModel(BaseModel):
         out[self.mask] = fit_flat
         return out
 
-    def predict(self, sphere):
+    def predict(self, sphere, bvals):
         """
         Predict the values of the signal on a novel sphere (not neccesarily
         measured points) in every voxel
@@ -315,11 +315,10 @@ class TensorModel(BaseModel):
 
         out = ozu.nans(self.signal.shape[:3] + (sphere.shape[-1], ))
         # We will assume one b-value use that one below for all the bvecs:
-        bval = self.bvals[:, self.b_idx][0]
         for ii in xrange(len(predict_flat)):
             predict_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
-                                        bval*np.ones(pred_adc_flat.shape[-1]),
-                                        pred_adc_flat[ii])
+                                                   bvals/float(mod.scaling_factor),
+                                                   pred_adc_flat[ii])
 
         out[self.mask] = predict_flat
         return out
