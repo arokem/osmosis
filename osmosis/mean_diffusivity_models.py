@@ -4,9 +4,51 @@ import osmosis.utils as ozu
 import osmosis.leastsqbound as lsq
 import numpy as np
 
-def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_inc_0, vec_pool, num_choose, combo_num):
+def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
+                              all_inc_0, vec_pool, num_choose, combo_num):
     """
-    Helper function for the cross-validation functions
+    Helper function for the cross-validation functions.  This is a duplicate of the one in
+    predict_n since importing from that module creates a paradox.
+    
+    Parameters
+    ----------
+    bvecs: 2 dimensional array
+        All the b vectors
+    bvals: 1 dimensional array
+        All b values
+    these_b_inds: 1 dimensional array
+        Indices indicating which of the directions/b values are up for cross-validation
+    these_b_inds_rm0: 1 dimensional array
+        Indices indicating which of the directions/b values are up for cross-validation
+        in respect to diffusion-weighted directions
+    all_inc_0: 1 dimensional array
+        these_b_inds and the indices for the non-diffusion-weighted directions
+    vec_pool: 1 dimensional array
+        Shuffled indices for cross-validation
+    num_choose: int
+        Number of indices to leave out at time
+    combo_num: int
+        Current fold of k-fold cross-validation
+       
+    Returns
+    -------
+    si: 1 dimensional array
+        Sorted indices after removing a certain amount of directions.  This is used to
+        index into the full model's regressors
+    vec_combo: 1 dimensional array
+        Indices indicating the directions left out.
+    vec_combo_rm0: 1 dimensional array
+        Indices indicating the directions left out with respect to the non-diffusion
+        weighted directions.
+    these_bvecs: 2 dimensional array
+        b vectors to fit to after removing a certain amount of directions.
+    these_bvals: 2 dimensional array
+        b values to fit to after removing a certain amount of directions.
+    these_bvals: 4 dimensional array
+        Data to fit to after removing a certain amount of directions.
+    these_inc0: 1 dimensional array
+        Indices to fit to after removing a certain amount of directions with respect
+        to the non-diffusion-weighted directions.
     """
     
     idx = list(these_b_inds_rm0)
@@ -30,7 +72,7 @@ def create_combos(bvecs, bvals_pool, data, these_b_inds, these_b_inds_rm0, all_i
     # Isolate the b vectors, b values, and data not including those
     # to be predicted
     these_bvecs = bvecs[:, these_inc0]
-    these_bvals = bvals_pool[these_inc0]
+    these_bvals = bvals[these_inc0]
     this_data = data[:, :, :, these_inc0]
     
     # Need to sort the indices first before indexing full model's
@@ -45,16 +87,13 @@ def err_func(params, b, s_prime, func):
     
     Parameters
     ----------
-    params : tuple
+    params: tuple
         A tuple with the parameters of `func` according to their order of input
-
-    b : float array 
+    b: float array 
         An independent variable. 
-    
-    s_prime : float array
-        The dependent variable. 
-    
-    func : function
+    s_prime: float array
+        The dependent variable.     
+    func: function
         A function with inputs: `(x, *params)`
     
     Returns
@@ -107,24 +146,56 @@ def two_decaying_exp_plus_const(b, a, c, D1, D2):
         
     return this_sig
     
-def optimize_MD_params(data, bvals, mask, func, initial, bounds = None):
+def optimize_MD_params(data, bvals, mask, func, initial, factor = 1000, bounds = None):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors.
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    mask: 3 dimensional array
+        Brain mask of the data
+    func: function handle
+        Mean model to perform kfold cross-validation on.
+    initial: tuple
+        Initial values for the parameters.
+    factor: int
+        Integer indicating the scaling factor for the b values
+    bounds: list
+        List containing tuples indicating the bounds for each parameter in
+        the mean model function.
+        
+    Returns
+    -------
+    param_out: 2 dimensional array
+        Parameters that minimize the residuals
+    fit_out: 2 dimensional array 
+        Model fitted means
+    ss_err: 2 dimensional array 
+        Sum squared error between the model fitted means and the actual means
     """
 
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     
     if 0 in bvals:
+        # If 0 is in the b values, then there is no need to do rounding
+        # in order to separate the b values and determine which ones are
+        # close enough to 0 to be considered 0.
         all_b_idx = np.squeeze(np.where(bvals != 0))
         b0_inds = np.where(bvals == 0)
     else:
         all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
         b0_inds = b_inds[0]
-        
-    b = bvals[all_b_idx]/1000
+    
+    # Divide the b values by a scaling factor first.
+    b = bvals[all_b_idx]/factor
     flat_data = data[np.where(mask)]
     
+    # Get the number of inputs to the mean diffusivity function
     param_num = len(inspect.getargspec(func)[0])
     
     # Pre-allocate the outputs:
@@ -150,22 +221,54 @@ def optimize_MD_params(data, bvals, mask, func, initial, bounds = None):
         
     return param_out, fit_out, ss_err
     
-def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, bounds = None):
+def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000, bounds = None):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors using kfold cross validation.
+    
+    Parameters
+    ----------
+    data: 4 dimensional array
+        Diffusion MRI data
+    bvals: 1 dimensional array
+        All b values
+    bvecs: 3 dimensional array
+        All the b vectors
+    mask: 3 dimensional array
+        Brain mask of the data
+    func: function handle
+        Mean model to perform kfold cross-validation on.
+    initial: tuple
+        Initial values for the parameters.
+    n: int
+        Integer indicating the percent of vertices that you want to predict
+    factor: int
+        Integer indicating the scaling factor for the b values
+    bounds: list
+        List containing tuples indicating the bounds for each parameter in
+        the mean model function.
+        
+    Returns
+    -------
+    actual: 2 dimensional array
+        Actual mean for the predicted vertices
+    predicted: 2 dimensional array 
+        Predicted mean for the vertices left out of the fit
     """
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     
     if 0 in bvals:
+        # If 0 is in the b values, then there is no need to do rounding
+        # in order to separate the b values and determine which ones are
+        # close enough to 0 to be considered 0.
         all_b_idx = np.squeeze(np.where(bvals != 0))
         b0_inds = np.where(bvals == 0)
     else:
         all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
         b0_inds = b_inds[0]
         
-    b_scaled = bvals/1000
+    b_scaled = bvals/factor
     flat_data = data[np.where(mask)]
     
     # Pre-allocate outputs
@@ -183,11 +286,11 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, bounds = None)
     np.random.shuffle(vec_pool)
     all_inc_0 = np.arange(len(rounded_bvals))
     
+    # Start cross-validation
     for combo_num in np.arange(np.floor(100./n)):
         (si, vec_combo, vec_combo_rm0,
          these_bvecs, these_bvals,
-         this_data, these_inc0) = create_combos(bvecs, bvals,
-                                                data, all_b_idx,
+         this_data, these_inc0) = create_combos(bvecs, bvals, data, all_b_idx,
                                                 np.arange(len(all_b_idx)),
                                                 all_b_idx, vec_pool,
                                                 num_choose, combo_num)
@@ -195,10 +298,10 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, bounds = None)
         
         for vox in np.arange(np.sum(mask)).astype(int):
             s0 = np.mean(flat_data[vox, b0_inds], -1)
-            these_b = b_scaled[vec_combo]
+            these_b = b_scaled[vec_combo] # b values to predict
             
             s_prime_fit = np.log(flat_data[vox, these_inc0]/s0)
-            
+            # Fit mean model to part of the data
             params, _ = opt.leastsq(err_func, initial, args=(b_scaled[these_inc0],
                                                                s_prime_fit, func))
             if bounds == None:
@@ -207,13 +310,13 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, bounds = None)
             else:
                 lsq_b_out = lsq.leastsqbound(err_func, initial,
                                              args = (b_scaled[these_inc0],
-                                                     s_prime_fit, func),
-                                             bounds = bounds)
+                                                     s_prime_fit, func), bounds = bounds)
                 params = lsq_b_out[0]
-            
+            # Predict the mean values of the left out b values using the parameters from
+            # fitting to part of the b values.
             predict = func(these_b, *params)
             predict_out[vox, vec_combo_rm0] = func(these_b, *params)
-    
+
     s0 = np.mean(flat_data[:, b0_inds], -1).astype(float)
     s_prime_predict = np.log(flat_data[:, all_b_idx]/s0[..., None])
     ss_err = np.sum((s_prime_predict - predict_out)**2, -1)

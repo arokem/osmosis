@@ -75,7 +75,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                  solver_params=None,
                  initial = None,
                  bounds = None,
-                 mean = None,
+                 mean = "mean_model",
                  params_file=None,
                  axial_diffusivity=AD, # Should be a dict
                  radial_diffusivity=RD, # Should be a dict
@@ -86,7 +86,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                  over_sample=None,
                  mode='relative_signal',
                  verbose=True,
-                 demean_eqn = True):
+                 fit_method = "LS"):
         """
         Initialize SparseDeconvolutionModelMultiB class instance.
         """
@@ -174,6 +174,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # Model of the means
         self.func = mdm.two_decaying_exp_plus_const
         self.mean = mean
+        self.fit_method = fit_method
         if bounds is None:
             self.bounds = bounds = [(-10000, 0), (-10000, 0), (-10000, 0), (-10000, 0)]
         else:
@@ -250,6 +251,27 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                        
         return out
     
+    @desc.auto_attr
+    def tensor_model(self):
+        """
+        Create a tensor model object in order to get the mean diffusivities
+        """
+        these_bvals = self.bvals*self.scaling_factor
+        these_bvals[self.b0_inds] = 0
+        return dti.TensorModel(self.data, self.bvecs, these_bvals, mask=self.mask,
+                                params_file='temp')
+
+    def _flat_MD_rel_sig_avg(self, bvals, idx, md = None):
+        """
+        Compute the relative signal average for demeaning of the signal.
+        """
+        if md is None:
+            out = np.exp(-bvals[idx]*self.tensor_model.mean_diffusivity[self.mask])
+        else:
+            out = np.exp(-bvals[idx]*md)
+
+        return out
+
     def _flat_rel_sig_avg(self, bvals):
         """
         Compute the relative signal average for demeaning of the signal.
@@ -266,8 +288,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             params, _ = opt.leastsq(mdm.err_func, self.initial, args=(bvals, s_prime, self.func))
             
             lsq_b_out = lsq.leastsqbound(mdm.err_func, self.initial,
-                                             args=(bvals, s_prime, self.func),
-                                             bounds = self.bounds)
+                                                args=(bvals, s_prime, self.func),
+                                                bounds = self.bounds)
             params = lsq_b_out[0]                                             
             params_out[vox] = np.squeeze(params)
             sig_out[vox] = np.exp(self.func(bvals, *params))        
@@ -297,23 +319,29 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             n_columns = n_columns + 1
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
-        
-        sig_out, _ = self.fit_flat_rel_sig_avg
+
         for idx, b_idx in enumerate(self.all_b_idx):
+            
+            if self.mean == "MD":
+                sig_demean = self._flat_MD_rel_sig_avg(self.bvals, b_idx)
+            else:
+                sig_out, _ = self.fit_flat_rel_sig_avg
+                sig_demean = sig_out[:, idx]
+                
             if self.mode == 'signal_attenuation':
-                sig_avg = 1 - sig_out[:, idx]
+                sig_avg = 1 - np.copy(sig_demean)
                 this_fit_to = self._flat_signal_attenuation[:, idx]
             elif self.mode == 'relative_signal':
-                sig_avg = sig_out[:, idx]
+                sig_avg = np.copy(sig_demean)
                 this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights...
-                sig_avg = sig_out[:, idx]
+                sig_avg = np.copy(sig_demean)
                 this_fit_to = self._flat_relative_signal[:, idx]
             elif self.mode == 'log':
-                sig_avg = np.log(sig_out)[:, idx]
+                sig_avg = np.log(np.copy(sig_demean))
                 this_fit_to = np.log(self._flat_relative_signal[:, idx])
             
             # Find tensor regressor values
@@ -323,14 +351,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 tensor_regressor[idx] = np.concatenate((np.squeeze(this_tensor_regressor),[1]))
             else:
                 tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
-
+            
             # Find the signals to fit to and demean them by mean signal calculated from
             # the mean diffusivity.
             fit_to[:, idx] = this_fit_to
             fit_to_demeaned[:, idx] = this_fit_to - sig_avg
             fit_to_means[:, idx] = sig_avg
 
-        return [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means]     
+            if self.mean is "MD":
+                bval_tensor = round(self.bvals[b_idx])*self.scaling_factor
+                this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
+                design_matrix[idx] = (np.squeeze(this_tensor_regressor) -
+                                        np.exp(-self.bvals[b_idx]*this_MD))
+        if self.mean is "MD":
+            return [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means, design_matrix]
+        else:
+            return [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means]     
         
     def _fit_it(self, fit_to, design_matrix):
         """
@@ -375,15 +411,16 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 this_class = str(self.__class__).split("'")[-2].split('.')[-1]
                 f_name = this_class + '.' + inspect.stack()[0][3]
             
-            fit_to_with_mean, tensor_regressor, fit_to, _  = self.regressors
-            sig_out, _ = self.fit_flat_rel_sig_avg
+            if self.mean is "MD":
+                _, _, fit_to, _, design_matrix = self.regressors
+            else:
+                sig_out, _ = self.fit_flat_rel_sig_avg
+                fit_to_with_mean, tensor_regressor, fit_to, _ = self.regressors
             
             if self._n_vox==1:
                 # We have to be a bit (too) clever here, so that the indexing
                 # below works out:
-                this_fit_to = fit_to.T
-            else:
-                this_fit_to = fit_to
+                fit_to_with_mean = fit_to_with_mean.T
                        
             # One weight for each rotation
             col_num = self.rot_vecs.shape[-1]
@@ -402,6 +439,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 if self.mean is "empirical":
                     design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
                     vox_fit_to_demeaned = fit_to_with_mean[vox] - np.mean(fit_to_with_mean[vox])
+                elif self.mean is "MD":
+                    vox_fit_to_demeaned = fit_to[vox]
                 else:
                     if self.mean is "mean_model":
                         avg_sig = sig_out[vox][:, None]
@@ -409,6 +448,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                         avg_sig = 0.0
                     design_matrix = tensor_regressor - avg_sig
                     vox_fit_to_demeaned = fit_to_with_mean[vox] - np.squeeze(avg_sig)
+                    if self.fit_method == "WLS":
+                        sig_out = sig_out.astype(float)
+                        weighting_matrix = np.diag(sig_out[vox]/np.max(sig_out[vox]))
+                        design_matrix = np.dot(weighting_matrix, design_matrix)
+                        vox_fit_to_demeaned = np.dot(weighting_matrix, vox_fit_to_demeaned)                   
                     
                 params[vox] = self._fit_it(vox_fit_to_demeaned, design_matrix)[idx]
                 if self.verbose:
@@ -417,8 +461,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # It doesn't matter what's in the last dimension since we only care
             # about the first 3.  Thus, just pick the array of signals from them
             # first b value.
-            out_params = ozu.nans(self.signal.shape[:3] + 
-                                  (design_matrix.shape[-1],))
+            out_params = ozu.nans(self.signal.shape[:3] + (design_matrix.shape[-1],))
             
             out_params[self.mask] = params
             # Save the params to a file: 
@@ -483,7 +526,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
         return out
         
-    def predict(self, vertices, new_bvals, new_params = None):
+    def predict(self, vertices, new_bvals, new_params = None, md = None):
         """
         Predict the signal on a new set of vertices
         """
@@ -492,7 +535,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             msg += " with %s"%self.solver
             print(msg)
         
-        # Just so everything works out:
+        # Just so everything works out, devide by the scaling factor (default: 1000)
         new_bvals = new_bvals/self.scaling_factor
         
         if len(vertices.shape) == 1:
@@ -505,6 +548,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             col_num = col_num + 1
 
         tensor_regressor = np.zeros((vertices.shape[-1], col_num))
+        design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs.shape[-1]))
+        fit_to_mean_md = np.zeros((self._n_vox, vertices.shape[-1]))
             
         for idx, bval in enumerate(new_bvals):
             # Create a new design matrix from the given vertices
@@ -512,8 +557,18 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 tensor_regressor[idx] = np.concatenate((np.squeeze(self._calc_rotations(bval,
                                         np.reshape(vertices[:, idx], (3,1)))), [1]))
             else:
-                tensor_regressor[idx] = np.squeeze(self._calc_rotations(bval,
+                this_tensor_regressor = np.squeeze(self._calc_rotations(bval,
                                         np.reshape(vertices[:, idx], (3,1))))
+                tensor_regressor[idx] = this_tensor_regressor
+                
+            if self.mean is "MD":
+                bval_tensor = round(bval)*self.scaling_factor
+                this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
+                design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-bval*this_MD)
+                
+                # Find the mean signal across the vertices corresponding to the b values
+                # given.
+                fit_to_mean_md[:, idx] = self._flat_MD_rel_sig_avg(new_bvals, idx, md = md)
 
         out_flat_arr = np.zeros((self._n_vox, vertices.shape[-1]))
         
@@ -529,9 +584,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             this_params = self._flat_params[vox]
             this_params[np.isnan(this_params)] = 0.0
             
+            
             if self.mean is "empirical":
                 design_matrix = tensor_regressor - np.mean(tensor_regressor, 0)
                 this_fit_to_mean = fit_to_means[vox]
+            elif self.mean is "MD":
+                this_fit_to_mean = fit_to_mean_md[vox]
             else:
                 this_fit_to_mean = np.exp(self.func(new_bvals, *params_out[vox]))
                 if self.mean is "mean_model":
