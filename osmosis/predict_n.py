@@ -101,7 +101,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, ad, rd, over_sample
     return sig_out, new_params, b_inds_ar[b_idx1]
 
 def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "mean_model",
-              b_idx2 = None, over_sample=None, bounds = None, demean_eqn = True, solver=None):
+            fit_method = None, b_idx2 = None, over_sample=None, bounds = None, solver=None):
     """
     Predicts signals for a certain percentage of the vertices.
     
@@ -152,7 +152,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "m
                                                         over_sample = over_sample,
                                                         bounds = bounds,
                                                         solver = solver,
-                                                        demean_eqn = demean_eqn,
+                                                        fit_method = fit_method,
                                                         params_file = "temp")
         indices = np.array([b_idx1])
     elif b_mode is "bvals":
@@ -176,6 +176,7 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "m
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
         elif b_mode is "bvals":
+            # Indices of data with a particular b value
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
             these_b_inds = b_inds[1:][bi]
             these_b_inds_rm0 = b_inds_rm0[bi]
@@ -208,12 +209,13 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "m
                                                          mask = mask, axial_diffusivity = ad,
                                                          radial_diffusivity = rd,
                                                          over_sample = over_sample,
-                                                         demean_eqn = demean_eqn,
                                                          bounds = bounds, solver = solver,
+                                                         fit_method = fit_method,
                                                          mean = mean, params_file = "temp")
             if (mean is "mean_model") & (b_mode is not "all"):
                 # Get the parameters from fitting a mean model to all b values not including
-                # the ones left out
+                # the ones left out.  The "all" b model already fetches a mean according fit
+                # to all b values
                 if (b_mode is "bvals") & (b_idx2 == None):
                     b_mean1 = bi
                 elif b_idx2 is not None:
@@ -232,16 +234,14 @@ def predict_n(data, bvals, bvecs, mask, ad, rd, n, b_mode, b_idx1 = 0, mean = "m
             if (b_idx2 == None) & (b_mode is "all"):
                 fit_to = full_mod.regressors[0][:, si]
                 if over_sample is None:
+                    # Take the reduced vectors from both the b vectors and rotational vectors
                     tensor_regressor = full_mod.regressors[1][:, si][si, :]
                 else:
                     # If over or under sampling, the rotational vectors are not equal to
-                    # the original b vectors.
+                    # the original b vectors so you shouldn't take the reduced amount
+                    # of rotational vectors.
                     tensor_regressor = full_mod.regressors[1][si, :]
-                # Add some ones to the end of each row if not demeaning the equation
-                if mean is "no_demean":
-                    tr_vec_num = tensor_regressor.shape[0]
-                    tensor_regressor = np.concatenate((tensor_regressor, np.ones((tr_vec_num, 1))),-1)
-                        
+                    
                 fit_to_demeaned = full_mod.regressors[2][:, si]
                 # Want the average signal from mean model fit to just the reduced data
                 sig_out,_ = mod.fit_flat_rel_sig_avg 
