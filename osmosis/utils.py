@@ -830,25 +830,20 @@ def sph_cc(s1, s2, vertices1, vertices2=None, n=20.):
     if vertices2 is None:
         vertices2 = vertices1
     with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            ang = np.rad2deg(np.arccos(np.dot(vertices1,vertices2.T))).ravel()
-            ang[np.isnan(ang)] = 0
-            
-    s1 = (s1.reshape(1, -1) + np.ones((s1.shape[0], s1.shape[0]))).ravel()
-    s2 = (s2.reshape(-1, 1) + np.ones((s2.shape[0], s2.shape[0]))).ravel()
+        warnings.simplefilter("ignore")
+        ang = np.rad2deg(np.arccos(np.dot(vertices1, vertices2.T)))
+        ang[np.isnan(ang)] = 0
 
     max_ang = np.max(ang)
-    max_ang = np.max(ang) + float(max_ang)/n
     step = float(max_ang)/n
-    degs = np.linspace(0, max_ang, n)
+    degs = np.linspace(0, max_ang, n-1)
     cc = np.ones(len(degs)) * np.nan
     for ii, d in enumerate(degs):
         idx = np.where(np.logical_and(ang>=d, ang<=d+step))
         if len(idx[0])>0:
-            cc[ii] = np.corrcoef(s1[idx], s2[idx])[0,1]
+            cc[ii] = np.corrcoef(s1[idx[0]], s2[idx[1]])[0,1]
 
     return degs, cc
-
 
 def start_parallel(imports_str=None):
     """
