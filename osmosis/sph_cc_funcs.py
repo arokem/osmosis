@@ -32,7 +32,12 @@ def sph_cc_ineq(cod_single_mod, cod_multi_mod, bvals, single_thresh, multi_thres
         
     Returns
     -------
-    
+    inds: 1 dimensional array
+        Indices indicating the voxels within the COD inequality/equality
+    b_inds: list
+        List of indices corresponding to each b value
+    all_b_inds: 1 dimensional array
+        Indices corresponding to the non-zero b values
     """
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
@@ -56,17 +61,51 @@ def sph_cc_ineq(cod_single_mod, cod_multi_mod, bvals, single_thresh, multi_thres
     
 def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_single_mod = None, cod_multi_mod = None,
                   single_thresh = None, multi_thresh = None, idx = None, vol_mp_single = None,
-                  tol = 0.1, n = 20, ri = None):
+                  tol = 0.1, n = 20):
     """
     Calculates the spherical cross correlation at a certain index for all b values fit
     together and b values fit separately.
     
     Parameters
     ----------
-    bvecs: 2 dimensional array
-        All the b vectors
+    vol_b_list: list
+        List of the model parameters for each voxel for an fODF fit to each b value.
     bvals: 1 dimensional array
         All b values
+    bvecs: 2 dimensional array
+        All the b vectors
+    mask: 3 dimensional array
+        Brain mask of the data
+    cod_single_mod: 1 dimensional array
+        Coefficient of determination at each voxel for the single fODF model
+    cod_multi_mod: 1 dimensional array
+        Coefficient of determination at each voxel for the multi fODF model
+    single_thresh: int
+        Coefficient of determination threshold for the single fODF model
+    multi_thresh: int
+        Coefficient of determination threshold for the multi fODF model
+    idx: int
+        Index into the indices indicating the voxels included in the COD (in)equality
+    vol_mp_single: 2 dimensional array
+        Model parameters from fitting a single fODF to each voxel
+    tol: float
+        Tolerance for the COD (in)equality
+    n: int
+        Integer indicating the number of directions to divide by for spherical
+        cross-correlation
+    
+    Returns
+    -------
+    deg_list: list
+        List indicating the degrees included in spherical cross-correlation
+    cc_list: list
+        List with the cross-correlations between each combination of b values
+    idx: int
+        Index into the indices indicating the voxels included in the COD (in)equality
+    cod_s: float
+        Coefficient of determination of single fODF model
+    cod_m: float
+        Coefficient of determination of multi fODF model
     """
     if (single_thresh != None) & (multi_thresh != None):
         # Get the indices with a desired COD.
@@ -140,11 +179,45 @@ def across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_single_mod = None, cod_mul
 def all_across_sph_cc(vol_b_list, bvals, bvecs, mask, cod_single_mod = None,
                       cod_multi_mod = None, single_thresh = None,
                       multi_thresh = None, vol_mp_single = None,
-                      tol = 0.1, n = 20, ri = None):
-                          
+                      tol = 0.1, n = 20):  
     """
     Calculates the spherical cross correlation at different indices for all b values
     fit to gether and b values fit separately.
+    
+    Parameters
+    ----------
+    vol_b_list: list
+        List of the model parameters for each voxel for an fODF fit to each b value.
+    bvals: 1 dimensional array
+        All b values
+    bvecs: 2 dimensional array
+        All the b vectors
+    mask: 3 dimensional array
+        Brain mask of the data
+    cod_single_mod: 1 dimensional array
+        Coefficient of determination at each voxel for the single fODF model
+    cod_multi_mod: 1 dimensional array
+        Coefficient of determination at each voxel for the multi fODF model
+    single_thresh: int
+        Coefficient of determination threshold for the single fODF model
+    multi_thresh: int
+        Coefficient of determination threshold for the multi fODF model
+    vol_mp_single: 2 dimensional array
+        Model parameters from fitting a single fODF to each voxel
+    tol: float
+        Tolerance for the COD (in)equality
+    n: int
+        Integer indicating the number of directions to divide by for spherical
+        cross-correlation
+    
+    Returns
+    -------
+    all_deg_list: list
+        List indicating the degrees included in spherical cross-correlation for
+        each voxel
+    all_cc_list: list
+        List with the cross-correlations at each voxel for each combination of
+        b values
     """
     
     if (single_thresh != None) & (multi_thresh != None):
@@ -182,7 +255,39 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                  file_path = os.getcwd(), vol = "No",
                  f_type = "npy",save = "No", num_dirs = 270):
     """
-    Function to aggregate sub data files from parallelizing.
+    Function to aggregate sub data files from parallelizing.  Assumes that
+    the sub_files are in the format: (file name)_(number of sub_file).(file_type)
+    
+    Parameters
+    ----------
+    file_names: list
+        List of strings indicating the base file names for each output data
+        aggregation
+    mask_vox_num: int
+        Number of voxels in each sub file
+    expected_file_num: int
+        Expected number of sub files
+    mask_data_file: obj
+        File handle for brain/white matter mask
+    file_path: str
+        Path to the directory with all the sub files.  Default is the current
+        directory
+    vol: str
+        String indicating whether or not the sub files are in volumes and
+        whether the output files are saved as volumes as well
+    f_type: str
+        String indicating the type of file the sub files are saved as
+    save: str
+        String indicating whether or not to save the output aggregation/volumes
+    num_dirs: int
+        Number of directions in each output aggregation/volume
+    
+    Results
+    -------
+    missing_files: 1 dimensional array
+        All the sub files that are missing in the aggregation
+    aggre_list: list
+        List with all the aggregations/volumes
     """
     files = os.listdir(file_path)
 
@@ -218,13 +323,14 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
                     
                     if vol is "No":
-                        aggre[low:high] = sub_data[:, 0]
+                        aggre[low:high] = sub_data
                     else:
                         mask = np.zeros(mask_data_file.shape)
                         mask[mask_idx[0][low:high], mask_idx[1][low:high], mask_idx[2][low:high]] = 1
                         aggre[np.where(mask)] = sub_data
                     # If the file is present, change its index within the tracking array to 0.    
-                    i_track[i] = 0        
+                    i_track[i] = 0
+
         aggre_list.append(aggre)
         
         if save is "Yes":

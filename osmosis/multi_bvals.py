@@ -189,6 +189,13 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def response_function(self, bval_tensor, vertex):
         """
         Canonical tensors that describes the presumed response of different b values
+        
+        Parameters
+        ----------
+        bval_tensor: int
+            B value of the current vertex not scaled by the scaling factor
+        vertex: 2 dimensional array
+            Vertex to find the canonical tensor to.
         """
         tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor], self.rd[bval_tensor],
                                 self.rd[bval_tensor]]), vertex, np.array([bval_tensor]))
@@ -200,7 +207,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
         be used as a design matrix
-
         """
         # unless we ask to change it, just use the mode of the object
         if mode is None:

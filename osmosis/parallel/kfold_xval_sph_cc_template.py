@@ -24,9 +24,9 @@ if __name__=="__main__":
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
-    low = i*2000
+    low = i*200
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 2000, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 200, int(np.sum(wm_data))])
 
     # Now set the mask:
     mask = np.zeros(wm_data_file.shape)
@@ -38,9 +38,9 @@ if __name__=="__main__":
     
     cc_list_single = pn.predict_n(data, bvals, bvecs, mask, ad, rd, 10, "single",
                                   mean = "mean_model", sph_cc = True, solver = "nnls")
+    np.save("cc_single%s.npy"%i, cc_list_single[0])
     cc_list_multi = pn.predict_n(data, bvals, bvecs, mask, ad, rd, 10, "multi",
                                  mean = "mean_model", sph_cc = True, solver = "nnls")
-    np.save("cc_single%s.npy"%i, cc_list_single[0])
     np.save("cc_b1k_multi%s.npy"%i, cc_list_multi[0])
     np.save("cc_b2k_multi%s.npy"%i, cc_list_multi[1])
     np.save("cc_b3k_multi%s.npy"%i, cc_list_multi[2])
