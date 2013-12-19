@@ -976,9 +976,11 @@ def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bval
     track = 0
     for AD_idx in np.arange(len(AD_combos)):
         for RD_idx in np.arange(len(RD_combos)):
+            # Predict with different AD, RD values.
             actual_b, predicted_b = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'bvals')
             actual, predicted = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'all')
             
+            # Calculate RMSE values.
             rmse_b[:, track] = np.sqrt(np.mean((actual_b - predicted_b)**2, -1))
             rmse_mb[:, track] = np.sqrt(np.mean((actual - predicted)**2, -1))
             
