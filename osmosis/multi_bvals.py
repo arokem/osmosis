@@ -196,6 +196,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             B value of the current vertex not scaled by the scaling factor
         vertex: 2 dimensional array
             Vertex to find the canonical tensor to.
+        
+        Returns
+        -------
+        tensor_out: object
+            Diffusion tensor object for extraction of eigenvalues and eignvectors later
         """
         tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor], self.rd[bval_tensor],
                                 self.rd[bval_tensor]]), vertex, np.array([bval_tensor]))
@@ -207,7 +212,20 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
         be used as a design matrix
+        
+        Parameters
+        ----------
+        bval: int
+            B value of the current vertex scaled by the scaling factor
+        vertex: 2 dimensional array
+            Current b vector
+        
+        Returns
+        -------
+        out: 1 dimensional array
+            Response function at this particular b value and b vector
         """
+        
         # unless we ask to change it, just use the mode of the object
         if mode is None:
             mode = self.mode
@@ -261,6 +279,10 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def tensor_model(self):
         """
         Create a tensor model object in order to get the mean diffusivities
+        
+        Returns
+        -------
+        Tensor object for extracting mean diffusivities later
         """
         these_bvals = self.bvals*self.scaling_factor
         these_bvals[self.b0_inds] = 0
@@ -270,6 +292,21 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def _flat_MD_rel_sig_avg(self, bvals, idx, md = None):
         """
         Compute the relative signal average for demeaning of the signal.
+        
+        Parameters
+        ----------
+        bvals: 1 dimensional array
+            B values at which to evaluate the mean diffusivity at
+        idx: int
+            Index into the b values for the current b value
+        md: 1 dimensional array
+            Input mean diffusivities if the default mean diffusivity calculated from
+            the SFM's b values and b vectors is not desired.
+            
+        Return
+        ------
+        out: 1 dimensional array
+            Relative signal calculated from mean diffusivity
         """
         if md is None:
             out = np.exp(-bvals[idx]*self.tensor_model.mean_diffusivity[self.mask])
@@ -281,6 +318,18 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def _flat_rel_sig_avg(self, bvals):
         """
         Compute the relative signal average for demeaning of the signal.
+        
+        Parameters
+        ----------
+        bvals: 1 dimensional array
+            B values at which to evaluate the mean model at
+        
+        Returns
+        -------
+        sig_out: 1 dimensional array
+            Means for each b value in each direction
+        params_out: 2 dimensional array
+            Parameters for the mean model at each voxel
         """
         flat_data = self.data[np.where(self.mask)]
         
@@ -306,6 +355,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def fit_flat_rel_sig_avg(self):
         """
         The relative signal average of the data
+        
+        Returns
+        -------
+        Relative signal average calculated using the mean model at the SFM's
+        default b values.
         """
         return self._flat_rel_sig_avg(self.bvals[self.all_b_idx])
                                                                
@@ -313,7 +367,22 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def regressors(self):
         """
         Compute the regressors and the signal to fit to, depending on the mode
-        you are using  
+        you are using
+        
+        Returns
+        -------
+        fit_to: 2 dimensional array
+            Values to fit to at each voxel and at each direction
+        tensor_regressor: 2 dimensional array
+            Non-demeaned design matrix for fitting
+        fit_to_demeaned: 2 dimensional array
+            Values to fit to and demeaned by some kind of mean at each voxel
+            and at each direction
+        fit_to_means: 1 dimensional array
+            Means at each direction with which the fit_to values and design_matrix
+            were demeaned
+        design_matrix: 2 dimensional array
+            Demeaned design matrix for fitting
         """
         
         fit_to = np.empty((np.sum(self.mask), len(self.all_b_idx)))
@@ -377,6 +446,19 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def _fit_it(self, fit_to, design_matrix):
         """
         The core fitting routine
+        
+        Parameters
+        ----------
+        fit_to: 2 dimensional array
+            Values to fit to and demeaned by some kind of mean at each voxel
+            and at each direction
+        design_matrix: 2 dimensional array
+            Demeaned design matrix for fitting
+        
+        Returns
+        -------
+        Solution found using input solver.  Weights on each of the columns
+        of the design matrix for a particular voxel.
         """
         # Use the solver you created upon initialization:
         if self.solver_str is "nnls":
@@ -390,6 +472,15 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
         Get the signal in the diffusion-weighted volumes in flattened form
         (only in the mask).
+        
+        Parameters
+        ----------
+        b_inds: list
+            List of indices corresponding to each b value
+            
+        Returns
+        -------
+        Signal in the diffusion-weighted volumes in flattened form
         """
         flat_sig = self._flat_data[:,b_inds]
             
@@ -400,7 +491,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         """
 
         Use sklearn to fit the parameters:
-
+        
+        Returns
+        -------
+        Solution found using input solver.  Weights on each of the columns
+        of the design matrix at each voxel.
         """
         # The file already exists: 
         if os.path.isfile(self.params_file):
@@ -535,6 +630,23 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
     def predict(self, vertices, new_bvals, new_params = None, md = None):
         """
         Predict the signal on a new set of vertices
+        
+        Parameters
+        ----------
+        vertices: 2 dimensional array
+            New b vectors to predict data at
+        new_bvals: 1 dimensional array
+            Corresponding b values for the new b vectors
+        new_params: 2 dimensional array
+            New parameters for a mean model not calculated through the default
+            b values and b vectors for the SFM class
+        md: 1 dimensional array
+            New mean diffusivities not calculated through the default b values and
+            b vectors for the SFM class
+        
+        Returns
+        -------
+        Predicted values at each input b vector
         """
         if self.verbose:
             msg = "Predicting signal from SparseDeconvolutionModel"
