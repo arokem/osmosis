@@ -44,7 +44,8 @@ class DWI(desc.ResetMixin):
                  mask=None,
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
-                 verbose=True
+                 verbose=True,
+                 b0_tol = 0.005
                  ):
         """
         Initialize a DWI object
@@ -91,6 +92,7 @@ class DWI(desc.ResetMixin):
 
         """
         self.verbose=verbose
+        self.b0_tol = b0_tol
         self.scaling_factor = scaling_factor
         # All inputs are handled essentially the same. Inputs can be either
         # strings, in which case file reads are required, or arrays, in which
@@ -349,7 +351,7 @@ class DWI(desc.ResetMixin):
         """
         The indices into non-zero b values
         """
-        return np.where(self.bvals > 0.005)[0] # Add some tolerance. Some data is corrected for 
+        return np.where(self.bvals > self.b0_tol)[0] # Add some tolerance. Some data is corrected for 
                                                 # Interactions between gradients
         
     @desc.auto_attr
@@ -357,7 +359,7 @@ class DWI(desc.ResetMixin):
         """
         The indices into zero b values
         """
-        return np.where(self.bvals <= 0.005)[0]
+        return np.where(self.bvals <= self.b0_tol)[0]
 
     @desc.auto_attr
     def S0(self):

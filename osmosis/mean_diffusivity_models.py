@@ -3,84 +3,7 @@ import inspect
 import osmosis.utils as ozu
 import osmosis.leastsqbound as lsq
 import numpy as np
-
-def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
-                              all_inc_0, vec_pool, num_choose, combo_num):
-    """
-    Helper function for the cross-validation functions.  This is a duplicate of the one in
-    predict_n since importing from that module creates a paradox.
-    
-    Parameters
-    ----------
-    bvecs: 2 dimensional array
-        All the b vectors
-    bvals: 1 dimensional array
-        All b values
-    these_b_inds: 1 dimensional array
-        Indices indicating which of the directions/b values are up for cross-validation
-    these_b_inds_rm0: 1 dimensional array
-        Indices indicating which of the directions/b values are up for cross-validation
-        in respect to diffusion-weighted directions
-    all_inc_0: 1 dimensional array
-        these_b_inds and the indices for the non-diffusion-weighted directions
-    vec_pool: 1 dimensional array
-        Shuffled indices for cross-validation
-    num_choose: int
-        Number of indices to leave out at time
-    combo_num: int
-        Current fold of k-fold cross-validation
-       
-    Returns
-    -------
-    si: 1 dimensional array
-        Sorted indices after removing a certain amount of directions.  This is used to
-        index into the full model's regressors
-    vec_combo: 1 dimensional array
-        Indices indicating the directions left out.
-    vec_combo_rm0: 1 dimensional array
-        Indices indicating the directions left out with respect to the non-diffusion
-        weighted directions.
-    these_bvecs: 2 dimensional array
-        b vectors to fit to after removing a certain amount of directions.
-    these_bvals: 2 dimensional array
-        b values to fit to after removing a certain amount of directions.
-    these_bvals: 4 dimensional array
-        Data to fit to after removing a certain amount of directions.
-    these_inc0: 1 dimensional array
-        Indices to fit to after removing a certain amount of directions with respect
-        to the non-diffusion-weighted directions.
-    """
-    
-    idx = list(these_b_inds_rm0)
-    these_inc0 = list(all_inc_0)
-    
-    low = (combo_num)*num_choose
-    high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
-    
-    vec_pool_inds = vec_pool[low:high]
-    vec_combo = these_b_inds[vec_pool_inds]
-    vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
-        
-    # Remove the chosen indices from the rest of the indices
-    for choice_idx in vec_pool_inds:
-        these_inc0.remove(these_b_inds[choice_idx])
-        idx.remove(these_b_inds_rm0[choice_idx])
-        
-    # Make the list back into an array
-    these_inc0 = np.array(these_inc0)
-    
-    # Isolate the b vectors, b values, and data not including those
-    # to be predicted
-    these_bvecs = bvecs[:, these_inc0]
-    these_bvals = bvals[these_inc0]
-    this_data = data[:, :, :, these_inc0]
-    
-    # Need to sort the indices first before indexing full model's
-    # regressors
-    si = sorted(idx)
-    
-    return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
-    
+  
 def err_func(params, b, s_prime, func):
     """
     Error function for fitting a function
@@ -94,7 +17,7 @@ def err_func(params, b, s_prime, func):
     s_prime: float array
         The dependent variable.     
     func: function
-        A function with inputs: `(x, *params)`
+        A function with inputs: `(b, *params)`
     
     Returns
     -------
@@ -112,14 +35,10 @@ def decaying_exp_plus_const(b, c, D):
     """
     One decaying exponential representation of the mean diffusivity
     """
-    this_sig = np.zeros(b.shape)
     
-    for b_idx, bval in enumerate(b):
-        if bval*D > c:
-            this_sig[b_idx] = bval*D
-        elif bval*D < c:
-            this_sig[b_idx] = c
-            
+    b_extra_dim = b[..., None]
+    this_sig = np.max(np.concatenate([b_extra_dim*D, c*np.ones((len(b),1))],-1),-1)
+    
     return this_sig
         
 def two_decaying_exp(b, a, D1, D2):
@@ -127,25 +46,38 @@ def two_decaying_exp(b, a, D1, D2):
     Decaying exponential and a decaying exponential plus a constant.
     """
     
-    this_sig = np.zeros(b.shape)
+    b_extra_dim = b[..., None]
+    this_sig = np.max(np.concatenate([b_extra_dim*D1, a + b_extra_dim*D2],-1),-1)
     
-    for b_idx, bval in enumerate(b):
-        this_sig[b_idx] = np.max([bval*D1, a + bval*D2])
-        
     return this_sig
     
 def two_decaying_exp_plus_const(b, a, c, D1, D2):
     """
     Decaying exponential and a decaying exponential plus a constant.
     """
-    
-    this_sig = np.zeros(b.shape)
-    
-    for b_idx, bval in enumerate(b):
-        this_sig[b_idx] = np.max([bval*D1, a + bval*D2, c])
+
+    b_extra_dim = b[..., None]
+    this_sig = np.max(np.concatenate([b_extra_dim*D1, a + b_extra_dim*D2,
+                                          c*np.ones((len(b),1))],-1),-1)
         
     return this_sig
+
+def _diffusion_inds(bvals, b_inds, rounded_bvals):
+    """
+    Extracts the diffusion-weighted and non-diffusion weighted indices.
+    """
     
+    if 0 in bvals:
+        # If 0 is in the b values, then there is no need to do rounding
+        # in order to separate the b values and determine which ones are
+        # close enough to 0 to be considered 0.
+        all_b_idx = np.squeeze(np.where(bvals != 0))
+        b0_inds = np.where(bvals == 0)
+    else:
+        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+        b0_inds = b_inds[0]
+    
+    return all_b_idx, b0_inds
 def optimize_MD_params(data, bvals, mask, func, initial, factor = 1000, bounds = None):
     """
     Finds the parameters of the given function to the given data
@@ -180,16 +112,7 @@ def optimize_MD_params(data, bvals, mask, func, initial, factor = 1000, bounds =
     """
 
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
-    
-    if 0 in bvals:
-        # If 0 is in the b values, then there is no need to do rounding
-        # in order to separate the b values and determine which ones are
-        # close enough to 0 to be considered 0.
-        all_b_idx = np.squeeze(np.where(bvals != 0))
-        b0_inds = np.where(bvals == 0)
-    else:
-        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-        b0_inds = b_inds[0]
+    all_b_idx, b0_inds = _diffusion_inds(bvals, b_inds, rounded_bvals)
     
     # Divide the b values by a scaling factor first.
     b = bvals[all_b_idx]/factor
@@ -257,16 +180,7 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
     """
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
-    
-    if 0 in bvals:
-        # If 0 is in the b values, then there is no need to do rounding
-        # in order to separate the b values and determine which ones are
-        # close enough to 0 to be considered 0.
-        all_b_idx = np.squeeze(np.where(bvals != 0))
-        b0_inds = np.where(bvals == 0)
-    else:
-        all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-        b0_inds = b_inds[0]
+    all_b_idx, b0_inds = _diffusion_inds(bvals, b_inds, rounded_bvals)
         
     b_scaled = bvals/factor
     flat_data = data[np.where(mask)]
@@ -290,7 +204,7 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
     for combo_num in np.arange(np.floor(100./n)):
         (si, vec_combo, vec_combo_rm0,
          these_bvecs, these_bvals,
-         this_data, these_inc0) = create_combos(bvecs, bvals, data, all_b_idx,
+         this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, all_b_idx,
                                                 np.arange(len(all_b_idx)),
                                                 all_b_idx, vec_pool,
                                                 num_choose, combo_num)

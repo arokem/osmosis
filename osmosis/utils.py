@@ -895,6 +895,83 @@ def sph_cc(s1, s2, vertices1, vertices2=None, n=20.):
             cc[ii] = np.corrcoef(s1[idx[0]], s2[idx[1]])[0,1]
 
     return degs, cc
+    
+def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
+                              all_inc_0, vec_pool, num_choose, combo_num):
+    """
+    Helper function for the cross-validation functions.  This is a duplicate of the one in
+    predict_n since importing from that module creates a paradox.
+    
+    Parameters
+    ----------
+    bvecs: 2 dimensional array
+        All the b vectors
+    bvals: 1 dimensional array
+        All b values
+    these_b_inds: 1 dimensional array
+        Indices indicating which of the directions/b values are up for cross-validation
+    these_b_inds_rm0: 1 dimensional array
+        Indices indicating which of the directions/b values are up for cross-validation
+        in respect to diffusion-weighted directions
+    all_inc_0: 1 dimensional array
+        these_b_inds and the indices for the non-diffusion-weighted directions
+    vec_pool: 1 dimensional array
+        Shuffled indices for cross-validation
+    num_choose: int
+        Number of indices to leave out at time
+    combo_num: int
+        Current fold of k-fold cross-validation
+       
+    Returns
+    -------
+    si: 1 dimensional array
+        Sorted indices after removing a certain amount of directions.  This is used to
+        index into the full model's regressors
+    vec_combo: 1 dimensional array
+        Indices indicating the directions left out.
+    vec_combo_rm0: 1 dimensional array
+        Indices indicating the directions left out with respect to the non-diffusion
+        weighted directions.
+    these_bvecs: 2 dimensional array
+        b vectors to fit to after removing a certain amount of directions.
+    these_bvals: 2 dimensional array
+        b values to fit to after removing a certain amount of directions.
+    these_bvals: 4 dimensional array
+        Data to fit to after removing a certain amount of directions.
+    these_inc0: 1 dimensional array
+        Indices to fit to after removing a certain amount of directions with respect
+        to the non-diffusion-weighted directions.
+    """
+    
+    idx = list(these_b_inds_rm0)
+    these_inc0 = list(all_inc_0)
+    
+    low = (combo_num)*num_choose
+    high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
+    
+    vec_pool_inds = vec_pool[low:high]
+    vec_combo = these_b_inds[vec_pool_inds]
+    vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
+        
+    # Remove the chosen indices from the rest of the indices
+    for choice_idx in vec_pool_inds:
+        these_inc0.remove(these_b_inds[choice_idx])
+        idx.remove(these_b_inds_rm0[choice_idx])
+        
+    # Make the list back into an array
+    these_inc0 = np.array(these_inc0)
+    
+    # Isolate the b vectors, b values, and data not including those
+    # to be predicted
+    these_bvecs = bvecs[:, these_inc0]
+    these_bvals = bvals[these_inc0]
+    this_data = data[:, :, :, these_inc0]
+    
+    # Need to sort the indices first before indexing full model's
+    # regressors
+    si = sorted(idx)
+    
+    return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
 
 def start_parallel(imports_str=None):
     """

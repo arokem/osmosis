@@ -44,86 +44,6 @@ def partial_round(bvals, factor = 1000.):
             partially_rounded[j] = 0
             
     return partially_rounded
-def create_combos(bvecs, bvals, data, these_b_inds,
-                  these_b_inds_rm0, all_inc_0, vec_pool, num_choose, combo_num):
-    """
-    Helper function for cross-validation functions
-    
-    Parameters
-    ----------
-    bvecs: 2 dimensional array
-        All the b vectors
-    bvals: 1 dimensional array
-        All b values
-    data: 4 dimensional array
-        Diffusion MRI data
-    these_b_inds: 1 dimensional array
-        Indices currently undergoing k-fold cross-validation
-    these_b_inds_rm0: 1 dimensional array
-        Indices currently undergoing k-fold cross-validation but with respect to
-        the non-zero b values.
-    all_inc_0: 1 dimensional array
-        these_b_inds concatenated to the b = 0 indices
-    vec_pool: 1 dimensional array
-        Shuffled indices corresponding to each of the values in these_b_inds
-    num_choose: int
-        Number of b values to leave out at a time.
-    combo_num: int
-        Current fold of k-fold cross-validation
-    
-    Returns
-    -------
-    si: 1 dimensional array
-        Sorted indices after removing a certain number of indices for k-fold
-        cross-validation
-    vec_combo: 1 dimensional array
-        Indices of b values to leave out for the current fold
-    vec_combo_rm0: 1 dimensional array
-        Indices of b values to leave out for the current fold with respect to
-        the non-zero b values
-    vec_pool_inds: 1 dimensional array
-        Shuffled indices to leave out during the current fold corresponding
-        to certain values in these_b_inds
-    these_bvecs: 2 dimensional array
-        B vectors with a certain number of vectors from the fold removed
-    these_bvals: 1 dimensional array
-        B values with a certain number of b values from the fold removed
-    this_data: 4 dimensional array
-        Diffusion data with a certain number of directions from the fold removed
-    these_inc0: 1 dimensional array
-        Sorted indices to the directions to fit to
-    """
-    
-    idx = list(these_b_inds_rm0)
-    these_inc0 = list(all_inc_0)
-    
-    low = int((combo_num)*num_choose)
-    high = np.min([int(combo_num*num_choose + num_choose), len(vec_pool)])
-    
-    vec_pool_inds = vec_pool[low:high]
-    vec_combo = these_b_inds[vec_pool_inds]
-    vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
-        
-    # Remove the chosen indices from the rest of the indices
-    for choice_idx in vec_pool_inds:
-        these_inc0.remove(these_b_inds[choice_idx])
-        idx.remove(these_b_inds_rm0[choice_idx])
-
-    # Make the list back into an array
-    these_inc0 = np.array(sorted(these_inc0))
-    
-    # Need to sort the indices first before indexing full model's
-    # regressors
-    si = sorted(idx)
-    
-    # Isolate the b vectors, b values, and data not including those
-    # to be predicted
-    these_bvecs = bvecs[:, these_inc0]
-    these_bvals = bvals[these_inc0]
-    this_data = data[:, :, :, these_inc0]
-    
-    return [si, vec_combo, vec_combo_rm0, vec_pool_inds, these_bvecs,
-                                these_bvals, this_data, these_inc0]
     
 def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
                          these_b_inds = None, b_idx1 = None, b_idx2 = None):
@@ -468,7 +388,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             # from the original data for fitting purposes.
             (si, vec_combo, vec_combo_rm0,
             vec_pool_inds, these_bvecs, these_bvals,
-            this_data, these_inc0) = create_combos(bvecs, bvals, data, these_b_inds,
+            this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, these_b_inds,
                                                     these_b_inds_rm0, all_inc_0, vec_pool,
                                                     num_choose, combo_num)                
             # Initial a model object with reduced data (not including the chosen combinations)    
@@ -479,8 +399,6 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                          bounds = bounds, solver = solver,
                                                          fit_method = fit_method,
                                                          mean = mean, params_file = "temp")
-            #if bi == 0:
-                #mp_list.append(np.zeros(len(indices)*len(these_b_inds)))
                 
             if (mean is "mean_model") & (fODF_mode is not "single"):
                 # Get the parameters from fitting a mean model to all b values not including
@@ -501,7 +419,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
 
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
-            if b_idx2 == None: #(mean is not "empirical") & (b_idx2 == None)
+            if b_idx2 == None:
                 if mean is "MD":
                     full_mod.tensor_model.mean_diffusivity = mod.tensor_model.mean_diffusivity
                     
@@ -664,7 +582,7 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
         for combo_num in np.arange(np.floor(100./n)):
             (si, vec_combo, vec_combo_rm0,
              vec_pool_inds, these_bvecs, these_bvals,
-             this_data, these_inc0) = create_combos(bvecs, bvals, data, these_b_inds,
+             this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, these_b_inds,
                                                         these_b_inds_rm0, all_inc_0,
                                                         vec_pool, num_choose, combo_num)
             
@@ -801,7 +719,7 @@ def kfold_xval_gen(model_class, data, bvecs, bvals, k, mask = None, fODF_mode = 
         for combo_num in np.arange(np.floor(100./k)):
             (si, vec_combo, vec_combo_rm0,
             vec_pool_inds, these_bvecs, these_bvals,
-            this_data, these_inc0) = create_combos(bvecs, bvals_pool, data, these_b_inds,
+            this_data, these_inc0) = ozu.create_combos(bvecs, bvals_pool, data, these_b_inds,
                                                    these_b_inds_rm0, all_inc_0, vec_pool,
                                                                   num_choose, combo_num)
             
