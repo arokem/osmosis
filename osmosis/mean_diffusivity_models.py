@@ -65,6 +65,23 @@ def two_decaying_exp_plus_const(b, a, c, D1, D2):
 def _diffusion_inds(bvals, b_inds, rounded_bvals):
     """
     Extracts the diffusion-weighted and non-diffusion weighted indices.
+    
+    Parameters
+    ----------
+    bvals: 1 dimensional array
+        All b values
+    b_inds: list
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indices to the grouped b values with similar values
+    rounded_bvals: 1 dimensional array
+        B values after rounding
+        
+    Returns
+    -------
+    all_b_idx: 1 dimensional array
+        Indices corresponding to all non-zero b values
+    b0_inds: 1 dimensional array
+        Indices corresponding to all b = 0 values
     """
     
     if 0 in bvals:
