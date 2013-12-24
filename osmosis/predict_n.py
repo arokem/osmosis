@@ -201,24 +201,24 @@ def _preload_regressors(si, full_mod_obj, mod_obj, over_sample, mean, fODF_mode)
     if over_sample is None:
         # Take the reduced vectors from both the b vectors and rotational vectors
         tensor_regressor = full_mod_obj.regressors[1][:, si][si, :]
-        if mean is "MD":
+        if mean == "MD":
             design_matrix = full_mod_obj.regressors[4][:, si][si, :]
     else:
         # If over or under sampling, the rotational vectors are not equal to
         # the original b vectors so you shouldn't take the reduced amount
         # of rotational vectors.
         tensor_regressor = full_mod_obj.regressors[1][si, :]
-        if mean is "MD":
+        if mean == "MD":
             design_matrix = full_mod_obj.regressors[4][si, :]
     
     fit_to_demeaned = full_mod_obj.regressors[2][:, si]
     fit_to_means = full_mod_obj.regressors[3][:, si]
     
-    if mean is "mean_model":
+    if mean == "mean_model":
         # Want the average signal from mean model fit to just the reduced data
         sig_out,_ = mod_obj.fit_flat_rel_sig_avg
         return fit_to, tensor_regressor, fit_to_demeaned, sig_out
-    elif mean is "MD":
+    elif mean == "MD":
         return fit_to, tensor_regressor, fit_to_demeaned, fit_to_means, design_matrix
    
 def _kfold_xval_setup(bvals, mask):
@@ -322,7 +322,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     [b_inds, unique_b, b_inds_rm0,
     all_b_idx, all_b_idx_rm0, predicted] = _kfold_xval_setup(bvals, mask)
     
-    if (mean is "empirical") & (fODF_mode is "single"):
+    if (mean == "empirical") & (fODF_mode == "single"):
         # Use an entirely different module if demeaning by the empirical
         # mean to create a single fODF for each voxel
         module = sfm_mb_e
@@ -342,9 +342,9 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     if sph_cc is True:
         cc_list = []
     
-    if fODF_mode is "single":
+    if fODF_mode == "single":
         indices = np.array([0])
-    elif fODF_mode is "multi":
+    elif fODF_mode == "multi":
         if b_idx2 is None:
             indices = np.arange(len(unique_b[1:]))
         else:
@@ -359,12 +359,12 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     mp_list = []
 
     for bi in indices:
-        if fODF_mode is "single":
+        if fODF_mode == "single":
             all_inc_0 = np.arange(len(bvals))
             # Indices are locations of all non-b = 0
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
-        elif fODF_mode is "multi":
+        elif fODF_mode == "multi":
             # Indices of data with a particular b value
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
             these_b_inds = b_inds[1:][bi]
@@ -400,18 +400,18 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                          fit_method = fit_method,
                                                          mean = mean, params_file = "temp")
                 
-            if (mean is "mean_model") & (fODF_mode is not "single"):
+            if (mean == "mean_model") & (fODF_mode != "single"):
                 # Get the parameters from fitting a mean model to all b values not including
                 # the ones left out.  The "single" b model already fetches a mean according fit
                 # to all b values
-                if (fODF_mode is "multi") & (b_idx2 == None):
+                if (fODF_mode == "multi") & (b_idx2 == None):
                     b_mean1 = bi
                 elif b_idx2 is not None:
                     b_mean1 = b_idx1
                 # Fit a new mean model to all data except the chosen combinations.
                 sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
                                            mask, bounds, b_inds, b_idx1 = b_mean1, b_idx2 = b_idx2)
-                if (fODF_mode is "multi") & (b_idx2 == None):
+                if (fODF_mode == "multi") & (b_idx2 == None):
                     # Replace the relative signal average of the model object with one calculated.
                     mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
             else:
@@ -420,10 +420,10 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             # Grab regressors from full model's preloaded regressors.  This only works if
             # not predicting across b values.
             if b_idx2 == None:
-                if mean is "MD":
+                if mean == "MD":
                     full_mod.tensor_model.mean_diffusivity = mod.tensor_model.mean_diffusivity
                     
-                if ((mean is "MD") & (fODF_mode is "multi")) | (mean is "empirical"):
+                if ((mean == "MD") & (fODF_mode == "multi")) or (mean == "empirical"):
                     mod.regressors
                 else:
                     mod.regressors = _preload_regressors(si, full_mod, mod,
@@ -693,17 +693,17 @@ def kfold_xval_gen(model_class, data, bvecs, bvals, k, mask = None, fODF_mode = 
     
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.
-    if fODF_mode is "single": 
+    if fODF_mode == "single": 
         indices = np.array([0])
-    elif fODF_mode is "multi":
+    elif fODF_mode == "multi":
         indices = np.arange(len(unique_b[1:]))
     
     for bi in indices:
-        if fODF_mode is "single":
+        if fODF_mode == "single":
             all_inc_0 = np.arange(len(rounded_bvals))
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
-        elif fODF_mode is "multi":
+        elif fODF_mode == "multi":
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
             these_b_inds = b_inds[1:][bi]
             these_b_inds_rm0 = b_inds_rm0[bi]
