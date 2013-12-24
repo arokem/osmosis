@@ -113,7 +113,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
     # Get the new means at each direction and the new parameters at each voxel
     sig_out, new_params = mod.fit_flat_rel_sig_avg
     
-    if b_idx1 != None:
+    if b_idx1 is not None:
         _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
         return sig_out, new_params, b_inds_ar[b_idx1]
     else:

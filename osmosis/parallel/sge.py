@@ -10,7 +10,7 @@ import inspect
 import traceback
 
 # We need to know whether we have a Qt shell on our hands:
-#import IPython.zmq.zmqshell as zmqshell
+import IPython.zmq.zmqshell as zmqshell
 
 # This does ssh:
 import paramiko
