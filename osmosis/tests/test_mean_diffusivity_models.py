@@ -3,12 +3,14 @@ import numpy.testing as npt
 import nibabel as nib
 import os
 
+import osmosis
 import osmosis.multi_bvals as sfm_mb
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.mean_diffusivity_models as mdm
 import osmosis.utils as ozu
 
-data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
+data_path = os.path.join(osmosis.__path__[0], 'data')
+
 data_pv = nib.load(os.path.join(data_path, "red_data.nii.gz")).get_data()
 bvals_pv = np.loadtxt(os.path.join(data_path, "bvals"))
 bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))

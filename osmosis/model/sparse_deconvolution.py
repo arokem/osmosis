@@ -879,12 +879,21 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         tensor_out: object
             Diffusion tensor object for extraction of eigenvalues and eignvectors later
         """
-        tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor], self.rd[bval_tensor],
-                                self.rd[bval_tensor]]), vertex, np.array([bval_tensor]))
+        if self.mean == "empirical":
+            bvecs = self.bvecs[:,self.b_inds[b_idx]]
+            bval_tensor = int(self.unique_b[b_idx]*self.scaling_factor)
+            tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor],
+                                            self.rd[bval_tensor],
+                                            self.rd[bval_tensor]]),
+                                            bvecs, self.bval_list[b_idx])
+        else:
+            tensor_out = ozt.Tensor(np.diag([self.ad[bval_tensor], self.rd[bval_tensor],
+                                    self.rd[bval_tensor]]), vertex, np.array([bval_tensor]))
         
         return tensor_out
         
-    def _calc_rotations(self, bval, vertex, mode=None, over_sample=None):
+    def _calc_rotations(self, vertex=None, vertices=None, bval=None, bval_arr=None,
+                                          b_idx=None, mode=None, over_sample=None):
         """
         Given the rot_vecs of the object and a set of vertices (for the fitting
         these are the b-vectors of the measurement), calculate the rotations to
@@ -914,12 +923,33 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         if len(vertex.shape) == 1:
             vertex = np.reshape(vertex, (3,1))
-            
-        out = np.empty((self.rot_vecs.shape[-1], vertex.shape[-1]))
         
-        bval_tensor = round(bval)*self.scaling_factor
-        evals, evecs = self.response_function(bval_tensor, vertex).decompose
-      
+        if self.mean == "empirical":
+            bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bval_arr)
+            if 0 in unique_b:
+                ind = 1
+            else:
+                ind = 0
+            bval_list = bval_list[ind:]
+            unique_b = unique_b[ind:]
+            all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
+            
+            if len(unique_b) > 1:
+                b_inds = b_inds[ind:]
+                this_b_inds = b_inds[b_idx]
+                these_verts = vertices[:, this_b_inds]
+                out = np.empty((self.rot_vecs.shape[-1], vertices[:,this_b_inds].shape[-1]))
+                these_bvals = np.squeeze(rounded_bvals)[this_b_inds]/self.scaling_factor
+            else:
+                out = np.empty((self.rot_vecs.shape[-1], vertices.shape[-1]))
+                this_b_inds = b_inds
+                these_verts = vertices
+                these_bvals = rounded_bvals/self.scaling_factor
+        else:          
+            out = np.empty((self.rot_vecs.shape[-1], vertex.shape[-1]))      
+            bval_tensor = round(bval)*self.scaling_factor
+            evals, evecs = self.response_function(bval_tensor, vertex).decompose
+        
         for idx, bvec in enumerate(self.rot_vecs.T):               
             # bvec within the rotational vectors
             this_rot = ozt.rotate_to_vector(bvec, evals, evecs, vertex, np.array([bval]))
@@ -1252,13 +1282,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             # And return the params for current use:
             return out_params
             
-    @desc.auto_attr    
-    def _flat_params(self):
-        """
-        Sometimes its useful to have a flat version of the params
-        """
-        return self.model_params[self.mask].squeeze()
-
     @desc.auto_attr
     def _flat_S0(self):
         """
@@ -1412,356 +1435,3 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         out[self.mask] = out_flat_arr
 
         return out
-        
-        
-    @desc.auto_attr
-    def fit_angle(self):
-        """
-        The angle between the tensors that were fitted
-        """
-        out_flat = np.empty(self._flat_signal_all.shape[0])
-        for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(self._flat_params[vox][0]):
-                idx1 = np.argsort(self._flat_params[vox])[-1]
-                idx2 = np.argsort(self._flat_params[vox])[-2]
-                ang = np.rad2deg(ozu.vector_angle(
-                    self.bvecs[:,self.all_b_idx].T[idx1],
-                    self.bvecs[:,self.all_b_idx].T[idx2]))
-
-                ang = np.min([ang, 180-ang])
-                
-                out_flat[vox] = ang
-                
-        else:
-            out_flat[vox] = np.nan
-        
-        out = ozu.nans(self.signal[0].shape[:3])
-        out[self.mask] = out_flat
-
-        return out
-        
-    @desc.auto_attr
-    def odf_peaks(self):
-        """
-        Calculate the value of the peaks in the ODF (in this case, that is
-        defined as the weights on the model params 
-        """
-        faces = dps.Sphere(xyz=self.bvecs[:,self.all_b_idx].T).faces
-        if self._n_vox == 1: 
-            odf_flat = np.array([self.model_params])
-        else: 
-            odf_flat = self.model_params[self.mask]
-        out_flat = np.zeros(odf_flat.shape)
-        for vox in xrange(odf_flat.shape[0]):
-            if ~np.any(np.isnan(odf_flat[vox])):
-                this_odf = odf_flat[vox].copy()
-                peaks, inds = recspeed.local_maxima(this_odf, faces)
-                out_flat[vox][inds] = peaks 
-
-        if self._n_vox == 1:
-            return out_flat
-        
-        out = ozu.nans(self.model_params.shape)
-        out[self.mask] = out_flat
-        return out
-        
-    @desc.auto_attr
-    def odf_peak_angles(self):
-        """
-        Calculate the angle between the two largest peaks in the odf peak
-        distribution
-        """
-        out_flat = ozu.nans(self._flat_signal_all.shape[0])
-        flat_odf_peaks = self.odf_peaks[self.mask]
-        for vox in xrange(out_flat.shape[0]):
-            if ~np.isnan(flat_odf_peaks[vox][0]):
-                idx1 = np.argsort(flat_odf_peaks[vox])[-1]
-                idx2 = np.argsort(flat_odf_peaks[vox])[-2]
-                if idx1 != idx2:
-                    ang = np.rad2deg(ozu.vector_angle(
-                        self.bvecs[:,self.all_b_idx].T[idx1],
-                        self.bvecs[:,self.all_b_idx].T[idx2]))
-
-                    ang = np.min([ang, 180-ang])
-                
-                    out_flat[vox] = ang
-                        
-        out = ozu.nans(self.signal[0].shape[:3])
-        out[self.mask] = out_flat
-        return out
-        
-    @desc.auto_attr
-    def principal_diffusion_direction(self):
-        """
-        Gives you not only the principal, but also the 2nd, 3rd, etc
-        """
-        out_flat = ozu.nans(self._flat_signal_all.shape + (3,))
-        # flat_peaks = self.odf_peaks[self.mask]
-        flat_peaks = self.model_params[self.mask]
-        for vox in xrange(out_flat.shape[0]):
-            coeff_idx = np.where(flat_peaks[vox]>0)[0]
-            for i, idx in enumerate(coeff_idx):
-                out_flat[vox, i] = self.bvecs[:,self.all_b_idx].T[idx]
-        
-        out = ozu.nans(self.signal[0].shape[:3] + (len(self.all_b_idx),) + (3,))
-        out[self.mask] = out_flat
-            
-        return out
-        
-        
-    def quantitative_anisotropy(self, Np):
-        """
-        Return the relative size and indices of the Np major param values
-        (canonical tensor weights) in the ODF 
-        """
-        if self.verbose:
-            print("Calculating quantitative anisotropy:")
-            prog_bar = ozu.ProgressBar(self._flat_signal.shape[0])
-            this_class = str(self.__class__).split("'")[-2].split('.')[-1]
-            f_name = this_class + '.' + inspect.stack()[0][3]
-
-
-        # Allocate space for Np QA values and indices in the entire volume:
-        qa_flat = np.zeros((self._flat_signal.shape[0], Np))
-        inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
-        
-        for vox in xrange(self._flat_params.shape[0]):
-            this_params = self._flat_params[vox]
-            ii = np.argsort(this_params)[::-1]  # From largest to smallest
-            inds_flat[vox] = ii[:Np]
-            qa_flat[vox] = (this_params/np.sum(this_params))[inds_flat[vox]] 
-
-            if self.verbose:
-                prog_bar.animate(vox, f_name=f_name)
-
-        qa = np.zeros(self.signal.shape[:3] + (Np,))
-        qa[self.mask] = qa_flat
-        inds = np.zeros(qa.shape)
-        inds[self.mask] = inds_flat
-        return qa, inds
-        
-    def dispersion_index(self, all_to_all=False):
-        """
-        Calculate a dispersion index based on the formula:
-
-        .. math::
-        
-            DI = \frac{\sum_{i=2}^{n}{\beta_i^2 alpha_i}}{\sum{i=1}{n}{\beta_i^2}}
-
-
-        where $\beta_i$ is the weight in each direction, denoted by $alpha_i$,
-        relative to the direction of the maximal weight.
-
-        Or (when `all_to_all` is set to `True`)
-
-        .. math::
-
-           DI = \frac{\sum{i=1}^{n}\sum_{j=1}^{n}{\beta_i \beta_j alpha_ij}}{\sum{i=1}{n}{\beta_i^2}}
-
-        where now $\alpha_i$ now denotes the angle between 
-        
-        """
-        # Take values up to the number of measurements:
-        qa, inds = self.quantitative_anisotropy(len(self.all_b_idx))
-        inds_flat = inds[self.mask]
-        qa_flat = qa[self.mask]
-
-        # We'll use the original weights, not the QA for the calculation of the
-        # index: 
-        mp_flat = self.model_params[self.mask]
-        
-        di = ozu.nans(self.data.shape[:3])
-        di_flat = np.zeros(self._n_vox)
-        for vox in xrange(self._n_vox):
-            nonzero_idx = np.where(qa_flat[vox]>0)
-            if len(nonzero_idx[0])>0:
-                # Only look at the non-zero weights:
-                vox_idx = inds_flat[vox][nonzero_idx].astype(int)
-                this_mp = mp_flat[vox][vox_idx]
-                this_dirs = self.bvecs[:, self.all_b_idx].T[vox_idx]
-                n_idx = len(vox_idx)
-                if all_to_all:
-                    di_s = np.zeros(n_idx)
-                    # Calculate this as all-to-all:
-                    angles = np.arccos(np.dot(this_dirs, this_dirs.T))
-                    for ii in xrange(n_idx):
-                        this_di_s = 0 
-                        for jj in  xrange(ii+1, n_idx): 
-                            ang = angles[ii, jj]
-                            di_s[ii] += ang * ((this_mp[ii]*this_mp[jj])/
-                                               np.sum(this_mp**2))  
-
-                    di_flat[vox] = np.mean(di_s)/n_idx
-                else:
-
-                    #Calculate this from the highest peak to each one of the
-                    #others:
-                    this_pdd, dirs = this_dirs[0], this_dirs[1:] 
-                    angles = np.arccos(np.dot(dirs, this_pdd))
-                    angles = np.min(np.vstack([angles, np.pi-angles]), 0)
-                    angles = angles/(np.pi/2)
-                    di_flat[vox] = np.dot(this_mp[1:]**2/np.sum(this_mp**2),
-                                          angles)
-
-        out = ozu.nans(self.signal.shape[:3])
-        out[self.mask] = di_flat
-        return out
-        
-    @desc.auto_attr
-    def cluster_fodf(self, in_data=None):
-        """
-        Use k-means clustering to find the peaks in the fodf
-
-        Per default, we'll use AIC to determine the value of `k`. However, if
-        an additional data-set is provided, we will use the prediction of this
-        additional data as a criterion for stopping. Once additional k stops
-        improving cross-validation accuracy, that's a good time to stop.
-
-        
-        """
-        centroid_arr = np.empty(len(self._flat_signal_all), dtype=object)
-
-        # If you provided another object that inherits from DWI,  
-        if in_data:
-            comp_data = in_data.data[self.mask]
-        
-        for vox in range(len(self._flat_signal_all)):
-            this_fodf = self._flat_params[vox]
-            # Find the bvecs for which the parameters are non-zero:
-            nz_idx = np.where(this_fodf>0)
-
-            # If there's nothing here, just give it the origin and move on: 
-            if len(nz_idx[0]) == 0:
-                centroid_arr[vox] = np.array([0, 0, 0])
-                break
-
-            # Get them in the right orientation and shape:
-            bv = self.bvecs[:, self.all_b_idx].T[nz_idx].T
-            
-            sort_bv = bv[:, np.argsort(this_fodf[nz_idx])[::-1]]
-            # We keep running k means and stop when adding more clusters stops
-            # being helpful, using the BIC to calculate when to stop:
-            last_bic = np.inf
-            choose = np.array([0,0,0])
-
-            # Deal with the special case of one model parameter: 
-            if bv.shape[-1] == 1:
-                centroids = bv * this_fodf[nz_idx]
-
-            else: 
-                for k in range(1, bv.shape[-1]):
-                    # Use the k largest peaks in the data as seeds:
-                    seeds = sort_bv[:, :k].T
-                    centroids, y_n, sse = ozc.spkm(bv.T, k, seeds=seeds,
-                                                   weights=this_fodf[nz_idx])
-
-                    if in_data is not None:
-                        # We're going to cross-validate against the other
-                        # data-set: 
-                        this_comp = comp_data[vox]
-                        # XXX Need to do linear regression right here?           
-                    else:
-                        # The unexplained variance is the residual sse: 
-                        bic = ozu.aic(sse, bv.shape[-1], k)
-
-                    if bic > last_bic:
-                            break
-                    else:
-                        choose = centroids
-                        last_bic = bic
-                    
-            centroid_arr[vox] = centroids
-
-        # We'll make a special nan/object array for this: 
-        out = np.ones(self.signal[0].shape[:3], dtype=object) * np.nan
-        out[self.mask] = centroid_arr
-        return out
-        
-    def model_diffusion(self, vertices=None, mode='ADC'):
-        """
-        Calculate the ADC/diffusion distance implied by the model. This is done
-        on a set of input vertices, defaulting to using the vertices of the
-        measurement (the bvecs) 
-        """
-        # If none are provided, use the measurement points:
-        if vertices is None:
-            vertices = self.bvecs[:, self.all_b_idx]
-        
-        tensor_regressor_list = self._calc_rotations(vertices)
-        
-        new_design_matrix_list = list()
-        for mpi in np.arange(len(self.unique_b)):
-            new_design_matrix_list.append(tensor_regressor_list[mpi] - np.mean(tensor_regressor_list[mpi], 0))
-
-        # One basis function per column (instead of rows):
-        design_matrix = np.concatenate(self.design_matrix_list,-1).T
-        
-        out_flat = np.empty((self._flat_signal_all.shape[0], vertices.shape[-1]))
-        for vox in xrange(out_flat.shape[0]):
-            this_params = self._flat_params[vox]
-            this_params[np.isnan(this_params)] = 0.0 
-            out_flat[vox] = np.dot(this_params, design_matrix.T)
-            
-        out = ozu.nans(self.signal[0].shape[:3]+ (vertices.shape[-1],))
-        out[self.mask] = out_flat
-        return out
-        
-    @desc.auto_attr
-    def model_adc(self):
-        """
-        
-        """
-        fit_rel_sig = self.fit[self.mask]/self._flat_S0.reshape(self._n_vox,1)
-        log_rel_sig = np.log(fit_rel_sig)
-
-        out_flat = log_rel_sig/(-self.bvals[self.all_b_idx][0])
-        out = ozu.nans(self.signal[0].shape)
-        out[self.mask] = out_flat
-        return out
-
-
-    @desc.auto_attr
-    def non_fiber_iso(self):
-        """
-        Calculate the part of the isotropic signal that is not due to the fiber
-        component of the voxel. 
-        """
-        # Extract the mean signal
-        s_bar = np.mean(self._flat_relative_signal, -1)
-        # Take the diffusivity of water here: 
-        bD = np.exp(self.bvals[:,self.all_b_idx][0]* 3.0)
-        mu = np.mean(self.regressors[1])
-        beta0 = np.empty(s_bar.shape)
-        for vox in xrange(beta0.shape[-1]): 
-            beta0[vox] = (s_bar[vox] - mu * np.sum(self._flat_params[vox])) * bD
-
-        
-        out = ozu.nans(self.signal[0].shape[:3])
-        out[self.mask] = beta0
-
-        return out
-
-    def odf(self, sphere, interp_kwargs=dict(function='multiquadric', smooth=0)):
-        """
-        Interpolate the fiber odf into a provided sphere class instance (from
-        dipy)
-        """
-        s0 = dps.Sphere(xyz=self.bvecs[:, self.all_b_idx].T)
-        s1 = sphere
-        params_flat = self.model_params[self.mask]
-        out_flat = np.empty((self._n_vox, len(sphere.x)))
-        if self._n_vox==1:
-           this_params = params_flat
-           this_params[np.isnan(this_params)] = 0
-           out = dps.interp_rbf(this_params, s0, s1, **interp_kwargs)
-           return np.squeeze(out)
-        else:
-            for vox in range(self._n_vox):
-                this_params = params_flat[vox]
-                this_params[np.isnan(this_params)] = 0
-                out_flat[vox] = dps.interp_rbf(this_params, s0, s1,
-                                           **interp_kwargs)
-            
-            out = ozu.nans(self.model_params.shape[:3] + (len(sphere.x),))
-            out[self.mask] = out_flat
-            return out
