@@ -789,7 +789,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
             self.b0_inds = np.squeeze(np.where(bvals == 0))
         else:
             self.all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-			self.b0_list = bval_list[0]
+            self.b0_list = bval_list[0]
             self.b0_inds = b_inds[0]
             
         self.b_idx = self.all_b_idx
