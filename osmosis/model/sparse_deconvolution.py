@@ -613,26 +613,30 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         return out
 
 
-    @desc.auto_attr
-    def non_fiber_iso(self):
+    def non_fiber_iso(self, cc_fvf):
         """
         Calculate the part of the isotropic signal that is not due to the fiber
-        component of the voxel. 
+        component of the voxel.
+
+        Parameters
+        ----------
+        cc_fvf : the fiber volume fraction relative to which FVF here is
+            calibrated
         """
         # Extract the mean signal
         s_bar = np.mean(self._flat_relative_signal, -1)
         # Take the diffusivity of water here: 
-        bD = np.exp(self.bvals[:,self.b_idx][0]* 3.0)
+        bD = np.exp(-self.bvals[self.b_idx][0] * 1.0)
         mu = np.mean(self.regressors[1])
-        beta0 = np.empty(s_bar.shape)
-        for vox in xrange(beta0.shape[-1]): 
-            beta0[vox] = (s_bar[vox] - mu * np.sum(self._flat_params[vox])) * bD
-
-        
+        # Calibrate the fiber volume fraction to the CC:
+        fvf = np.sum(self._flat_params, -1) * cc_fvf
+        # This is the main equation, we normalize by the mean signal in each
+        # voxel:
+        beta0 =  ((s_bar - mu * fvf) * bD) / s_bar
         out = ozu.nans(self.signal.shape[:3])
         out[self.mask] = beta0
-
         return out
+
 
     def odf(self, sphere, interp_kwargs=dict(function='multiquadric', smooth=0)):
         """
