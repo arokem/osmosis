@@ -1234,37 +1234,42 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to_means = np.empty((np.sum(self.mask), len(self.all_b_idx)))
         fit_to_demeaned = np.empty(fit_to.shape)
         
-        n_columns = np.sum([len(x) for x in self.b_inds_rm0])
+        n_columns = len(self.rot_vecs[0])
         tensor_regressor = np.empty((len(self.all_b_idx), n_columns))
         design_matrix = np.empty(tensor_regressor.shape)
         
-        for idx, b in enumerate(self.unique_b):   
+        for idx, b in enumerate(self.unique_b):
+            if len(self.unique_b) > 1:
+                flat_sig_inds = self.b_inds_rm0[idx]
+            else:
+                flat_sig_inds = self.b_inds_rm0
+                
             if self.mode == 'signal_attenuation':
-                this_fit_to = self._flat_signal_attenuation[:, self.b_inds_rm0[idx]].T
+                this_fit_to = self._flat_signal_attenuation[:, flat_sig_inds].T
             elif self.mode == 'relative_signal':
-                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
+                this_fit_to = self._flat_relative_signal[:, flat_sig_inds].T
             elif self.mode == 'normalize':
                 # The only difference between this and the above is that the
                 # iso_regressor is here set to all 1's, which can affect the
                 # weights... 
-                this_fit_to = self._flat_relative_signal[:, self.b_inds_rm0[idx]].T
+                this_fit_to = self._flat_relative_signal[:, flat_sig_inds].T
             elif self.mode == 'log':
-                this_fit_to = np.log(self._flat_relative_signal(self.b_inds_rm0[idx])).T
+                this_fit_to = np.log(self._flat_relative_signal(flat_sig_inds)).T
             
             this_tensor_regressor = self.rotations(idx)
 
             for vox in xrange(self._n_vox):                
                 # Tensor regressors
-                tensor_regressor[self.b_inds_rm0[idx]] = this_tensor_regressor.T
+                tensor_regressor[flat_sig_inds] = this_tensor_regressor.T
                 
                 # Array of signals to fit to - Means only, demeaned, and normal
-                fit_to[vox, self.b_inds_rm0[idx]] = this_fit_to.T[vox]
-                fit_to_demeaned[vox, self.b_inds_rm0[idx]] = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
-                fit_to_means[vox, self.b_inds_rm0[idx]] = np.mean(this_fit_to.T[vox])
+                fit_to[vox, flat_sig_inds] = this_fit_to.T[vox]
+                fit_to_demeaned[vox, flat_sig_inds] = this_fit_to.T[vox] - np.mean(this_fit_to.T[vox])
+                fit_to_means[vox, flat_sig_inds] = np.mean(this_fit_to.T[vox])
                 
                 # Design matrix - tensor regressors with mean subtracted
                 this_design_matrix = this_tensor_regressor.T - np.mean(this_tensor_regressor, -1)
-                design_matrix[self.b_inds_rm0[idx]] = this_design_matrix
+                design_matrix[flat_sig_inds] = this_design_matrix
                 
         return [fit_to, tensor_regressor, fit_to_demeaned, fit_to_means, design_matrix]
     
@@ -1595,8 +1600,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
             if len(unique_b) == 1:
-                idx = np.squeeze(np.where(self.unique_b == unique_b[0]))
-                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
+                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0])
             else:
                 for b_fi in np.arange(len(unique_b)):
                     idx = np.squeeze(np.where(self.unique_b == unique_b[b_fi]))
