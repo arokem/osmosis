@@ -896,11 +896,10 @@ def sph_cc(s1, s2, vertices1, vertices2=None, n=20.):
 
     return degs, cc
     
-def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
-                              all_inc_0, vec_pool, num_choose, combo_num):
+def create_combos(bvecs, bvals, data, these_b_inds,
+                  these_b_inds_rm0, all_inc_0, vec_pool, num_choose, combo_num):
     """
-    Helper function for the cross-validation functions.  This is a duplicate of the one in
-    predict_n since importing from that module creates a paradox.
+    Helper function for cross-validation functions
     
     Parameters
     ----------
@@ -908,46 +907,50 @@ def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
         All the b vectors
     bvals: 1 dimensional array
         All b values
+    data: 4 dimensional array
+        Diffusion MRI data
     these_b_inds: 1 dimensional array
-        Indices indicating which of the directions/b values are up for cross-validation
+        Indices currently undergoing k-fold cross-validation
     these_b_inds_rm0: 1 dimensional array
-        Indices indicating which of the directions/b values are up for cross-validation
-        in respect to diffusion-weighted directions
+        Indices currently undergoing k-fold cross-validation but with respect to
+        the non-zero b values.
     all_inc_0: 1 dimensional array
-        these_b_inds and the indices for the non-diffusion-weighted directions
+        these_b_inds concatenated to the b = 0 indices
     vec_pool: 1 dimensional array
-        Shuffled indices for cross-validation
+        Shuffled indices corresponding to each of the values in these_b_inds
     num_choose: int
-        Number of indices to leave out at time
+        Number of b values to leave out at a time.
     combo_num: int
         Current fold of k-fold cross-validation
-       
+    
     Returns
     -------
     si: 1 dimensional array
-        Sorted indices after removing a certain amount of directions.  This is used to
-        index into the full model's regressors
+        Sorted indices after removing a certain number of indices for k-fold
+        cross-validation
     vec_combo: 1 dimensional array
-        Indices indicating the directions left out.
+        Indices of b values to leave out for the current fold
     vec_combo_rm0: 1 dimensional array
-        Indices indicating the directions left out with respect to the non-diffusion
-        weighted directions.
+        Indices of b values to leave out for the current fold with respect to
+        the non-zero b values
+    vec_pool_inds: 1 dimensional array
+        Shuffled indices to leave out during the current fold corresponding
+        to certain values in these_b_inds
     these_bvecs: 2 dimensional array
-        b vectors to fit to after removing a certain amount of directions.
-    these_bvals: 2 dimensional array
-        b values to fit to after removing a certain amount of directions.
-    these_bvals: 4 dimensional array
-        Data to fit to after removing a certain amount of directions.
+        B vectors with a certain number of vectors from the fold removed
+    these_bvals: 1 dimensional array
+        B values with a certain number of b values from the fold removed
+    this_data: 4 dimensional array
+        Diffusion data with a certain number of directions from the fold removed
     these_inc0: 1 dimensional array
-        Indices to fit to after removing a certain amount of directions with respect
-        to the non-diffusion-weighted directions.
+        Sorted indices to the directions to fit to
     """
     
     idx = list(these_b_inds_rm0)
     these_inc0 = list(all_inc_0)
     
-    low = (combo_num)*num_choose
-    high = np.min([(combo_num*num_choose + num_choose), len(vec_pool)])
+    low = int((combo_num)*num_choose)
+    high = np.min([int(combo_num*num_choose + num_choose), len(vec_pool)])
     
     vec_pool_inds = vec_pool[low:high]
     vec_combo = these_b_inds[vec_pool_inds]
@@ -957,9 +960,13 @@ def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
     for choice_idx in vec_pool_inds:
         these_inc0.remove(these_b_inds[choice_idx])
         idx.remove(these_b_inds_rm0[choice_idx])
-        
+
     # Make the list back into an array
-    these_inc0 = np.array(these_inc0)
+    these_inc0 = np.array(sorted(these_inc0))
+    
+    # Need to sort the indices first before indexing full model's
+    # regressors
+    si = sorted(idx)
     
     # Isolate the b vectors, b values, and data not including those
     # to be predicted
@@ -967,12 +974,9 @@ def create_combos(bvecs, bvals, data, these_b_inds, these_b_inds_rm0,
     these_bvals = bvals[these_inc0]
     this_data = data[:, :, :, these_inc0]
     
-    # Need to sort the indices first before indexing full model's
-    # regressors
-    si = sorted(idx)
-    
-    return si, vec_combo, vec_combo_rm0, these_bvecs, these_bvals, this_data, these_inc0
-
+    return [si, vec_combo, vec_combo_rm0, vec_pool_inds, these_bvecs,
+                                these_bvals, this_data, these_inc0]
+                                
 def start_parallel(imports_str=None):
     """
     This function starts a parallel computing environment 

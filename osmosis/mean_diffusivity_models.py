@@ -220,7 +220,7 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
     # Start cross-validation
     for combo_num in np.arange(np.floor(100./n)):
         (si, vec_combo, vec_combo_rm0,
-         these_bvecs, these_bvals,
+         vec_pool_inds, these_bvecs, these_bvals,
          this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, all_b_idx,
                                                 np.arange(len(all_b_idx)),
                                                 all_b_idx, vec_pool,

@@ -18,8 +18,6 @@ import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
 
 import osmosis.snr as snr
-import osmosis.multi_bvals as sfm_mb
-import osmosis.multi_bvals_empirical as sfm_mb_e
 import osmosis.snr as snr
 
 def partial_round(bvals, factor = 1000.):
@@ -322,17 +320,10 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     [b_inds, unique_b, b_inds_rm0,
     all_b_idx, all_b_idx_rm0, predicted] = _kfold_xval_setup(bvals, mask)
     
-    if (mean == "empirical") & (fODF_mode == "single"):
-        # Use an entirely different module if demeaning by the empirical
-        # mean to create a single fODF for each voxel
-        module = sfm_mb_e
-    else:
-        module = sfm_mb
-    
     # Generate the regressors in the full model from which we choose the regressors in
     # the reduced model from.  This is so you won't have to recalculate the regressors
     # each time you do cross-validation.     
-    full_mod = module.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
+    full_mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
                                                     axial_diffusivity = ad,
                                                     radial_diffusivity = rd,
                                                     over_sample = over_sample,
@@ -392,7 +383,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                     these_b_inds_rm0, all_inc_0, vec_pool,
                                                     num_choose, combo_num)                
             # Initial a model object with reduced data (not including the chosen combinations)    
-            mod = module.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
+            mod = sfm.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                          mask = mask, axial_diffusivity = ad,
                                                          radial_diffusivity = rd,
                                                          over_sample = over_sample,
@@ -423,8 +414,10 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                 if mean == "MD":
                     full_mod.tensor_model.mean_diffusivity = mod.tensor_model.mean_diffusivity
                     
-                if ((mean == "MD") & (fODF_mode == "multi")) or (mean == "empirical"):
+                if ((mean == "MD") & (fODF_mode == "multi")):
                     mod.regressors
+                elif mean == "empirical":
+                    mod.empirical_regressors
                 else:
                     mod.regressors = _preload_regressors(si, full_mod, mod,
                                                         over_sample, mean, fODF_mode)
