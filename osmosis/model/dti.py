@@ -291,7 +291,7 @@ class TensorModel(BaseModel):
 
         for ii in xrange(len(fit_flat)):
             fit_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
-                                               self.bvals[:, self.b_idx],
+                                               self.bvals[self.b_idx],
                                                adc_flat[ii])
 
         out[self.mask] = fit_flat
@@ -315,7 +315,7 @@ class TensorModel(BaseModel):
 
         out = ozu.nans(self.signal.shape[:3] + (sphere.shape[-1], ))
         # We will assume one b-value use that one below for all the bvecs:
-        bval = self.bvals[:, self.b_idx][0]
+        bval = self.bvals[self.b_idx][0]
         for ii in xrange(len(predict_flat)):
             predict_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
                                         bval*np.ones(pred_adc_flat.shape[-1]),
