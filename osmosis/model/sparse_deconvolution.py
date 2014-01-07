@@ -1599,7 +1599,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
             if len(unique_b) == 1:
-                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, b_inds_rm0])
+                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0])
             else:
                 for b_fi in np.arange(len(unique_b)):
                     idx = np.squeeze(np.where(self.unique_b == unique_b[b_fi]))
