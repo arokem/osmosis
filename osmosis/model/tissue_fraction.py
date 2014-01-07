@@ -4,16 +4,16 @@ import nibabel as ni
 
 import osmosis.utils as ozu
 import osmosis.descriptors as desc
-from osmosis.model.canonical_tensor import CanonicalTensorModel, AD, RD
+from osmosis.model.sparse_deconvolution import SparseDeconvolutionModel, AD, RD
 from osmosis.model.base import SCALE_FACTOR
 from osmosis.model.io import params_file_resolver
                        
 
-class TissueFractionModel(CanonicalTensorModel):
+class TissueFractionModel(SparseDeconvolutionModel):
     """
-    This is an extension of the CanonicalTensorModel, based on Mezer et al.'s
-    measurement of the tissue fraction in different parts of the brain
-    [REF?]. The model posits that tissue fraction accounts for non-free water,
+    This is an extension of the SparseDeconvolutionModel, based on Mezer et al.'s
+    2013 measurement of the tissue fraction in different parts of the
+    brain. The model posits that tissue fraction accounts for non-free water,
     restriced or hindered by tissue components, which can be represented by a
     canonical tensor and a sphere. The rest (1-tf) is free water, which is
     represented by a second sphere (free water).
@@ -23,13 +23,12 @@ class TissueFractionModel(CanonicalTensorModel):
     .. math:
 
     \begin{pmatrix} D_1 \\ D_2 \\ ... \\D_n \\ TF \end{pmatrix} =
-
-    \begin{pmatrix} T_1 & D_g & D_iso \\ T_2 & D_g & D_iso \\ T_n & D_g & D_iso
+    \begin{pmatrix} T_1 & D_g & D_{iso} \\ T_2 & D_g & D_{iso} \\ T_n & D_g & D_{iso}
     \\ ... & ... & ... \\ \lambda_1 & \lambda_2 & 0 \end{pmatrix}
     \begin{pmatrix} w_1 & w_2 & w_3 \end{pmatrix}
 
-    And w_2, w_3 are the proportions of tissue-hinderd and free water
-    respectively. See below for the estimation proceure
+    And w_2, w_3 are the proportions of tissue-hindered and free water
+    respectively. See below for the estimation procedure
     
     Parameters
     ----------
@@ -38,7 +37,6 @@ class TissueFractionModel(CanonicalTensorModel):
     DWI data and resampled to the DWI data resolution.
 
     """
-
     def __init__(self,
                  tissue_fraction,
                  data,
@@ -46,6 +44,8 @@ class TissueFractionModel(CanonicalTensorModel):
                  bvals,
                  alpha1,
                  alpha2,
+                 solver=None,
+                 solver_params=None,
                  water_D=3,
                  gray_D=1,
                  params_file=None,
@@ -56,22 +56,26 @@ class TissueFractionModel(CanonicalTensorModel):
                  scaling_factor=SCALE_FACTOR,
                  sub_sample=None,
                  over_sample=None,
-                 verbose=True):
+                 verbose=True,
+                 force_recompute=False):
         
         # Initialize the super-class:
-        CanonicalTensorModel.__init__(self,
-                                      data,
-                                      bvecs,
-                                      bvals,
-                                      params_file=params_file,
-                                      axial_diffusivity=axial_diffusivity,
-                                      radial_diffusivity=radial_diffusivity,
-                                      affine=affine,
-                                      mask=mask,
-                                      scaling_factor=scaling_factor,
-                                      sub_sample=sub_sample,
-                                      over_sample=over_sample,
-                                      verbose=verbose)
+        SparseDeconvolutionModel.__init__(self,
+                                          data,
+                                          bvecs,
+                                          bvals,
+                                          solver=solver,
+                                          solver_params=solver_params,
+                                          params_file=params_file,
+                                          axial_diffusivity=axial_diffusivity,
+                                          radial_diffusivity=radial_diffusivity,
+                                          affine=affine,
+                                          mask=mask,
+                                          scaling_factor=scaling_factor,
+                                          sub_sample=sub_sample,
+                                          over_sample=over_sample,
+                                          verbose=verbose,
+                                          force_recompute=force_recompute)
 
         self.tissue_fraction = ni.load(tissue_fraction).get_data()
 
@@ -92,49 +96,49 @@ class TissueFractionModel(CanonicalTensorModel):
         return self.tissue_fraction[self.mask]
 
 
-    @desc.auto_attr
-    def signal(self):
-        """
-        The relevant signal here is:
+    ## @desc.auto_attr
+    ## def signal(self):
+    ##     """
+    ##     The relevant signal here is:
 
-        .. math::
+    ##     .. math::
 
-           \begin{pmatrix} \frac{S_1}{S^0_1} \\ \frac{S_2}{S^0_2} \\ ... \\
-           \frac{S_3}{S^0_3} \\ TF \end{pmatrix} 
+    ##        \begin{pmatrix} \frac{S_1}{S^0_1} \\ \frac{S_2}{S^0_2} \\ ... \\
+    ##        \frac{S_3}{S^0_3} \\ TF \end{pmatrix} 
         
-        """
-        dw_signal = self.data[...,self.b_idx].squeeze()
-        tf_signal = np.reshape(self.tissue_fraction,
-                               self.tissue_fraction.shape + (1,))
+    ##     """
+    ##     dw_signal = self.data[...,self.b_idx].squeeze()
+    ##     tf_signal = np.reshape(self.tissue_fraction,
+    ##                            self.tissue_fraction.shape + (1,))
 
-        return np.concatenate([dw_signal, tf_signal], -1)
+    ##     return np.concatenate([dw_signal, tf_signal], -1)
 
-    @desc.auto_attr
-    def relative_signal(self):
-        """
-        The signal attenuation in each b-weighted volume, relative to the mean
-        of the non b-weighted volumes. We add the original TF here as a last
-        volume, so that we can compare fit to signal. 
+    ## @desc.auto_attr
+    ## def relative_signal(self):
+    ##     """
+    ##     The signal attenuation in each b-weighted volume, relative to the mean
+    ##     of the non b-weighted volumes. We add the original TF here as a last
+    ##     volume, so that we can compare fit to signal. 
 
-        Note
-        ----
-        Need to overload this function for this class, so that the TF does not
-        get attenuated.  
+    ##     Note
+    ##     ----
+    ##     Need to overload this function for this class, so that the TF does not
+    ##     get attenuated.  
 
-        """
-        dw_att= self.data[...,self.b_idx]/np.reshape(self.S0,
-                                                       (self.S0.shape + (1,)))
+    ##     """
+    ##     dw_att= self.data[...,self.b_idx]/np.reshape(self.S0,
+    ##                                                    (self.S0.shape + (1,)))
 
-        tf_signal = np.reshape(self.tissue_fraction,
-                               self.tissue_fraction.shape + (1,))
+    ##     tf_signal = np.reshape(self.tissue_fraction,
+    ##                            self.tissue_fraction.shape + (1,))
 
-        return np.concatenate([dw_att, tf_signal], -1) 
+    ##     return np.concatenate([dw_att, tf_signal], -1) 
 
     @desc.auto_attr
     def model_params(self):
         """
         Fitting the weights for the TissueFractionModel is done as a second
-        stage, after done fitting the CanonicalTensorModel.
+        stage, after done fitting the SparseDeconvolutionModel.
         
         The logic is as follows:
 
@@ -151,8 +155,8 @@ class TissueFractionModel(CanonicalTensorModel):
         free water respectively. $D_g \approx 1$ and $D_{csf} \approx 3$ are
         the diffusivities of gray and white matter, respectively. 
 
-        In addition, we know that the tissue water, together with the tensor
-        signal should account for the tissue fraction measurement:
+        In addition, we know that the tissue water, together with the weights
+        on fibers should account for the tissue fraction measurement:
 
         .. math::
         
@@ -184,19 +188,22 @@ class TissueFractionModel(CanonicalTensorModel):
 
         """
 
-        # Start by getting the params for the underlying CanonicalTensorModel:
+        # Start by getting the params for the underlying
+        # SparseDeconvolutionModel:
         temp_p_file = self.params_file
         self.params_file = params_file_resolver(self,
-                                                'CanonicalTensorModel')
-        tensor_params = super(TissueFractionModel, self).model_params
+                                                'SparseDeconvolutionModel')
         
+        tensor_params = super(TissueFractionModel, self).model_params
+        w2 = self.non_fiber_iso
+
         # Restore order: 
         self.params_file = temp_p_file
 
-        # The tensor weight is the second parameter in each voxel: 
-        w_ten = tensor_params[self.mask, 1]
-        # And the isotropic weight is the third:
-        w_iso = tensor_params[self.mask, 2]
+        # The tensor weight is the sum of fiber parameters in each voxel: 
+        w_ten = np.sum(tensor_params[self.mask] , -1)
+        # And the isotropic weight is the 
+        w_iso = self.iso_regressor[0]
 
         w2 = (self._flat_tf - self.alpha1 * w_ten) / self.alpha2
         w3 = (1 - w_ten - w2)
