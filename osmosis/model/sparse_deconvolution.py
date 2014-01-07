@@ -1499,12 +1499,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                
             for idx, bval in enumerate(new_bvals):
                 # Create a new design matrix from the given vertices
+                cr = self._calc_rotations(np.reshape(vertices[:, idx], (3,1)), bval)
                 if self.mean == "no_demean":
-                    tensor_regressor[idx] = np.concatenate((np.squeeze(self._calc_rotations(
-                                            np.reshape(vertices[:, idx], (3,1)), bval)), [1]))
+                    tensor_regressor[idx] = np.concatenate((np.squeeze(cr), [1]))
                 else:
-                    this_tensor_regressor = np.squeeze(self._calc_rotations(
-                                            np.reshape(vertices[:, idx], (3,1)), bval))
+                    this_tensor_regressor = np.squeeze(cr)
                     tensor_regressor[idx] = this_tensor_regressor
                     
                 if self.mean == "MD":
@@ -1600,12 +1599,12 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         fit_to_mean = np.zeros((fit_to.shape[0], vertices.shape[-1]))
         for vox in xrange(self._n_vox):
             if len(unique_b) == 1:
-                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, self.b_inds_rm0])
+                fit_to_mean[vox, b_inds_rm0] = np.mean(fit_to[vox, b_inds_rm0])
             else:
                 for b_fi in np.arange(len(unique_b)):
                     idx = np.squeeze(np.where(self.unique_b == unique_b[b_fi]))
                     fit_to_mean[vox, b_inds_rm0[b_fi]] = np.mean(fit_to[vox, self.b_inds_rm0[idx]])
         
         out_flat_arr = np.zeros(np.squeeze(fit_to_mean).shape)
-
+        
         return out_flat_arr, fit_to_mean, design_matrix
