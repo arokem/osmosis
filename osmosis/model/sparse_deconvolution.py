@@ -410,7 +410,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
 
 
         # Allocate space for Np QA values and indices in the entire volume:
-        qa_flat = np.zeros((self._flat_signal.shape[0], Np))
+        qa_flat = np.zeros((self._flat_params.shape[0], Np))
         inds_flat = np.zeros(qa_flat.shape, np.int)  # indices! 
         
         for vox in xrange(self._flat_params.shape[0]):
@@ -450,24 +450,17 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         where now $\alpha_i$ now denotes the angle between 
         
         """
-        # Take values up to the number of measurements:
-        qa, inds = self.quantitative_anisotropy(len(self.b_idx))
-        inds_flat = inds[self.mask]
-        qa_flat = qa[self.mask]
-
-        # We'll use the original weights, not the QA for the calculation of the
-        # index: 
-        mp_flat = self.model_params[self.mask]
-        
         di = ozu.nans(self.data.shape[:3])
         di_flat = np.zeros(self._n_vox)
         for vox in xrange(self._n_vox):
-            nonzero_idx = np.where(qa_flat[vox]>0)
+            inds = np.argsort(self._flat_params[vox])[::-1] # From largest to
+                                                            # smallest
+            nonzero_idx = np.where(self._flat_params[vox][inds]>0)
             if len(nonzero_idx[0])>0:
                 # Only look at the non-zero weights:
-                vox_idx = inds_flat[vox][nonzero_idx].astype(int)
-                this_mp = mp_flat[vox][vox_idx]
-                this_dirs = self.bvecs[:, self.b_idx].T[vox_idx]
+                vox_idx = inds[nonzero_idx].astype(int)
+                this_mp = self._flat_params[vox][vox_idx]
+                this_dirs = self.rot_vecs.T[vox_idx]
                 n_idx = len(vox_idx)
                 if all_to_all:
                     di_s = np.zeros(n_idx)

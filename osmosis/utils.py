@@ -533,7 +533,10 @@ def rmse(arr1, arr2, axis=-1):
     arr1 = np.asarray(arr1)
     arr2 = np.asarray(arr2)
     if has_numexpr:
-      return np.sqrt(np.mean(numexpr.evaluate('(arr1 - arr2) ** 2'), axis=axis))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return np.sqrt(np.mean(numexpr.evaluate('(arr1 - arr2) ** 2'),
+                                    axis=axis))
     else:
       return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))
 
