@@ -2,7 +2,7 @@ import numpy as np
 import osmosis.tensor as ozt
 import numpy.testing as npt
 
-import osmosis.multi_bvals as sfm_mb
+import osmosis.model.sparse_deconvolution as sfm
 
 # Mock b value array to be used in all tests
 bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000])
@@ -49,10 +49,10 @@ rot_vecs_t = bvecs_t
 # Initalize the sfm multi b values class
 ad = {1000:1.5, 2000:1.5, 3000:1.5}
 rd = {1000:0.5, 2000:0.5, 3000:0.5}
-mb = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t,
-                                           axial_diffusivity = ad,
-                                           radial_diffusivity = rd,
-                                           params_file = 'temp')
+mb = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t,
+                                        axial_diffusivity = ad,
+                                        radial_diffusivity = rd,
+                                        params_file = 'temp')
 
 def test_response_function():
     rf_bvec = np.reshape(bvecs_t[:,4],(3,1))
@@ -72,7 +72,9 @@ def test_rotations():
 
     for idx, bvec in enumerate(rot_vecs_t[:,3:8].T):
         this_rot_t = ozt.rotate_to_vector(bvec, evals_t, evecs_t,
-               np.reshape(bvecs_t[:,4], (3,1)), np.array([bvals_scaled_t[4]/1000]))
+                                          np.reshape(bvecs_t[:,4], (3,1)),
+                                          np.array([bvals_scaled_t[4]/1000]))
+        
         out_t[idx] = this_rot_t.predicted_signal(1)
         
     npt.assert_equal(out_t, mb._calc_rotations(bvals_scaled_t[4]/1000,
@@ -94,7 +96,8 @@ def test__flat_relative_signal():
     npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_rm0_t[0]])
         
 def test_regressors():
-    _, tensor_regressor_a, design_matrix_a, fit_to_a, fit_to_means_a = mb.regressors
+    _, tensor_regressor_a, design_matrix_a, fit_to_a, fit_to_means_a =\
+                                                               mb.regressors
 
     fit_to_t = np.empty((np.sum(mask_t), len(bvals_scaled_t[3:])))
     fit_to_means = np.empty((np.sum(mask_t), len(bval_ind_t[3:])))
@@ -104,16 +107,20 @@ def test_regressors():
     design_matrix_t = np.empty(tensor_regressor_t.shape)
     for idx, b_idx in enumerate(all_b_idx_t):
         this_fit_to = mb._flat_relative_signal[:, idx]
-        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t/1000., b_idx)
+        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t/1000.,
+                                                               b_idx)
             
         # Check tensor regressors
-        this_tensor_regressor = np.squeeze(mb._calc_rotations(bvals_t[b_idx]/1000.,
-                                                np.reshape(bvecs_t[:, b_idx], (3,1))))
+        this_tensor_regressor = np.squeeze(
+                                        mb._calc_rotations(bvals_t[b_idx]/1000.,
+                                        np.reshape(bvecs_t[:, b_idx], (3,1))))
+        
         tensor_regressor_t[idx] = this_tensor_regressor
         
         #Check design matrix
         this_MD = (1.5 + 2*0.5)/3
-        design_matrix_t[idx] = this_tensor_regressor - np.exp(-(bvals_t[b_idx]/1000.)*this_MD)
+        design_matrix_t[idx] = (this_tensor_regressor -
+                                np.exp(-(bvals_t[b_idx]/1000.)*this_MD))
             
     npt.assert_equal(tensor_regressor_t, tensor_regressor_a)
     npt.assert_equal(fit_to_t, fit_to_a)
@@ -122,6 +129,7 @@ def test_regressors():
     
 def test__n_vox():
     npt.assert_equal(4, mb._n_vox)
+
 
 def test_design_matrix():
     _, tensor_regressor_a, design_matrix_a, _, _ = mb.regressors
@@ -134,6 +142,7 @@ def test_design_matrix():
         mean_3rot = np.mean(design_matrix_a[:,rv])
         npt.assert_equal(mean_3rot<0.5,1)
 
+
 def test_model_params():
     _, _, fit_to_t = test_regressors()
     _, _, design_matrix_a, _, _ = mb.regressors
@@ -142,7 +151,7 @@ def test_model_params():
                         mb.model_params[mb.mask][0])
     
 def test_fit():
-    diff_means = np.mean(data_t[0,0,0,3:8]) - np.mean(mb.fit[np.where(mask_t)][0])
+    diff_means = np.mean(data_t[0,0,0,3:8])-np.mean(mb.fit[np.where(mask_t)][0])
     npt.assert_equal(abs(diff_means)<400,1)
     
 def test_predict():

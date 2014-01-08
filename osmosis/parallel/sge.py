@@ -10,7 +10,7 @@ import inspect
 import traceback
 
 # We need to know whether we have a Qt shell on our hands:
-#import IPython.zmq.zmqshell as zmqshell
+import IPython.zmq.zmqshell as zmqshell
 
 # This does ssh:
 import paramiko
@@ -168,7 +168,7 @@ def add_params(s, params_dict):
 
 
 def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
-             email=None, mem_usage=25, priority=0,
+             email=None, mem_usage=35, priority=0,
              flags='', output_dir='sgeoutput'):
    """
    This puts together the qsub command.

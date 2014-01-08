@@ -8,7 +8,7 @@ import numpy as np
 import osmosis.utils as ozu
 import osmosis.snr as snr
 import osmosis.model.sparse_deconvolution as sfm
-import osmosis.multi_bvals as sfm_mb
+
 
 def overfitting_index(model1, model2):
     """
@@ -393,46 +393,3 @@ def fit_reliability(model1, model2):
     out = ozu.nans(vol_shape)
     out[model1.mask] = out_flat
     return out
-
-def predict_signals(data, bvals, bvecs, mask, b = 'None'):
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
-    bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals, mode = 'remove0')
-    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-    
-    if b is 'None':
-        b_idx = np.array([0])
-    elif b is 'bvals':
-        unique_b = unique_b[1:]
-        b_idx = np.arange(len(unique_b))
-    
-    actual = np.empty(len(all_b_idx))
-    predicted = np.empty(len(all_b_idx))
-    for bi in b_idx:
-        
-        if b is 'None':
-            dirs = all_b_idx
-            all_inc_0 = np.arange(len(rounded_bvals))
-        elif b is 'bvals':
-            dirs = b_inds[bi+1]
-            all_inc_0 = np.concatenate((b_inds[0], dirs))
-            
-        for idx, bvec in enumerate(bvecs[:, dirs].T):
-            
-            these_bvecs = bvecs[:, all_inc_0[np.where(all_inc_0 != dirs[idx])]]
-            this_data = data[:, :, :, all_inc_0[np.where(all_inc_0 != dirs[idx])]]
-            
-            if b is 'None':
-                these_bvals = bvals[all_inc_0[np.where(all_inc_0 != dirs[idx])]]
-                mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals, mask = mask, params_file = 'temp')
-                this_pred = mod.predict(bvec, np.array([bvals[dirs[idx]]]))[0]
-                actual[idx] = data[mod.mask][0,dirs[idx]]
-                predicted[idx] = this_pred
-                
-            elif b is 'bvals':
-                these_bvals = rounded_bvals[all_inc_0[np.where(all_inc_0 != dirs[idx])]]
-                mod = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals, mask = mask, params_file = 'temp')
-                this_pred = mod.predict(np.reshape(bvec, (3,1)))[mod.mask][0]
-                actual[b_inds_rm0[bi][idx]] = data[mod.mask][0,dirs[idx]]
-                predicted[b_inds_rm0[bi][idx]] = this_pred                    
-        
-    return actual, predicted

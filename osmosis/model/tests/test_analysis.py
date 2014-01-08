@@ -10,24 +10,7 @@ from osmosis.model.base import SphereModel
 import osmosis.model.analysis as ozm
 import osmosis.snr as snr
 import osmosis.model.sparse_deconvolution as sfm
-import osmosis.multi_bvals as sfm_mb
 
-bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
-bvecs_t = np.zeros([3,8])
-bvecs_t[0,:] = np.array([1,0,0,-1,0,0,1/np.sqrt(3),-1/np.sqrt(3)])
-bvecs_t[1,:] = np.array([0,1,0,0,-1,0,1/np.sqrt(3),-1/np.sqrt(3)])
-bvecs_t[2,:] = np.array([0,0,1,0,0,-1,1/np.sqrt(3),-1/np.sqrt(3)])
-
-data_t = np.zeros([2,2,2,8])
-data_t[:,:,:,0:3] = 2000 + abs(np.random.randn(2,2,2,3)*500) #Data for b values 0.005, 0.005, 0.010
-data_t[:,:,:,3] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b value 2.010
-data_t[:,:,:,4:6] = 1000 + abs(np.random.randn(2,2,2,2)*500) #Data for b values 1.005, 0.950
-data_t[:,:,:,6] = np.squeeze(500 + abs(np.random.randn(2,2,2,1)*200)) #Data for b values 1.950
-data_t[:,:,:,7] = np.squeeze(1000 + abs(np.random.randn(2,2,2,1)*500)) #Data for b value 1.000
-
-mask_t = np.zeros([2,2,2])
-mask_t[:,:,1] = 1
-    
 data_path = os.path.split(oz.__file__)[0] + '/data/'
 
 # We'll use these two identical models in a few tests below:
@@ -144,54 +127,3 @@ def test_relative_rmse():
     # infinite... 
     npt.assert_equal(ozm.relative_rmse(Model1, Model2),
                      np.inf * np.ones(Model1.shape[:-1]))
-    
-def test_predict_signals1():
-   
-    bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals_t)
-    all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
-    all_inc_0 = np.arange(len(rounded_bvals))
-    
-    these_dirs = all_b_idx
-    actual_t = np.empty(len(these_dirs))
-    predicted_t = np.empty(len(these_dirs))
-    for idx, bvec in enumerate(bvecs_t[:, these_dirs].T):
-        
-        these_bvecs = bvecs_t[:, all_inc_0[np.where(all_inc_0 != all_b_idx[idx])]]
-        these_bvals = bvals_t[all_inc_0[np.where(all_inc_0 != all_b_idx[idx])]]
-        this_data = data_t[:, :, :, all_inc_0[np.where(all_inc_0 != all_b_idx[idx])]]
-        
-        mb = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals, mask = mask_t, params_file = 'temp')
-        actual_t[idx] = data_t[mb.mask][0, all_b_idx[idx]]
-        this_pred = mb.predict(bvec, np.array([bvals_t[all_b_idx[idx]]]))[0]
-        predicted_t[idx] = this_pred
-    
-    actual_a, predicted_a = ozm.predict_signals(data_t, bvals_t, bvecs_t, mask_t, b = 'None')
-    
-    npt.assert_equal(actual_t, actual_a)
-    npt.assert_equal(predicted_t, predicted_a)
-    
-#def test_predict_signals2():
-    #bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals_t)
-    #bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = snr.separate_bvals(bvals_t, mode = 'remove0')
-    
-    #b_idx = b_inds[1]
-    #all_inc_0 = np.concatenate((b_inds[0], b_inds[1]))
-    
-    #these_dirs = b_inds[1]
-    #actual_t = np.empty(len(these_dirs))
-    #predicted_t = np.empty(len(these_dirs))
-    #for idx, bvec in enumerate(bvecs_t[:, these_dirs].T):
-        
-        #these_bvecs = bvecs_t[:, all_inc_0[np.where(all_inc_0 != b_idx[idx])]]
-        #these_bvals = rounded_bvals[all_inc_0[np.where(all_inc_0 != b_idx[idx])]]
-        #this_data = data_t[:, :, :, all_inc_0[np.where(all_inc_0 != b_idx[idx])]]
-        
-        #b_sfm = sfm.SparseDeconvolutionModel(this_data, these_bvecs, these_bvals, mask = mask_t, params_file = 'temp')
-        #actual_t[idx] = data_t[b_sfm.mask][0,b_idx[idx]]
-        #this_pred = b_sfm.predict(np.reshape(bvec, (3,1)))[b_sfm.mask][0]
-        #predicted_t[idx] = this_pred
-        
-    #actual_a, predicted_a = ozm.predict_signals(data_t, bvals_t, bvecs_t, mask_t, b = 'bvals')
-    
-    #npt.assert_equal(actual_t, actual_a[b_inds_rm0[0]])
-    #npt.assert_equal(predicted_t, predicted_a[b_inds_rm0[0]])

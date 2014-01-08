@@ -2,7 +2,6 @@ import os
 import numpy as np
 import nibabel as nib
 
-import osmosis.multi_bvals as sfm_mb
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.predict_n as pn
 import osmosis.snr as snr
@@ -20,11 +19,12 @@ ad = {1000:1, 2000:1, 3000:1}
 rd = {1000:0, 2000:0, 3000:0}
 bval_list, b_inds, unique_b, rounded_bvals = snr.separate_bvals(bvals)
                      
-mb = sfm_mb.SparseDeconvolutionModelMultiB(red_data, bvecs, bvals,
+mb = sfm.SparseDeconvolutionModelMultiB(red_data, bvecs, bvals,
                                                       mask = mask,
                                            axial_diffusivity = ad,
                                           radial_diffusivity = rd,
                                              params_file = "temp")
+
 sd = sfm.SparseDeconvolutionModel(red_data, bvecs, bvals, mask = mask,
                                                axial_diffusivity = ad,
                                               radial_diffusivity = rd,

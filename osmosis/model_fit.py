@@ -350,7 +350,7 @@ def snr_ls_fit(data, bvals, mask, unique_b):
         An array with the results from the least squares fit to the SNR data
     """
     if 0 in unique_b:
-        unique_b = unique_b[1:]
+        unique_b = sort(unique_b)[1:]
         
     data, mask = obtain_data(data, mask)
     
