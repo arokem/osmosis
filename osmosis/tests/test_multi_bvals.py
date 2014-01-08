@@ -51,7 +51,11 @@ ad = {1000:1.5, 2000:1.5, 3000:1.5}
 rd = {1000:0.5, 2000:0.5, 3000:0.5}
 mb = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t,
                                         axial_diffusivity = ad,
-                                        radial_diffusivity = rd,
+                                        radial_diffusivity = rd, mean = "mean_model",
+                                        params_file = 'temp')
+mb_MD = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t, mask = mask_t,
+                                        axial_diffusivity = ad,
+                                        radial_diffusivity = rd, mean = "MD",
                                         params_file = 'temp')
 
 def test_response_function():
@@ -72,32 +76,18 @@ def test_rotations():
 
     for idx, bvec in enumerate(rot_vecs_t[:,3:8].T):
         this_rot_t = ozt.rotate_to_vector(bvec, evals_t, evecs_t,
-                                          np.reshape(bvecs_t[:,4], (3,1)),
-                                          np.array([bvals_scaled_t[4]/1000]))
+                                        np.reshape(bvecs_t[:,4], (3,1)),
+                                        np.array([bvals_scaled_t[4]/1000]))
         
         out_t[idx] = this_rot_t.predicted_signal(1)
         
-    npt.assert_equal(out_t, mb._calc_rotations(bvals_scaled_t[4]/1000,
-                                     np.reshape(bvecs_t[:,4], (3,1))))
+    npt.assert_equal(out_t, mb._calc_rotations(np.reshape(bvecs_t[:,4], (3,1)),
+                                               bvals_scaled_t[4]/1000))
     
     return out_t
-    
-def test_relative_signal():
-    S0_t = np.mean(data_t[...,np.array([0,1,2])],-1)
-    sig_t = data_t[...,np.array([4,5,7])]
-    signal_rel_t = sig_t/np.reshape(S0_t, (2,2,2,1))
-
-    npt.assert_equal(signal_rel_t, mb.relative_signal[..., bval_ind_rm0_t[0]])
-    
-    return signal_rel_t
-    
-def test__flat_relative_signal():
-    out_flat = test_relative_signal()[np.where(mask_t)]
-    npt.assert_equal(out_flat, mb._flat_relative_signal[...,bval_ind_rm0_t[0]])
         
 def test_regressors():
-    _, tensor_regressor_a, design_matrix_a, fit_to_a, fit_to_means_a =\
-                                                               mb.regressors
+    _, tensor_regressor_a, fit_to_a, _ = mb.regressors
 
     fit_to_t = np.empty((np.sum(mask_t), len(bvals_scaled_t[3:])))
     fit_to_means = np.empty((np.sum(mask_t), len(bval_ind_t[3:])))
@@ -107,13 +97,14 @@ def test_regressors():
     design_matrix_t = np.empty(tensor_regressor_t.shape)
     for idx, b_idx in enumerate(all_b_idx_t):
         this_fit_to = mb._flat_relative_signal[:, idx]
-        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(bvals_t/1000.,
-                                                               b_idx)
+        fit_to_t[:, idx]  = this_fit_to - mb._flat_rel_sig_avg(
+                                        bvals_t[all_b_idx_t]/1000.)[0][:, idx]
             
         # Check tensor regressors
         this_tensor_regressor = np.squeeze(
-                                        mb._calc_rotations(bvals_t[b_idx]/1000.,
-                                        np.reshape(bvecs_t[:, b_idx], (3,1))))
+                                        mb._calc_rotations(
+                                        np.reshape(bvecs_t[:, b_idx], (3,1)),
+                                        bvals_t[b_idx]/1000.))
         
         tensor_regressor_t[idx] = this_tensor_regressor
         
@@ -132,7 +123,7 @@ def test__n_vox():
 
 
 def test_design_matrix():
-    _, tensor_regressor_a, design_matrix_a, _, _ = mb.regressors
+    _, tensor_regressor_a, _, _, design_matrix_a = mb_MD.regressors
     tensor_regressor_t, design_matrix_t, fit_to_t = test_regressors()
 
     npt.assert_equal(design_matrix_t, design_matrix_a)
@@ -145,18 +136,15 @@ def test_design_matrix():
 
 def test_model_params():
     _, _, fit_to_t = test_regressors()
-    _, _, design_matrix_a, _, _ = mb.regressors
+    _, _, _, _, design_matrix_a = mb_MD.regressors
 
-    npt.assert_equal(mb._fit_it(fit_to_t[0], design_matrix_a), 
-                        mb.model_params[mb.mask][0])
-    
-def test_fit():
-    diff_means = np.mean(data_t[0,0,0,3:8])-np.mean(mb.fit[np.where(mask_t)][0])
-    npt.assert_equal(abs(diff_means)<400,1)
-    
+    for idx in np.arange(len(fit_to_t[0])):
+        npt.assert_equal(abs(mb_MD._fit_it(fit_to_t[0], design_matrix_a, "MD")[idx] -
+                            mb_MD.model_params[mb.mask][0][idx])< 0.15, 1)
+       
 def test_predict():
     bvec_t = np.reshape(bvecs_t[:,3], (3,1))
-    tensor_regressor_t = mb._calc_rotations(np.array([2]), bvec_t)
+    tensor_regressor_t = mb._calc_rotations(bvec_t,np.array([2]))
 
     this_MD = (1.5 + 2*0.5)/3
     design_matrix_t = tensor_regressor_t.T - np.exp(-(bvals_t[3]/1000.)*this_MD)
@@ -164,13 +152,13 @@ def test_predict():
     fit_to_mean_t = np.zeros((4,1))
     out_t = np.zeros((4,1))
 
-    fit_to_mean_t[:, 0] = mb._flat_rel_sig_avg(np.array([2]), 0)
+    fit_to_mean_t[:, 0] = mb._flat_MD_rel_sig_avg(np.array([2]), 0)
 
     for vox in np.arange(4):
-        this_params_t = mb._flat_params[vox]
+        this_params_t = mb_MD._flat_params[vox]
         this_params_t[np.isnan(this_params_t)] = 0.0
         out_t[vox] = (np.dot(this_params_t, design_matrix_t.T) +
-                            fit_to_mean_t[vox]) * mb._flat_S0[vox]
+                            fit_to_mean_t[vox]) * mb_MD._flat_S0[vox]
                             
-        npt.assert_equal(abs(np.squeeze(out_t[vox]) - mb.predict(bvec_t,
-                                           np.array([2000]))[np.where(mask_t)][0][vox]) < 30, 1)
+        npt.assert_equal(abs(np.squeeze(out_t[vox]) - mb_MD.predict(bvec_t,
+                                           np.array([2000]))[np.where(mask_t)][vox]) < 30, 1)
