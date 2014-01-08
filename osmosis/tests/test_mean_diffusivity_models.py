@@ -4,7 +4,6 @@ import nibabel as nib
 import os
 
 import osmosis
-import osmosis.multi_bvals as sfm_mb
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.mean_diffusivity_models as mdm
 import osmosis.utils as ozu

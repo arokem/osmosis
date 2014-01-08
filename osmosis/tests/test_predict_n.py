@@ -3,7 +3,6 @@ import numpy.testing as npt
 import nibabel as nib
 import os
 
-import osmosis.multi_bvals as sfm_mb
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.predict_n as pn
 import osmosis.utils as ozu
@@ -72,11 +71,11 @@ actual_t_demeaned = (data_pv[np.where(mask_pv)][:, b_inds[3]] -
                      np.mean(data_pv[np.where(mask_pv)][:, b_inds[3]],-1)[..., None])
 
 def test_regressors():
-    full_mod_t = sfm_mb.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t,
-                                                                  mask = mask_t,
-                                                         axial_diffusivity = ad,
-                                                        radial_diffusivity = rd,
-                                                           params_file = "temp")
+    full_mod_t = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t,
+                                                    mask = mask_t,
+                                                    axial_diffusivity = ad,
+                                                    radial_diffusivity = rd,
+                                                    params_file = "temp")
     vec_pool_t = np.arange(len(bval_ind_t[1]))
     np.random.shuffle(vec_pool_t)
     vec_pool_inds = vec_pool_t[0:3]

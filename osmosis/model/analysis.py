@@ -8,7 +8,7 @@ import numpy as np
 import osmosis.utils as ozu
 import osmosis.snr as snr
 import osmosis.model.sparse_deconvolution as sfm
-import osmosis.multi_bvals as sfm_mb
+
 
 def overfitting_index(model1, model2):
     """
