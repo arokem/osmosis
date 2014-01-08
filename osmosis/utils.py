@@ -50,6 +50,60 @@ def intersect(arr_list):
         arr = np.intersect1d(arr, this_arr.ravel())
 
     return arr
+    
+def separate_bvals(bvals, mode = None, factor=1000.):
+    """
+    Separates b values into groups with similar values
+    Returns the grouped b values and their corresponding indices.
+    
+    Parameters
+    ----------
+    bvals: ndarray
+        b values to be separated
+    mode: str (optional)
+       None: Outputs indices in reference to the original array
+       "remove0": Outputs indices in reference to an array not containing b = 0 values.
+    factor: float
+       This is a tolerance factor. This function will divide the bvalues to the closest 
+       factor. That is, when this is 1000, we will get things divided to 1000, 2000, etc.
+       
+    Returns
+    -------
+    bval_list: list
+        List of separated b values.  Each index contains an array of grouped b values
+        with similar values
+    bval_ind: list
+        List of the indices corresponding to the separated b values.  Each index
+        contains an array of the indices to the grouped b values with similar values
+    unique_b: 1 dimensional array
+        Array of all the unique b values found
+    """
+    
+    bvals = bvals/factor
+    
+    # Round all the b values and find the unique numbers
+    rounded_bvals = list()
+    for j in np.arange(len(bvals)):
+        if mode is 'remove0':
+            if round(bvals[j]) != 0:
+                rounded_bvals.append(round(bvals[j]))
+        else:
+            rounded_bvals.append(round(bvals[j]))
+      
+    unique_b = np.unique(np.array(rounded_bvals))*factor
+    bvals_scaled = np.array(rounded_bvals)*factor
+    
+    # Initialize one list for b values and another list for the indices
+    bval_list = list()
+    bval_ind = list()
+    
+    # Find locations where rounded b values equal the unique b values
+    for i in np.arange(len(unique_b)):
+      idx_b = np.where(bvals_scaled == unique_b[i])
+      bval_list.append(bvals_scaled[idx_b])
+      bval_ind.append(idx_b)
+
+    return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
 
 def unique_rows(in_array, dtype='f4'): 
     """
@@ -844,7 +898,88 @@ def sph_cc(s1, s2, vertices1, vertices2=None, n=20.):
             cc[ii] = np.corrcoef(s1[idx[0]], s2[idx[1]])[0,1]
 
     return degs, cc
+    
+def create_combos(bvecs, bvals, data, these_b_inds,
+                  these_b_inds_rm0, all_inc_0, vec_pool, num_choose, combo_num):
+    """
+    Helper function for cross-validation functions
+    
+    Parameters
+    ----------
+    bvecs: 2 dimensional array
+        All the b vectors
+    bvals: 1 dimensional array
+        All b values
+    data: 4 dimensional array
+        Diffusion MRI data
+    these_b_inds: 1 dimensional array
+        Indices currently undergoing k-fold cross-validation
+    these_b_inds_rm0: 1 dimensional array
+        Indices currently undergoing k-fold cross-validation but with respect to
+        the non-zero b values.
+    all_inc_0: 1 dimensional array
+        these_b_inds concatenated to the b = 0 indices
+    vec_pool: 1 dimensional array
+        Shuffled indices corresponding to each of the values in these_b_inds
+    num_choose: int
+        Number of b values to leave out at a time.
+    combo_num: int
+        Current fold of k-fold cross-validation
+    
+    Returns
+    -------
+    si: 1 dimensional array
+        Sorted indices after removing a certain number of indices for k-fold
+        cross-validation
+    vec_combo: 1 dimensional array
+        Indices of b values to leave out for the current fold
+    vec_combo_rm0: 1 dimensional array
+        Indices of b values to leave out for the current fold with respect to
+        the non-zero b values
+    vec_pool_inds: 1 dimensional array
+        Shuffled indices to leave out during the current fold corresponding
+        to certain values in these_b_inds
+    these_bvecs: 2 dimensional array
+        B vectors with a certain number of vectors from the fold removed
+    these_bvals: 1 dimensional array
+        B values with a certain number of b values from the fold removed
+    this_data: 4 dimensional array
+        Diffusion data with a certain number of directions from the fold removed
+    these_inc0: 1 dimensional array
+        Sorted indices to the directions to fit to
+    """
+    
+    idx = list(these_b_inds_rm0)
+    these_inc0 = list(all_inc_0)
+    
+    low = int((combo_num)*num_choose)
+    high = np.min([int(combo_num*num_choose + num_choose), len(vec_pool)])
+    
+    vec_pool_inds = vec_pool[low:high]
+    vec_combo = these_b_inds[vec_pool_inds]
+    vec_combo_rm0 = these_b_inds_rm0[vec_pool_inds]
+        
+    # Remove the chosen indices from the rest of the indices
+    for choice_idx in vec_pool_inds:
+        these_inc0.remove(these_b_inds[choice_idx])
+        idx.remove(these_b_inds_rm0[choice_idx])
 
+    # Make the list back into an array
+    these_inc0 = np.array(sorted(these_inc0))
+    
+    # Need to sort the indices first before indexing full model's
+    # regressors
+    si = sorted(idx)
+    
+    # Isolate the b vectors, b values, and data not including those
+    # to be predicted
+    these_bvecs = bvecs[:, these_inc0]
+    these_bvals = bvals[these_inc0]
+    this_data = data[:, :, :, these_inc0]
+    
+    return [si, vec_combo, vec_combo_rm0, vec_pool_inds, these_bvecs,
+                                these_bvals, this_data, these_inc0]
+                                
 def start_parallel(imports_str=None):
     """
     This function starts a parallel computing environment 

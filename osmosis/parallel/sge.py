@@ -168,7 +168,7 @@ def add_params(s, params_dict):
 
 
 def qsub_cmd(call, name, working_dir='cwd', shell='/bin/bash',
-             email=None, mem_usage=20, priority=0,
+             email=None, mem_usage=35, priority=0,
              flags='', output_dir='sgeoutput'):
    """
    This puts together the qsub command.
