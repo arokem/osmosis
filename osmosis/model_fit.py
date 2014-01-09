@@ -7,6 +7,7 @@ import osmosis.viz.mpl as mpl
 import osmosis.utils as utils
 import osmosis.snr as snr
 import matplotlib
+import osmosis.utils as ozu
 
 def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     """
@@ -44,23 +45,27 @@ def slope(data, bvals, bvecs, prop, mask = 'None', saved_file = 'yes'):
     data, mask = obtain_data(data, mask)
         
     # Separate b values
-    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, _ = ozu.separate_bvals(bvals)
     idx_array = np.arange(len(unique_b))
     
+    new_bval_list = []
+    for bi in idx_array:
+        new_bval_list.append(bvals[bval_ind[bi]])
+    
     # Add b = 0 values and indices to the other b values for tensor calculation
-    bval_ind_wb0, bvals_wb0 = include_b0vals(idx_array, bval_ind, bval_list)
+    bval_ind_wb0, bvals_wb0 = include_b0vals(idx_array, bval_ind, new_bval_list)
         
     # Find the property values for each grouped b values
     idx_mask = np.where(mask)
     log_prop = log_prop_vals(prop, saved_file, data, bvecs, idx_mask, idx_array, bval_ind_wb0, bvals_wb0, mask)
-    
+        
     # Fit a first order least squares solution to the specified property versus
     # b value to obtain slopes
-    ls_fit = ls_fit_b(log_prop, unique_b)
+    ls_fit = ls_fit_b(log_prop, unique_b/1000)
     
     # Display slopes of property on a mosaic
     slopeProp_all = disp_slopes(mask, ls_fit, prop)
-    
+
     # Save all the values
     np.save('slope{0}_all.npy'.format(prop), slopeProp_all)
     np.save('log_{0}.npy'.format(prop), log_prop)
@@ -377,7 +382,7 @@ def scat_prop_snr(log_prop, data, bvals, mask):
     mask: 3 dimensional array
         Brain mask of the data
     """    
-    bval_list, bval_ind, unique_b = snr.separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, _ = ozu.separate_bvals(bvals)
     
     if 0 in unique_b:
         unique_b = unique_b[1:]

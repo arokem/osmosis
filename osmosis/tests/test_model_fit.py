@@ -8,11 +8,11 @@ import numpy.testing as npt
 
 saved_file = 'no'
 # Mock b value array to be used in all tests
-bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])
+bvals_t = np.array([0.005, 0.005, 0.010, 2.010, 1.005, 0.950, 1.950, 1.000])*1000
 
-bval_list_t = [(np.array([0.005, 0.005, 0.010]))]
-bval_list_t.append(np.array([1.005, 0.950, 1.000]))
-bval_list_t.append(np.array([2.010, 1.950]))
+bval_list_t = [(np.array([0.005, 0.005, 0.010])*1000)]
+bval_list_t.append(np.array([1.005, 0.950, 1.000])*1000)
+bval_list_t.append(np.array([2.010, 1.950])*1000)
 
 bval_ind_t = [np.array([0,1,2]), np.array([4,5,7]), np.array([3,6])]
 
@@ -41,8 +41,8 @@ idx_array = np.array([0,1,2])
 idx_mask_t = np.where(mask_t)
 
 def test_include_b0vals():
-    bvals_wb0_t = [np.array([0.005, 0.005, 0.010, 1.005, 0.950, 1.000])]
-    bvals_wb0_t.append(np.array([0.005, 0.005, 0.010, 2.010, 1.950]))
+    bvals_wb0_t = [np.array([0.005, 0.005, 0.010, 1.005, 0.950, 1.000])*1000]
+    bvals_wb0_t.append(np.array([0.005, 0.005, 0.010, 2.010, 1.950])*1000)
     
     bval_ind_wb0_t = [np.array([0,1,2,4,5,7]), np.array([0,1,2,3,6])]
     bval_ind_wb0_a, bvals_wb0_a = mf.include_b0vals(idx_array, bval_ind_t, bval_list_t)
@@ -61,8 +61,9 @@ def test_log_prop_vals():
     log_prop_t = [np.log(tensor_prop1.fractional_anisotropy[idx_mask_t]+0.01), np.log(tensor_prop2.fractional_anisotropy[idx_mask_t]+0.01)]
     log_prop_a = mf.log_prop_vals('FA', saved_file, data_t, bvecs_t, idx_mask_t, idx_array, bval_ind_wb0_t, bvals_wb0_t, mask_t)
     
-    npt.assert_equal(log_prop_t[0], log_prop_a[0])
-    npt.assert_equal(log_prop_t[1], log_prop_a[1])
+    for idx in np.arange(len(log_prop_t)):
+        npt.assert_equal(abs(log_prop_t[0][idx]-log_prop_a[0][idx])<0.05, 1)
+        npt.assert_equal(abs(log_prop_t[1][idx]-log_prop_a[1][idx])<0.05, 1)
     
     return log_prop_t
     
@@ -71,8 +72,10 @@ def test_ls_fit_b():
     b_matrix_t = np.matrix([[1,2], [1,1]]).T
     b_inv = ols_matrix(b_matrix_t)
     ls_fit_FA_t = np.dot(b_inv, np.matrix(log_prop_t))
-    
-    npt.assert_equal(ls_fit_FA_t, mf.ls_fit_b(log_prop_t, unique_b_t))
+
+    for idx in np.arange(len(ls_fit_FA_t)):
+        npt.assert_equal(abs(ls_fit_FA_t[idx]-mf.ls_fit_b(log_prop_t,
+                                        unique_b_t)[idx])<0.001, 1)
     
     return ls_fit_FA_t
     

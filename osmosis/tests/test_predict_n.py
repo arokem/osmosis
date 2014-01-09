@@ -3,6 +3,7 @@ import numpy.testing as npt
 import nibabel as nib
 import os
 
+import osmosis
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.predict_n as pn
 import osmosis.utils as ozu
@@ -50,7 +51,8 @@ mask_t[:,:,1] = 1
 ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
 rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
 
-data_path = "/biac4/wandell/data/klchan13/100307/Diffusion/data"
+data_path = os.path.join(osmosis.__path__[0], 'data')
+
 data_pv = nib.load(os.path.join(data_path, "red_data.nii.gz")).get_data()
 bvals_pv = np.loadtxt(os.path.join(data_path, "bvals"))
 bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
@@ -58,17 +60,10 @@ bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
 bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals_pv)
 all_b_inds = np.where(rounded_bvals != 0)
 
-#these_inds = np.concatenate((b_inds[1][0:10], b_inds[2][0:10], b_inds[3][0:10]
-#data_pv = data_pre[..., np.concatenate((b_inds[0], these_inds)
-
-mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_data()
-mask_pv = np.zeros(mask_orig.shape)
+mask_pv = np.zeros(data_pv.shape[0:3])
 mask_pv[0, 0, 0:2] = 1
 
 actual_all = np.squeeze(data_pv[np.where(mask_pv)][:, all_b_inds])
-actual_t = data_pv[np.where(mask_pv)][:, b_inds[3]]
-actual_t_demeaned = (data_pv[np.where(mask_pv)][:, b_inds[3]] -
-                     np.mean(data_pv[np.where(mask_pv)][:, b_inds[3]],-1)[..., None])
 
 def test_regressors():
     full_mod_t = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t,
