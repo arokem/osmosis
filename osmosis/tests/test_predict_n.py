@@ -95,7 +95,7 @@ def test_regressors():
     these_bvals_t = bvals_t[these_inc0]
     this_data_t = data_t[:, :, :, these_inc0]
 
-    mod = pn.sfm_mb.SparseDeconvolutionModelMultiB(this_data_t, these_bvecs_t,
+    mod = pn.sfm.SparseDeconvolutionModelMultiB(this_data_t, these_bvecs_t,
                                                  these_bvals_t, mask = mask_t,
                                                        axial_diffusivity = ad,
                                                       radial_diffusivity = rd,
@@ -112,115 +112,67 @@ def test_regressors():
 def test_all_predict():
     # Now check to see if the values for multi b values is around a
     # value we want
-    actual_vals, predicted_vals = pn.predict_n(data_pv, bvals_pv, bvecs_pv, mask_pv,
-                                                              ad, rd, 20, "all")
+    actual_vals, predicted_vals = pn.kfold_xval(data_pv, bvals_pv, bvecs_pv, mask_pv,
+                                                ad, rd, 20, "single", mean = "empirical",
+                                                solver = "nnls")
     npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
-    
+
     # Let's see if the RMSE is reasonable.
     this_rmse = np.sqrt(np.mean((actual_vals - predicted_vals)**2))
     npt.assert_equal(this_rmse<350, 1)
     
 def test_grid_predict():
     actual_vals, predicted_vals = pn.predict_grid(data_pv, bvals_pv, bvecs_pv, mask_pv,
-                                                              ad, rd, 10)
+                                                ad, rd, 10, mean = "empirical",
+                                                solver = "nnls")
     npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
-    
+
     this_rmse = np.sqrt(np.mean((actual_all - predicted_vals)**2))
-    npt.assert_equal(this_rmse<350, 1)
+    npt.assert_equal(this_rmse<400, 1)
 
 def test_bval_predict():
     # Now check to see if the values for individual b values is
     # around a value we want
-    actual_vals, predicted_vals = pn.predict_n(data_pv, bvals_pv, bvecs_pv, mask_pv,
-                                                            ad, rd, 10, "bvals")
+    actual_vals, predicted_vals = pn.kfold_xval(data_pv, bvals_pv, bvecs_pv, mask_pv,
+                                                ad, rd, 20, "multi", mean = "empirical",
+                                                solver = "nnls")
     npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
-    
-    this_rmse = np.sqrt(np.mean((actual_all - predicted_vals)**2))
+
+    # Let's see if the RMSE is reasonable.
+    this_rmse = np.sqrt(np.mean((actual_vals - predicted_vals)**2))
     npt.assert_equal(this_rmse<350, 1)
     
-def test_kfold_xval_bvals_with_mean():
-    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2, n = 10,
-                                                md = "b_mean", mode = "kfold_xval")
-    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2, n = 10,
-                                                md = "b_mean", mode = "kfold_xval")
-    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2, n = 10,
-                                                md = "b_mean", mode = "kfold_xval")
+def test_all_predict_gen():
+    # Test the general k-fold cross-validation where one of the inputs is a model class.
+    actual_vals, predicted_vals = pn.kfold_xval_gen(sfm.SparseDeconvolutionModelMultiB,
+                                                    data_pv, bvecs_pv, bvals_pv, 20,
+                                                    mask = mask_pv, fODF_mode = "single",
+                                                    axial_diffusivity = ad,
+                                                    radial_diffusivity = rd,
+                                                    mean = "empirical",
+                                                    solver = "nnls")
+    npt.assert_equal(np.mean(predicted_vals[1][predicted_vals[1] >1])>800,1)
+    npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
 
-    rmse02 = np.sqrt(np.mean((actual_t - predicted02)**2))
-    rmse12 = np.sqrt(np.mean((actual_t - predicted12)**2))
-    rmse22 = np.sqrt(np.mean((actual_t - predicted22)**2))
+    # Let's see if the RMSE is reasonable.
+    this_rmse = np.sqrt(np.mean((actual_vals - predicted_vals)**2))
+    npt.assert_equal(this_rmse<350, 1)
+    
+def test_predict_bvals():
+    [actual1, actual2, predicted11,
+    predicted12, predicted22, predicted21] = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
+                                            mask_pv, ad, rd, 0, 2, n = 10,
+                                            solver = "nnls", mode = "kfold_xval")
 
+    rmse00 = np.sqrt(np.mean((actual1 - predicted11)**2))
+    rmse02 = np.sqrt(np.mean((actual2 - predicted12)**2))
+    rmse22 = np.sqrt(np.mean((actual2 - predicted22)**2))
+    rmse20 = np.sqrt(np.mean((actual1 - predicted21)**2))
+
+    npt.assert_equal(rmse00<300, 1)
     npt.assert_equal(rmse02<300, 1)
-    npt.assert_equal(rmse12<300, 1)
     npt.assert_equal(rmse22<300, 1)
-    
-def test_kfold_xval_bvals_no_mean():
-    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2, n = 10,
-                                                md = "no_mean", mode = "kfold_xval")
-    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2, n = 10,
-                                                md = "no_mean", mode = "kfold_xval")
-    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2, n = 10,
-                                                md = "no_mean", mode = "kfold_xval")
-    
-    rmse02 = np.sqrt(np.mean((actual_t_demeaned - predicted02)**2))
-    rmse12 = np.sqrt(np.mean((actual_t_demeaned - predicted12)**2))
-    rmse22 = np.sqrt(np.mean((actual_t_demeaned - predicted22)**2))
-
-    npt.assert_equal(rmse02<400, 1)
-    npt.assert_equal(rmse12<400, 1)
-    npt.assert_equal(rmse22<400, 1)
-    
-def test_predict_bvals_no_mean():
-    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2,
-                                                md = "no_mean")
-    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2,
-                                                md = "no_mean")
-    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2,
-                                                md = "no_mean")
-
-    rmse02 = np.sqrt(np.mean((actual_t_demeaned - predicted02)**2))
-    rmse12 = np.sqrt(np.mean((actual_t_demeaned - predicted12)**2))
-    rmse22 = np.sqrt(np.mean((actual_t_demeaned - predicted22)**2))
-
-    npt.assert_equal(rmse02<400, 1)
-    npt.assert_equal(rmse12<400, 1)
-    npt.assert_equal(rmse22<400, 1)
-    
-def test_predict_bvals_with_mean():
-    actual02, predicted02 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 0, 2,
-                                                md = "b_mean")
-    actual12, predicted12 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 1, 2,
-                                                md = "b_mean")
-    actual22, predicted22 = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                                mask_pv, ad, rd, 2, 2,
-                                                md = "b_mean")
-
-    rmse02 = np.sqrt(np.mean((actual_t - predicted02)**2))
-    rmse12 = np.sqrt(np.mean((actual_t - predicted12)**2))
-    rmse22 = np.sqrt(np.mean((actual_t - predicted22)**2))
-
-    npt.assert_equal(rmse02<300, 1)
-    npt.assert_equal(rmse12<300, 1)
-    npt.assert_equal(rmse22<300, 1)
-    
-#def test_predict_RD_AD():
-    #rmse_b, rmse_mb, AD_order, RD_order = pn.predict_RD_AD(1.3, 2.0, 0.5, 0.9,
-                                                                 #4, 4, data_t,
-                                                             #bvals_t, bvecs_t,
-                                                                       #mask_t)
-    #npt.assert_equal(np.abs(rmse_b[0,1] - rmse_mb[0,1])<100, 1)
-    #npt.assert_equal(rmse_mb < 400, 1)
+    npt.assert_equal(rmse20<300, 1)

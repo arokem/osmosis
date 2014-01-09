@@ -17,9 +17,6 @@ from osmosis.utils import separate_bvals
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
 
-import osmosis.snr as snr
-import osmosis.snr as snr
-
 def partial_round(bvals, factor = 1000.):
     """
     Round only the values about equal to zero.
@@ -101,9 +98,9 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
     fit_all_data = data[..., inds_arr]
     fit_all_bvecs = bvecs[:, inds_arr]
     fit_all_bvals = bvals[inds_arr]
-    
+
     # Now put this into SFM multi_b class in order to grab the calculated mean
-    mod = sfm_mb.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
+    mod = sfm.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
                                                 mask = mask, bounds = bounds,
                                                 params_file = "temp")
     _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
@@ -120,6 +117,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
             # non diffusion weighted directions
             inds_list.remove(bi0)
         inds_arr = np.array(inds_list)
+
         return sig_out, new_params, inds_arr
 
 def _predict_across_b(mod_obj, vec_combo, vec_pool_inds, bvecs, bvals,
@@ -156,13 +154,13 @@ def _predict_across_b(mod_obj, vec_combo, vec_pool_inds, bvecs, bvals,
     """
     predicted_across = mod_obj.predict(bvecs[:, b_inds[1:][b_across][vec_pool_inds]],
                                    bvals[b_inds[1:][b_across][vec_pool_inds]], 
-                                   new_params = new_params)[mod.mask]
+                                   new_params = new_params)[mod_obj.mask]
     predicted_to = mod_obj.predict(bvecs[:, vec_combo], bvals[vec_combo],
-                                   new_params = new_params)[mod.mask]
-                            
+                                   new_params = new_params)[mod_obj.mask]
+
     predicted_across, predicted_to
     
-def _preload_regressors(si, full_mod_obj, mod_obj, over_sample, mean, fODF_mode):
+def _preload_regressors(si, full_mod_obj, mod_obj, over_sample, mean):
     """
     Helper function for grabbing reduced versions of preloaded regressors.
     
@@ -177,8 +175,6 @@ def _preload_regressors(si, full_mod_obj, mod_obj, over_sample, mean, fODF_mode)
         Model object including a reduced number of directions
     mean: str
         String indicating what kind of mean to use.
-    fODF_mode: str
-        String indicating how many fODFs are to be made.
         
     Returns
     -------
@@ -420,20 +416,24 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     mod.empirical_regressors
                 else:
                     mod.regressors = _preload_regressors(si, full_mod, mod,
-                                                        over_sample, mean, fODF_mode)
+                                                        over_sample, mean)
             if sph_cc is False:
                 if b_idx2 != None:
                     # Since we're using a separate output for each prediction, and not indexing
                     # into one big array, use the indices starting from 0:
                     vec_combo_rm0 = vec_pool_inds
                     if bi == b_idx1:
-                        [predicted12[:, vec_pool_inds],
-                        predicted11[:, vec_combo_rm0]] = _predict_across_b(mod, vec_combo,
-                            vec_pool_inds, bvecs, bvals, b_inds, b_idx2, new_params = new_params)
+                        predicted12[:, vec_pool_inds] = mod.predict(bvecs[:,
+                        b_inds[1:][b_idx2][vec_pool_inds]], bvals[b_inds[1:][b_idx2][
+                        vec_pool_inds]], new_params = new_params)[mod.mask]
+                        predicted11[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+                                    bvals[vec_combo], new_params = new_params)[mod.mask]
                     else:
-                        [predicted21[:, vec_pool_inds],
-                        predicted22[:, vec_combo_rm0]] = _predict_across_b(mod, vec_combo,
-                            vec_pool_inds, bvecs, bvals, b_inds, b_idx2, new_params = new_params)
+                        predicted21[:, vec_pool_inds] = mod.predict(bvecs[:,
+                        b_inds[1:][b_idx1][vec_pool_inds]], bvals[b_inds[1:][b_idx1][
+                        vec_pool_inds]], new_params = new_params)[mod.mask]
+                        predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
+                                    bvals[vec_combo], new_params = new_params)[mod.mask]
                 else:
                     predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                 new_params = new_params)[mod.mask]
@@ -500,7 +500,7 @@ def kfold_xval_sph_cc(mp_list, mask, rot_vecs):
     return cc_arr
 
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None,
-                                                      fit_method = None, bounds = None):
+                                 mean = "mean_model", fit_method = None, bounds = None):
     """
     Predicts signals for a certain percentage of the vertices with all b values.
     
@@ -541,13 +541,13 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
         np.random.shuffle(these_inds)
         group_list.append(these_inds)
     # Initialize a full model object with all directions for preloading regressors
-    full_mod = sfm_mb.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
+    full_mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
                                                 axial_diffusivity = ad,
                                                 radial_diffusivity = rd,
                                                 over_sample = over_sample,
                                                 bounds = bounds, solver = solver,
                                                 fit_method = fit_method,
-                                                params_file = "temp")
+                                                mean = mean, params_file = "temp")
     for bi in np.arange(3):                                                    
         these_b_inds = np.array([]).astype(int)
         these_b_inds_rm0 = np.array([]).astype(int)
@@ -579,17 +579,19 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
                                                         these_b_inds_rm0, all_inc_0,
                                                         vec_pool, num_choose, combo_num)
             
-            mod = sfm_mb.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
+            mod = sfm.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
                                                         mask = mask, params_file = "temp",
                                                         axial_diffusivity = ad,
                                                         radial_diffusivity = rd,
-                                                        bounds = bounds,
+                                                        bounds = bounds, mean = mean,
                                                         over_sample = over_sample,
                                                         solver = solver)
             sig_out, new_params, inds_arr = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
                                              mask, bounds, b_inds, these_b_inds = these_b_inds)
-            mod.fit_flat_rel_sig_avg = [sig_out[:, inds_arr], new_params]
-            mod.regressors = _preload_regressors(si, full_mod, mod, over_sample)
+
+            mod.fit_flat_rel_sig_avg = [sig_out, new_params]
+            if mean != "empirical":
+                mod.regressors = _preload_regressors(si, full_mod, mod, over_sample, mean)
             predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                       new_params = new_params)[mod.mask]
             actual[:, vec_combo_rm0] = data[mod.mask][:, vec_combo]
@@ -664,8 +666,8 @@ def kfold_xval_gen(model_class, data, bvecs, bvals, k, mask = None, fODF_mode = 
     k : int 
        The number of folds. Divide the data into k equal parts.
     fODF_mode: str
-        'all': if fitting to all b values
-        'bvals': if fitting to individual b values
+        'single': if fitting a single fODF
+        'multi': if fitting to multiple fODFs
     
     Returns
     -------
@@ -733,7 +735,7 @@ def kfold_xval_gen(model_class, data, bvecs, bvals, k, mask = None, fODF_mode = 
     return actual, predicted
     
 def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
-                  solver = "nnls", mode = None):
+                  solver = "nnls", mode = None, mean = "mean_model"):
     """
     Predict for each b value.
     
@@ -772,13 +774,13 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
     if mode == "kfold_xval":
         # If you want to predict using k-fold cross-validation:
         [actual1, actual2, predicted11,
-        predicted12, predicted22, predicted21] = predict_n(data, bvals, bvecs, mask, ad, rd, n,
+        predicted12, predicted22, predicted21] = kfold_xval(data, bvals, bvecs, mask, ad, rd, n,
                                                            fODF_mode = "multi", b_idx1 = b_idx1,
-                                                           b_idx2 = b_idx2, new_mean = "Yes",
+                                                           b_idx2 = b_idx2, mean = mean, 
                                                            solver = solver)
     else:
         # If you want to predict normally, not using k-fold cross-validation
-        mod = sfm_mb.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
+        mod = sfm.SparseDeconvolutionModelMultiB(data[:,:,:,all_inc_0],
                                                     bvecs[:,all_inc_0], bvals[all_inc_0],
                                                     mask = mask, axial_diffusivity = ad,
                                                     radial_diffusivity = rd, solver = solver,
@@ -802,102 +804,3 @@ def nchoosek(n,k):
     n!/(k!*(n-k)!)
     """
     return f(n)/f(k)/f(n-k)
-    
-def choose_AD_RD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num):
-    """
-    Parameters
-    ----------
-    AD_start: int
-        Lowest axial diffusivity desired
-    AD_end: int
-        Highest axial diffusivity desired
-    RD_start: int
-        Lowest radial diffusivity desired
-    RD_end: int
-        Highest radial diffusivity desired
-    AD_num: int
-        Number of different axial diffusivities
-    RD_num: int
-        Number of different radial diffusivities
-        
-    Returns
-    -------
-    AD_combos: obj
-        Unique axial diffusivity combinations
-    RD_combos: obj
-        Unique radial diffusivity combinations
-    """
-    
-    AD_bag = np.linspace(AD_start, AD_end, num = AD_num)
-    RD_bag = np.linspace(RD_start, RD_end, num = RD_num)
-
-    AD_combos = list(itertools.combinations(AD_bag, 3))
-    RD_combos = list(itertools.combinations(RD_bag, 3))
-    
-    return AD_combos, RD_combos
-    
-def predict_RD_AD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num, data, bvals, bvecs, mask):
-    """
-    Predicts vertices with different axial and radial diffusivities and finds them
-    root-mean-square error (rmse) between the actual values and predicted values.
-    
-    Parameters
-    ----------
-    AD_start: int
-        Lowest axial diffusivity desired
-    AD_end: int
-        Highest axial diffusivity desired
-    RD_start: int
-        Lowest radial diffusivity desired
-    RD_end: int
-        Highest radial diffusivity desired
-    AD_num: int
-        Number of different axial diffusivities
-    RD_num: int
-        Number of different radial diffusivities
-    data: 4 dimensional array
-        Diffusion MRI data
-    bvals: 1 dimensional array
-        All b values
-    bvecs: 3 dimensional array
-        All the b vectors
-    mask: 3 dimensional array
-        Brain mask of the data
-        
-    Returns
-    -------
-    rmse_b: 1 dimensional array
-        The rmse from fitting to individual b values
-    rmse_mb: 1 dimensional array
-        The rmse from fitting to all the b values
-    AD_order: list
-        The groups of axial diffusivities in the order they were chosen
-    RD_order: list
-        The groups of radial diffusivities in the order they were chosen
-    """
-    AD_combos, RD_combos = choose_AD_RD(AD_start, AD_end, RD_start, RD_end, AD_num, RD_num)
-    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-    num_bvals = len(unique_b[1:])
-    
-    AD_order = []
-    RD_order = []
-    rmse_b = np.empty((np.sum(mask), nchoosek(AD_num, num_bvals)*nchoosek(RD_num, num_bvals)))
-    rmse_mb = np.empty(rmse_b.shape)
-
-    track = 0
-    for AD_idx in np.arange(len(AD_combos)):
-        for RD_idx in np.arange(len(RD_combos)):
-            # Predict with different AD, RD values.
-            actual_b, predicted_b = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'bvals')
-            actual, predicted = predict_n(data, bvals, bvecs, mask, np.array(AD_combos[AD_idx]), np.array(RD_combos[RD_idx]), 10, 'all')
-            
-            # Calculate RMSE values.
-            rmse_b[:, track] = np.sqrt(np.mean((actual_b - predicted_b)**2, -1))
-            rmse_mb[:, track] = np.sqrt(np.mean((actual - predicted)**2, -1))
-            
-            track = track + 1
-            
-            AD_order.append(AD_combos[AD_idx])
-            RD_order.append(RD_combos[RD_idx])
-            
-    return rmse_b, rmse_mb, AD_order, RD_order
