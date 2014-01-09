@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from scipy.special import gamma
 
-def separate_bvals(bvals):
+def separate_bvals(bvals, mode = None, factor=1000.):
     """
     Separates b values into groups with similar values
     Returns the grouped b values and their corresponding indices.
@@ -15,7 +15,13 @@ def separate_bvals(bvals):
     ----------
     bvals: ndarray
         b values to be separated
-	
+    mode: str (optional)
+       None: Outputs indices in reference to the original array
+       "remove0": Outputs indices in reference to an array not containing b = 0 values.
+    factor: float
+       This is a tolerance factor. This function will divide the bvalues to the closest 
+       factor. That is, when this is 1000, we will get things divided to 1000, 2000, etc.
+       
     Returns
     -------
     bval_list: list
@@ -28,12 +34,19 @@ def separate_bvals(bvals):
         Array of all the unique b values found
     """
     
+    bvals = bvals/factor
+    
     # Round all the b values and find the unique numbers
-    rounded_bvals = np.zeros(len(bvals))
+    rounded_bvals = list()
     for j in np.arange(len(bvals)):
-      rounded_bvals[j] = round(bvals[j])
-
-    unique_b = np.unique(rounded_bvals)
+        if mode is 'remove0':
+            if round(bvals[j]) != 0:
+                rounded_bvals.append(round(bvals[j]))
+        else:
+            rounded_bvals.append(round(bvals[j]))
+      
+    unique_b = np.unique(np.array(rounded_bvals))*factor
+    bvals_scaled = np.array(rounded_bvals)*factor
     
     # Initialize one list for b values and another list for the indices
     bval_list = list()
@@ -41,11 +54,11 @@ def separate_bvals(bvals):
     
     # Find locations where rounded b values equal the unique b values
     for i in np.arange(len(unique_b)):
-      idx_b = np.where(rounded_bvals == unique_b[i])
-      bval_list.append(bvals[idx_b])
+      idx_b = np.where(bvals_scaled == unique_b[i])
+      bval_list.append(bvals_scaled[idx_b])
       bval_ind.append(idx_b)
-      
-    return bval_list, np.squeeze(bval_ind), unique_b
+
+    return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
 
 def b_snr(data, bvals, b, mask):
     """
@@ -67,13 +80,16 @@ def b_snr(data, bvals, b, mask):
         SNR at each voxel
     """
     
-    if hasattr(mask, 'get_data'):
-        mask = mask.get_data()
     if hasattr(data, 'get_data'):
         data = data.get_data()
+        affine = data.get_affine()
+        
+    if mask is not 'None':
+        if hasattr(mask, 'get_data'):
+            mask = mask.get_data()
 
     # Separate b values
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled = separate_bvals(bvals)
     bvals0_ind = bval_ind[0]
     this_b_ind = bval_ind[b]
     
@@ -141,7 +157,7 @@ def probability_curve(data, bvals, bvecs, mask):
         mask = mask.get_data()
         
     # Separate b values
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled= separate_bvals(bvals)
     idx_mask = np.where(mask)
     
     unique_b_list = list(unique_b)
@@ -153,19 +169,21 @@ def probability_curve(data, bvals, bvecs, mask):
     all_prop_med = np.median(all_prop)
     iqr_all = [stats.scoreatpercentile(all_prop,25), stats.scoreatpercentile(all_prop,75)]
     fig = mpl.probability_hist(all_prop)
+    ax = fig.axes[0]
+    ax.text(20.7, 0.10,"All b values: Median = {0}, IQR = {1}".format(round(all_prop_med,2), round(np.abs(iqr_all[0] - iqr_all[1]),2)),horizontalalignment='center',verticalalignment='center')
     legend_list.append('All b values')
     
     idx_array = np.arange(len(unique_b_list))
     txt_height = 0.12
     for l in idx_array:
-      prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
-      prop_med = np.median(prop)
-      iqr = [stats.scoreatpercentile(prop2,25), stats.scoreatpercentile(prop2,75)]
-      fig = mpl.probability_hist(prop, fig = fig)
-      ax = fig.axes[0]
-      ax.text(20.7, txt_height,"b = {0}: Median = {1}, IQR = {2}".format(l*1000, round(prop1_med,2), round(np.abs(iqr1[0] - iqr1[1]),2)),horizontalalignment='center',verticalalignment='center')
-      txt_height = txt_height + 0.02
-      legend_list.append('b = {0}'.format(l*1000))
+        prop = b_snr(data, bvals, unique_b_list[l], mask)[idx_mask]
+        prop_med = np.median(prop)
+        iqr = [stats.scoreatpercentile(prop,25), stats.scoreatpercentile(prop,75)]
+        fig = mpl.probability_hist(prop, fig = fig)
+        ax = fig.axes[0]
+        ax.text(20.7, txt_height,"b = {0}: Median = {1}, IQR = {2}".format(unique_b_list[l]*1000, round(prop_med,2), round(np.abs(iqr[0] - iqr[1]),2)),horizontalalignment='center',verticalalignment='center')
+        txt_height = txt_height + 0.02
+        legend_list.append('b = {0}'.format(unique_b_list[l]*1000))
     
     plt.legend(legend_list,loc = 'upper right')
     
@@ -188,16 +206,19 @@ def all_snr(data, bvals, mask):
         SNR at each voxel
     """
     
-    if hasattr(mask, 'get_data'):
-        mask = mask.get_data()
     if hasattr(data, 'get_data'):
         data = data.get_data()
+        affine = data.get_affine()
+        
+    if mask is not 'None':
+        if hasattr(mask, 'get_data'):
+            mask = mask.get_data()
 
     # Initialize array for displaying SNR
     disp_snr = np.zeros(mask.shape)
 
     # Get b = 0 indices
-    bval_list, bval_ind, unique_b = separate_bvals(bvals)
+    bval_list, bval_ind, unique_b, bvals_scaled = separate_bvals(bvals)
     bvals0_ind = bval_ind[0]
     
     # Find snr across each slice
