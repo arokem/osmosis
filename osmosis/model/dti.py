@@ -83,6 +83,7 @@ class TensorModel(BaseModel):
         if fit_method=='OLS':
             fit_method = 'LS'
         
+        self.scaling_factor = scaling_factor
         self.fit_method = fit_method
         self.gtab = gradients.gradient_table(self.bvals, self.bvecs)
         
@@ -297,7 +298,7 @@ class TensorModel(BaseModel):
         out[self.mask] = fit_flat
         return out
 
-    def predict(self, sphere, bvals):
+    def predict(self, sphere, bvals=None):
         """
         Predict the values of the signal on a novel sphere (not neccesarily
         measured points) in every voxel
@@ -309,14 +310,20 @@ class TensorModel(BaseModel):
         """
         if self.verbose:
             print("Predicting signal from TensorModel")
-
+        if bvals is None: 
+            # Assume there's only one b value and you know where to find it: 
+            bvals = self.bvals[self.b_idx][0] * np.ones(sphere.shape[-1])
+        else:
+            # If you gave them as input, you need to scale them:
+            bvals = bvals/float(self.scaling_factor)
+            
         pred_adc_flat = self.predict_adc(sphere)[self.mask]
         predict_flat = np.empty(pred_adc_flat.shape)
 
         out = ozu.nans(self.signal.shape[:3] + (sphere.shape[-1], ))
         for ii in xrange(len(predict_flat)):
             predict_flat[ii] = ozt.stejskal_tanner(self._flat_S0[ii],
-                                                   bvals/float(mod.scaling_factor),
+                                                   bvals,
                                                    pred_adc_flat[ii])
 
         out[self.mask] = predict_flat
