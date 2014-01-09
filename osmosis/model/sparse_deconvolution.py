@@ -1009,7 +1009,6 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 # non-b=0 values and vectors.
                 this_b_inds = b_inds[ind]
                 these_verts = vertices[:, this_b_inds]
-                1/0.
                 these_bvals = rounded_bvals[this_b_inds]/self.scaling_factor
                 out = np.empty((self.rot_vecs.shape[-1], vertices[:, this_b_inds].shape[-1]))
             else:
