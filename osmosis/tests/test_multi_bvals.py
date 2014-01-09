@@ -4,6 +4,9 @@ import numpy.testing as npt
 
 import osmosis.model.sparse_deconvolution as sfm
 
+# Fix the random seed:
+np.random.seed(10)
+
 # Mock b value array to be used in all tests
 bvals_t = np.array([5, 5, 10, 2010, 1005, 950, 1950, 1000])
 
@@ -139,8 +142,8 @@ def test_model_params():
     _, _, _, _, design_matrix_a = mb_MD.regressors
 
     for idx in np.arange(len(fit_to_t[0])):
-        npt.assert_equal(abs(mb_MD._fit_it(fit_to_t[0], design_matrix_a, "MD")[idx] -
-                            mb_MD.model_params[mb.mask][0][idx])< 0.15, 1)
+        npt.assert_(abs(mb_MD._fit_it(fit_to_t[0], design_matrix_a, "MD")[idx] -
+                            mb_MD.model_params[mb.mask][0][idx])< 0.15)
        
 def test_predict():
     bvec_t = np.reshape(bvecs_t[:,3], (3,1))
