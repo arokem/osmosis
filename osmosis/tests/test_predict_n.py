@@ -125,7 +125,7 @@ def test_grid_predict():
     npt.assert_equal(np.mean(actual_vals[1][actual_vals[1] >1])>800,1)
 
     this_rmse = np.sqrt(np.mean((actual_all - predicted_vals)**2))
-    npt.assert_equal(this_rmse<400, 1)
+    npt.assert_equal(this_rmse<500, 1)
 
 def test_bval_predict():
     # Now check to see if the values for individual b values is
