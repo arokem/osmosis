@@ -17,8 +17,7 @@ bvecs_pv = np.loadtxt(os.path.join(data_path, "bvecs"))
 bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals_pv)
 all_b_inds = np.where(rounded_bvals != 0)
 
-mask_orig = nib.load(os.path.join(data_path, 'nodif_brain_mask.nii.gz')).get_data()
-mask_pv = np.zeros(mask_orig.shape)
+mask_pv = np.zeros(data_pv.shape[:3])
 mask_pv[0, 0, 0:2] = 1
 
 def test_optimize_MD_params():
