@@ -104,6 +104,99 @@ def separate_bvals(bvals, mode = None, factor=1000.):
       bval_ind.append(idx_b)
 
     return bval_list, np.squeeze(bval_ind), unique_b, bvals_scaled
+    
+def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
+                 file_path = os.getcwd(), vol = "No",
+                 f_type = "npy",save = "No", num_dirs = 270):
+    """
+    Function to aggregate sub data files from parallelizing.  Assumes that
+    the sub_files are in the format: (file name)_(number of sub_file).(file_type)
+    
+    Parameters
+    ----------
+    file_names: list
+        List of strings indicating the base file names for each output data
+        aggregation
+    mask_vox_num: int
+        Number of voxels in each sub file
+    expected_file_num: int
+        Expected number of sub files
+    mask_data_file: obj
+        File handle for brain/white matter mask
+    file_path: str
+        Path to the directory with all the sub files.  Default is the current
+        directory
+    vol: str
+        String indicating whether or not the sub files are in volumes and
+        whether the output files are saved as volumes as well
+    f_type: str
+        String indicating the type of file the sub files are saved as
+    save: str
+        String indicating whether or not to save the output aggregation/volumes
+    num_dirs: int
+        Number of directions in each output aggregation/volume
+    
+    Results
+    -------
+    missing_files: 1 dimensional array
+        All the sub files that are missing in the aggregation
+    aggre_list: list
+        List with all the aggregations/volumes
+    """
+    files = os.listdir(file_path)
+
+    # Get data and indices
+    mask_data = mask_data_file.get_data()
+    mask_idx = np.where(mask_data)
+    
+    aggre_list = []
+    # Keep track of files in case there are any missing ones
+    i_track = np.ones(expected_file_num)
+    for fn in file_names:
+        # If you don't want to put the voxels back into a volume, just preallocate
+        # enough for each voxel included in the mask.
+        if vol == "No":
+            aggre = np.squeeze(np.zeros((int(np.sum(mask_data)),) + (num_dirs,)))
+        else:
+            aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
+            
+        for f_idx in np.arange(len(files)):
+            this_file = files[f_idx]
+            if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
+                
+                if f_type == "npy":
+                    sub_data = np.load(os.path.join(file_path, this_file))
+                elif f_type == "nii.gz":
+                    sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
+                # If the name of this file is equal to file name that you want to
+                # aggregate, load it and find the voxels corresponding to its location
+                # in the given mask.
+                if this_file[0:len(fn)] == fn:
+                    i = int(this_file.split(".")[0][len(fn):])
+                    low = i*mask_vox_num
+                    high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
+                    
+                    if vol == "No":
+                        aggre[low:high] = sub_data
+                    else:
+                        mask = np.zeros(mask_data_file.shape)
+                        mask[mask_idx[0][low:high], mask_idx[1][low:high], mask_idx[2][low:high]] = 1
+                        aggre[np.where(mask)] = sub_data
+                    # If the file is present, change its index within the tracking array to 0.    
+                    i_track[i] = 0
+
+        aggre_list.append(aggre)
+        
+        if save == "Yes":
+            if vol == "No":
+                np.save("aggre_%s.npy"%fn, aggre)
+            else:
+                aff = mask_data_file.get_affine()
+                nib.Nifti1Image(aggre, aff).to_filename("vol_%s.nii.gz"%fn)            
+            
+    missing_files = np.squeeze(np.where(i_track))
+    
+    return missing_files, aggre_list
 
 def unique_rows(in_array, dtype='f4'): 
     """
