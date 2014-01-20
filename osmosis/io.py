@@ -739,8 +739,8 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
 
 def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
-                 file_path = os.getcwd(), vol = False,
-                 f_type = "npy", save = False, num_dirs = 270):
+                 file_path=os.getcwd(), vol=False,
+                 f_type="npy", save=False, num_dirs=270):
     """
     Function to aggregate sub data files from parallelizing.  Assumes that
     the sub_files are in the format: (file name)_(number of sub_file).(file_type)
@@ -769,7 +769,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
     num_dirs: int
         Number of directions in each output aggregation/volume
     
-    Results
+    Returns
     -------
     missing_files: 1 dimensional array
         All the sub files that are missing in the aggregation
