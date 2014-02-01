@@ -3,7 +3,10 @@ import inspect
 import osmosis.utils as ozu
 import osmosis.leastsqbound as lsq
 import numpy as np
-  
+
+# rs within function names means relative signal
+# nf within function names means noise floor
+
 def err_func(params, b, s_prime, func):
     """
     Error function for fitting a function
@@ -62,6 +65,36 @@ def two_decaying_exp_plus_const(b, a, c, D1, D2):
         
     return this_sig
 
+def single_exp_rs(b, D):
+    """
+    Relative signal of the decaying exponential.
+    """
+    return np.exp(-b*D)
+    
+def single_exp_nf_rs(b, nf, D):
+    """
+    Relative signal of the decaying exponential.
+    """    
+    return np.exp(-b*D) + nf
+
+def bi_exp_rs(b, nf, f1, D1, D2):
+    """
+    Constrained bi-exponential model plus noise floor constant.
+    """
+    #b_extra_dim = b[..., None]
+    rel_sig = f1*np.exp(-b*D1) + (1-f1)*np.exp(-b*D2)
+    
+    return rel_sig
+    
+def bi_exp_nf_rs(b, f1, D1, D2):
+    """
+    Constrained bi-exponential model plus noise floor constant.
+    """
+    #b_extra_dim = b[..., None]
+    rel_sig = f1*np.exp(-b*D1) + (1-f1)*np.exp(-b*D2) + nf
+    
+    return rel_sig
+    
 def _diffusion_inds(bvals, b_inds, rounded_bvals):
     """
     Extracts the diffusion-weighted and non-diffusion weighted indices.
@@ -95,7 +128,8 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         b0_inds = b_inds[0]
     
     return all_b_idx, b0_inds
-def optimize_MD_params(data, bvals, mask, func, initial, factor = 1000, bounds = None):
+def optimize_MD_params(data, bvals, mask, func, initial, factor=1000,
+                       bounds=None, signal="relative_signal"):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors.
@@ -145,19 +179,22 @@ def optimize_MD_params(data, bvals, mask, func, initial, factor = 1000, bounds =
     
     for vox in np.arange(np.sum(mask)).astype(int):
         s0 = np.mean(flat_data[vox, b0_inds], -1)
-        s_prime = np.log(flat_data[vox, all_b_idx]/s0)
+        
+        input_signal = flat_data[vox, all_b_idx]/s0
+        if signal == "log":
+            input_signal = np.log(input_signal)
         
         if bounds == None:
-            params, _ = opt.leastsq(err_func, initial, args=(b, s_prime, func))
+            params, _ = opt.leastsq(err_func, initial, args=(b, input_signal, func))
         else:
             lsq_b_out = lsq.leastsqbound(err_func, initial,
-                                         args=(b, s_prime, func),
+                                         args=(b, input_signal, func),
                                          bounds = bounds)
             params = lsq_b_out[0]
         
         param_out[vox] = np.squeeze(params)
         fit_out[vox] = func(b, *params)
-        ss_err[vox] = np.sum((s_prime - fit_out[vox])**2)
+        ss_err[vox] = np.sum((input_signal - fit_out[vox])**2)
         
     return param_out, fit_out, ss_err
     
