@@ -1,6 +1,7 @@
 import scipy.optimize as opt
 import inspect
 import osmosis.utils as ozu
+import osmosis.model.dti as dti
 import osmosis.leastsqbound as lsq
 import numpy as np
 
@@ -77,23 +78,43 @@ def single_exp_nf_rs(b, nf, D):
     """    
     return np.exp(-b*D) + nf
 
-def bi_exp_rs(b, nf, f1, D1, D2):
+def bi_exp_rs(b, f1, D1, D2):
     """
     Constrained bi-exponential model plus noise floor constant.
     """
-    #b_extra_dim = b[..., None]
     rel_sig = f1*np.exp(-b*D1) + (1-f1)*np.exp(-b*D2)
     
     return rel_sig
     
-def bi_exp_nf_rs(b, f1, D1, D2):
+def bi_exp_nf_rs(b, nf, f1, D1, D2):
     """
     Constrained bi-exponential model plus noise floor constant.
     """
-    #b_extra_dim = b[..., None]
     rel_sig = f1*np.exp(-b*D1) + (1-f1)*np.exp(-b*D2) + nf
     
     return rel_sig
+    
+def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
+    """
+    Determine the initial values for fitting the isotropic diffusion model.
+    """
+    dti_mod = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file=params_file)
+    d = dti_mod.mean_diffusivity[np.where(mask)]
+    
+    if model=="single_exp_rs":
+        bounds = [(None, None)]
+        initial = d
+    elif model=="single_exp_nf_rs":
+        bounds = [(0, 10000), (None, None)]
+        initial = np.concatenate([np.zeros((len(d),1)), d[...,None]], -1)
+    elif model=="bi_exp_rs":
+        bounds = [(None, None), (None, None), (None, None)]
+        initial = np.concatenate([0.5*np.ones((len(d),1)), d[...,None], d[...,None]], -1)
+    elif model=="bi_exp_nf_rs":
+        bounds = [(0, 10000), (None, None), (None, None), (None, None)]
+        initial = np.concatenate([np.zeros((len(d),1)), 0.5*np.ones((len(d),1)),
+                                      d[...,None], d[...,None]], -1)
+    return bounds, initial
     
 def _diffusion_inds(bvals, b_inds, rounded_bvals):
     """
@@ -128,8 +149,8 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         b0_inds = b_inds[0]
     
     return all_b_idx, b0_inds
-def optimize_MD_params(data, bvals, mask, func, initial, factor=1000,
-                       bounds=None, signal="relative_signal"):
+def optimize_MD_params(data, bvecs, bvals, mask, func_str, factor=1000, initial="preset",
+                       bounds="preset", params_file='temp', signal="relative_signal"):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors.
@@ -142,8 +163,9 @@ def optimize_MD_params(data, bvals, mask, func, initial, factor=1000,
         All b values
     mask: 3 dimensional array
         Brain mask of the data
-    func: function handle
-        Mean model to perform kfold cross-validation on.
+    func: str
+        String indicating the mean model function to perform kfold
+        cross-validation on.
     initial: tuple
         Initial values for the parameters.
     factor: int
@@ -161,7 +183,21 @@ def optimize_MD_params(data, bvals, mask, func, initial, factor=1000,
     ss_err: 2 dimensional array 
         Sum squared error between the model fitted means and the actual means
     """
+    # Grab the function handle for the desired mean model
+    func = globals()[func_str]
 
+    # Get the initial values for the desired mean model
+    if (bounds == "preset") | (initial == "preset"):
+        all_params = initial_params(data, bvecs, bvals, func_str, mask=mask,
+                                    params_file=params_file)
+    if bounds == "preset":
+        bounds = all_params[0]
+    if initial == "preset":
+        func_initial = all_params[1]
+    else:
+        this_initial = initial
+        
+    # Separate b values and grab their indices
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     all_b_idx, b0_inds = _diffusion_inds(bvals, b_inds, rounded_bvals)
     
@@ -174,31 +210,36 @@ def optimize_MD_params(data, bvals, mask, func, initial, factor=1000,
     
     # Pre-allocate the outputs:
     param_out = np.zeros((int(np.sum(mask)), param_num - 1))
-    ss_err = ozu.nans(np.sum(mask))
-    fit_out = ozu.nans(ss_err.shape + (len(all_b_idx),))
+    cod = ozu.nans(np.sum(mask))
+    fit_out = ozu.nans(cod.shape + (len(all_b_idx),))
     
     for vox in np.arange(np.sum(mask)).astype(int):
         s0 = np.mean(flat_data[vox, b0_inds], -1)
         
+        if initial == "preset":
+            this_initial = func_initial[vox]
+            
         input_signal = flat_data[vox, all_b_idx]/s0
         if signal == "log":
             input_signal = np.log(input_signal)
         
         if bounds == None:
-            params, _ = opt.leastsq(err_func, initial, args=(b, input_signal, func))
+            params, _ = opt.leastsq(err_func, this_initial, args=(b, input_signal, func))
         else:
-            lsq_b_out = lsq.leastsqbound(err_func, initial,
+            lsq_b_out = lsq.leastsqbound(err_func, this_initial,
                                          args=(b, input_signal, func),
                                          bounds = bounds)
             params = lsq_b_out[0]
         
         param_out[vox] = np.squeeze(params)
         fit_out[vox] = func(b, *params)
-        ss_err[vox] = np.sum((input_signal - fit_out[vox])**2)
+        cod[vox] = ozu.coeff_of_determination(input_signal, fit_out[vox])
         
-    return param_out, fit_out, ss_err
+    return param_out, fit_out, cod
     
-def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000, bounds = None):
+def kfold_xval_MD_mod(data, bvals, bvecs, mask, func_str, n, factor = 1000,
+                      initial="preset", bounds = "preset", params_file='temp',
+                      signal="relative_signal"):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors using kfold cross validation.
@@ -227,12 +268,25 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
         
     Returns
     -------
-    actual: 2 dimensional array
-        Actual mean for the predicted vertices
+    cod: 1 dimensional array
+        Coefficent of Determination between data and predicted values
     predicted: 2 dimensional array 
         Predicted mean for the vertices left out of the fit
     """
-    
+    # Grab the function handle for the desired mean model
+    func = globals()[func_str]
+
+    # Get the initial values for the desired mean model
+    if (bounds == "preset") | (initial == "preset"):
+        all_params = initial_params(data, bvecs, bvals, func_str, mask=mask,
+                                    params_file=params_file)
+    if bounds == "preset":
+        bounds = all_params[0]
+    if initial == "preset":
+        func_initial = all_params[1]
+    else:
+        this_initial = initial
+        
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     all_b_idx, b0_inds = _diffusion_inds(bvals, b_inds, rounded_bvals)
         
@@ -259,26 +313,33 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
         (si, vec_combo, vec_combo_rm0,
          vec_pool_inds, these_bvecs, these_bvals,
          this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, all_b_idx,
-                                                np.arange(len(all_b_idx)),
-                                                all_b_idx, vec_pool,
-                                                num_choose, combo_num)
+                                                    np.arange(len(all_b_idx)),
+                                                    all_b_idx, vec_pool,
+                                                    num_choose, combo_num)
         this_flat_data = this_data[np.where(mask)]
         
         for vox in np.arange(np.sum(mask)).astype(int):
             s0 = np.mean(flat_data[vox, b0_inds], -1)
             these_b = b_scaled[vec_combo] # b values to predict
             
-            s_prime_fit = np.log(flat_data[vox, these_inc0]/s0)
+            if initial == "preset":
+                this_initial = func_initial[vox]
+            
+            input_signal = flat_data[vox, these_inc0]/s0
+            
+            if signal == "log":
+                input_signal = np.log(input_signal)
+                
             # Fit mean model to part of the data
-            params, _ = opt.leastsq(err_func, initial, args=(b_scaled[these_inc0],
-                                                               s_prime_fit, func))
+            params, _ = opt.leastsq(err_func, this_initial, args=(b_scaled[these_inc0],
+                                                               input_signal, func))
             if bounds == None:
-                params, _ = opt.leastsq(err_func, initial, args=(b_scaled[these_inc0],
-                                                               s_prime_fit, func))
+                params, _ = opt.leastsq(err_func, this_initial, args=(b_scaled[these_inc0],
+                                                               input_signal, func))
             else:
-                lsq_b_out = lsq.leastsqbound(err_func, initial,
+                lsq_b_out = lsq.leastsqbound(err_func, this_initial,
                                              args = (b_scaled[these_inc0],
-                                                     s_prime_fit, func), bounds = bounds)
+                                                     input_signal, func), bounds = bounds)
                 params = lsq_b_out[0]
             # Predict the mean values of the left out b values using the parameters from
             # fitting to part of the b values.
@@ -286,7 +347,9 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, initial, n, factor = 1000,
             predict_out[vox, vec_combo_rm0] = func(these_b, *params)
 
     s0 = np.mean(flat_data[:, b0_inds], -1).astype(float)
-    s_prime_predict = np.log(flat_data[:, all_b_idx]/s0[..., None])
-    ss_err = np.sum((s_prime_predict - predict_out)**2, -1)
+    input_signal = flat_data[:, all_b_idx]/s0[..., None]    
+    if signal == "log":
+        input_signal = np.log(input_signal)
+    cod = ozu.coeff_of_determination(input_signal, predict_out, axis=-1)
 
-    return ss_err, predict_out
+    return cod, predict_out
