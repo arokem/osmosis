@@ -737,9 +737,11 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                  bvals,
                  solver=None,
                  solver_params=None,
-                 initial = None,
-                 bounds = None,
+                 initial = "preset",
+                 bounds = "preset",
+                 mean_mix = None,
                  mean = "mean_model",
+                 mean_mod_func = "bi_exp_rs",
                  params_file=None,
                  axial_diffusivity=AD, # Should be a dict
                  radial_diffusivity=RD, # Should be a dict
@@ -834,28 +836,38 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         else:
             self.solver = this_solver(**self.solver_params)
         
+        self.fit_method = fit_method
+        
         # Keep the solver as a string for conveniance:
         self.solver_str = solver
         
         # Model of the means
-        self.func = mdm.two_decaying_exp_plus_const
+        self.func = getattr(mdm, mean_mod_func)
+        self.func_str = mean_mod_func
         self.mean = mean
-        self.fit_method = fit_method
+        self.mean_mix = mean_mix
+        self.initial_orig = initial
+        self.bounds_orig = bounds
         
-        # Restraints on the parameters for fitting the mean model
-        if bounds is None:
-            # Use default restraints for semi bi-exponential mean model
-            self.bounds = [(-10000, 0), (-10000, 0), (-10000, 0), (-10000, 0)]
+        # Get restraints and initial values for fitting the mean model
+        if (bounds == "preset") | (initial == "preset"):
+            all_params = mdm.initial_params(data, bvecs, bvals, self.func_str, mask=mask,
+                                            params_file="temp")
+        if bounds == "preset":
+            self.bounds = all_params[0]
         else:
             self.bounds = bounds
-        
-        # Initial values for fitting the mean model
-        if initial is None:
-            # Use default initial values for semi bi-exponential mean model
-            self.initial = (-0.6, -1, -0.75, -0.3)
+            
+        if initial == "preset":
+            self.initial = all_params[1]
         else:
             self.initial = initial
-
+            
+        # Get the type of signal output for the mean model
+        if mean_mod_func[len(mean_mod_func)-2:len(mean_mod_func)] == "rs":
+            self.mm_signal = "relative_signal"
+        else:
+            self.mm_signal = "log"
         
     def response_function(self, bval_tensor, vertices, bvals=None):
         """
@@ -912,7 +924,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         if len(vertices.shape) == 1:
             vertex = np.reshape(vertices, (3,1))
         
-        if self.mean == "empirical":
+        if (self.mean == "empirical") | (self.mean_mix == "mm_emp"):
             bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
             [evals, evecs, these_verts,
             these_bvals, out] = self._calc_rotations_empirical(bvals, b_inds, vertices, b_idx)
@@ -1096,17 +1108,32 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         for vox in np.arange(np.sum(self.mask)).astype(int):
             s0 = np.mean(flat_data[vox, self.b0_inds], -1)
-            s_prime = np.log(flat_data[vox, self.all_b_idx]/s0)
             
-            params, _ = opt.leastsq(mdm.err_func, self.initial, args=(bvals, s_prime, self.func))
+            if self.mm_signal == "log":
+                input_sig = np.log(flat_data[vox, self.all_b_idx]/s0)
+            elif self.mm_signal == "relative_signal":
+                input_sig = flat_data[vox, self.all_b_idx]/s0
             
-            lsq_b_out = lsq.leastsqbound(mdm.err_func, self.initial,
-                                                args=(bvals, s_prime, self.func),
-                                                bounds = self.bounds)
-            params = lsq_b_out[0]                                             
+            if self.initial_orig == "preset":
+                this_initial = self.initial[vox]
+            else:
+                this_initial = self.initial
+            
+            if self.bounds == None:
+                params, _ = opt.leastsq(mdm.err_func, this_initial,
+                                        args=(bvals, input_sig, self.func))
+            else:
+                lsq_b_out = lsq.leastsqbound(mdm.err_func, this_initial,
+                                                    args=(bvals, input_sig, self.func),
+                                                    bounds = self.bounds)
+                params = lsq_b_out[0]                                             
             params_out[vox] = np.squeeze(params)
-            sig_out[vox] = np.exp(self.func(bvals, *params))        
-        
+            
+            if self.mm_signal == "log":
+                sig_out[vox] = np.exp(self.func(bvals, *params))
+            elif self.mm_signal == "relative_signal":
+                sig_out[vox] = self.func(bvals, *params)
+
         return sig_out, params_out
         
     @desc.auto_attr
@@ -1177,13 +1204,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 #sig_avg = np.log(np.copy(sig_demean))
                 this_fit_to = np.log(self._flat_relative_signal[:, idx])
             
-            # Find tensor regressor values
-            this_tensor_regressor = self._calc_rotations(
-                                        np.reshape(self.bvecs[:, b_idx], (3,1)), self.bvals[b_idx])
-            if self.mean == "no_demean":
-                tensor_regressor[idx] = np.concatenate((np.squeeze(this_tensor_regressor),[1]))
-            else:
-                tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
+            if self.mean_mix != "mm_emp":
+                # Find tensor regressor values
+                this_tensor_regressor = self._calc_rotations(np.reshape(self.bvecs[:, b_idx],
+                                                                       (3,1)), self.bvals[b_idx])
+                if self.mean == "no_demean":
+                    tensor_regressor[idx] = np.concatenate((np.squeeze(this_tensor_regressor),[1]))
+                else:
+                    tensor_regressor[idx] = np.squeeze(this_tensor_regressor)
             
             # Find the signals to fit to and demean them by mean signal calculated from
             # the mean diffusivity.
@@ -1340,9 +1368,14 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                 _, _, fit_to, _, design_matrix = self.regressors
             elif self.mean == "empirical":
                 _, _, fit_to, _, design_matrix  = self.empirical_regressors
-            else:
+            elif self.mean == "mean_model":
                 sig_out, _ = self.fit_flat_rel_sig_avg
                 fit_to_with_mean, tensor_regressor, fit_to, _ = self.regressors
+                
+                # If mixing the empirical mean for the regressors, grab the regressors
+                # from the empirical regressors
+                if self.mean_mix=="mm_emp":
+                    _, _, _, _, design_matrix  = self.empirical_regressors
             
             if self._n_vox==1:
                 # We have to be a bit (too) clever here, so that the indexing
@@ -1363,7 +1396,8 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                         avg_sig = sig_out[vox][:, None]
                     elif self.mean == "no_demean":
                         avg_sig = 0.0
-                    design_matrix = tensor_regressor - avg_sig
+                    if self.mean_mix != "mm_emp":
+                        design_matrix = tensor_regressor - avg_sig
                     vox_fit_to_demeaned = fit_to_with_mean[vox] - np.squeeze(avg_sig)
                     if self.fit_method == "WLS":
                         sig_out = sig_out.astype(float)
@@ -1473,40 +1507,42 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         
         if self.mean == "empirical":
             out_flat_arr, fit_to_mean, design_matrix = self._empirical_predict(new_bvals, vertices)
-        else:
-            # Just so everything works out, divide by the scaling factor
-            new_bvals = new_bvals/self.scaling_factor
-            
+        else:           
             if len(vertices.shape) == 1:
                 vertices = np.reshape(vertices, (3,1))
-            
-            fit_to_means = np.mean(self.regressors[0], -1)
             
             col_num = self.rot_vecs.shape[-1]
             if self.mean == "no_demean":
                 col_num = col_num + 1
-
-            tensor_regressor = np.zeros((vertices.shape[-1], col_num))
-            design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs.shape[-1]))
-            fit_to_mean = np.zeros((self._n_vox, vertices.shape[-1])) # For MD only
-               
-            for idx, bval in enumerate(new_bvals):
-                # Create a new design matrix from the given vertices
-                cr = self._calc_rotations(np.reshape(vertices[:, idx], (3,1)), bval)
-                if self.mean == "no_demean":
-                    tensor_regressor[idx] = np.concatenate((np.squeeze(cr), [1]))
-                else:
-                    this_tensor_regressor = np.squeeze(cr)
-                    tensor_regressor[idx] = this_tensor_regressor
-                    
-                if self.mean == "MD":
-                    bval_tensor = round(bval)*self.scaling_factor
-                    this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
-                    design_matrix[idx] = np.squeeze(this_tensor_regressor) - np.exp(-bval*this_MD)
-                    
-                    # Find the mean signal across the vertices corresponding to the b values
-                    # given.
-                    fit_to_mean[:, idx] = self._flat_MD_rel_sig_avg(new_bvals, idx, md = md)
+          
+            # If mixing the mean model with the empirical mean for the regressors,
+            # use the design matrix from the empirical predict.
+            if (self.mean == "mean_model") & (self.mean_mix == "mm_emp"):
+                _, _, design_matrix = self._empirical_predict(new_bvals, vertices)
+                
+            # Just so everything works out, divide by the scaling factor
+            new_bvals = new_bvals/self.scaling_factor
+            if self.mean_mix != "mm_emp":
+                tensor_regressor = np.zeros((vertices.shape[-1], col_num))
+                design_matrix = np.zeros((vertices.shape[-1], self.rot_vecs.shape[-1]))
+                fit_to_mean = np.zeros((self._n_vox, vertices.shape[-1])) # For MD only
+                for idx, bval in enumerate(new_bvals):
+                    # Create a new design matrix from the given vertices
+                    cr = self._calc_rotations(np.reshape(vertices[:, idx], (3,1)), bval)
+                    if self.mean == "no_demean":
+                        tensor_regressor[idx] = np.concatenate((np.squeeze(cr), [1]))
+                    else:
+                        this_tensor_regressor = np.squeeze(cr)
+                        tensor_regressor[idx] = this_tensor_regressor
+                        
+                    if self.mean == "MD":
+                        bval_tensor = round(bval)*self.scaling_factor
+                        this_MD = (self.ad[bval_tensor]+2*self.rd[bval_tensor])/3.
+                        design_matrix[idx] = np.squeeze(this_tensor_regressor)-np.exp(-bval*this_MD)
+                        
+                        # Find the mean signal across the vertices corresponding to the b values
+                        # given.
+                        fit_to_mean[:, idx] = self._flat_MD_rel_sig_avg(new_bvals, idx, md = md)
 
             # If new parameters are given, use those instead.
             if new_params is not None:
@@ -1524,13 +1560,21 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
 
             if np.logical_or(self.mean == "MD", self.mean == "empirical"):
                 this_fit_to_mean = fit_to_mean[vox]
-            else:
-                this_fit_to_mean = np.exp(self.func(new_bvals, *params_out[vox]))
+            else:                   
                 if self.mean == "mean_model":
+                    # Make sure that the signal output is appropriate.
+                    if self.mm_signal == "log":
+                        this_fit_to_mean = np.exp(self.func(new_bvals, *params_out[vox]))
+                    elif self.mm_signal == "relative_signal":
+                        this_fit_to_mean = self.func(new_bvals, *params_out[vox])
+                        
                     this_fit_to_mean = this_fit_to_mean[:, None]
                 elif self.mean == "no_demean":
                     this_fit_to_mean = 0.0
-                design_matrix = tensor_regressor - this_fit_to_mean
+                    
+                # Create a new design matrix if not mixing means.
+                if self.mean_mix != "mm_emp":
+                    design_matrix = tensor_regressor - this_fit_to_mean
             # Relative signal:
             if self.mode == 'log':
                 this_relative=np.exp(np.dot(this_params, design_matrix.T) +

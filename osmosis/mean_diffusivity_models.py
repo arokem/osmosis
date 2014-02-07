@@ -106,12 +106,12 @@ def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
         initial = d
     elif model=="single_exp_nf_rs":
         bounds = [(0, 10000), (None, None)]
-        initial = np.concatenate([np.zeros((len(d),1)), d[...,None]], -1)
+        initial = np.concatenate([np.ones((len(d),1)), d[...,None]], -1)
     elif model=="bi_exp_rs":
         bounds = [(None, None), (None, None), (None, None)]
         initial = np.concatenate([0.5*np.ones((len(d),1)), d[...,None], d[...,None]], -1)
     elif model=="bi_exp_nf_rs":
-        bounds = [(0, 10000), (None, None), (None, None), (None, None)]
+        bounds = [(0, 10000), (0, 1), (None, None), (None, None)]
         initial = np.concatenate([np.zeros((len(d),1)), 0.5*np.ones((len(d),1)),
                                       d[...,None], d[...,None]], -1)
     return bounds, initial
@@ -149,7 +149,7 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         b0_inds = b_inds[0]
     
     return all_b_idx, b0_inds
-def optimize_MD_params(data, bvecs, bvals, mask, func_str, factor=1000, initial="preset",
+def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000, initial="preset",
                        bounds="preset", params_file='temp', signal="relative_signal"):
     """
     Finds the parameters of the given function to the given data
