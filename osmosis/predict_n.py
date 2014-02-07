@@ -40,8 +40,8 @@ def partial_round(bvals, factor = 1000.):
             
     return partially_rounded
     
-def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
-                         these_b_inds = None, b_idx1 = None, b_idx2 = None):
+def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="preset",
+                         these_b_inds=None, b_idx1=None, b_idx2=None):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     
@@ -101,13 +101,13 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, bounds, b_inds,
 
     # Now put this into SFM multi_b class in order to grab the calculated mean
     mod = sfm.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
-                                                mask = mask, bounds = bounds,
+                                                mask = mask, bounds=bounds,
                                                 params_file = "temp")
     _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
     
     # Get the new means at each direction and the new parameters at each voxel
     sig_out, new_params = mod.fit_flat_rel_sig_avg
-    
+
     if b_idx1 is not None:
         _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
         return sig_out, new_params, b_inds_ar[b_idx1]
@@ -253,9 +253,9 @@ def _kfold_xval_setup(bvals, mask):
     return b_inds, unique_b, b_inds_rm0, all_b_idx, all_b_idx_rm0, predicted
 
 def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
-              mean = "mean_model", sph_cc = False, fit_method = None,
-              b_idx1 = None, b_idx2 = None, over_sample=None,
-              bounds = None, solver=None):
+              mean = "mean_model", mean_mix = None, sph_cc = False,
+              fit_method = None, b_idx1 = None, b_idx2 = None,
+              over_sample=None, bounds = "preset", solver=None):
     """
     Does k-fold cross-validation leaving out a certain percentage of the vertices
     out at a time.  This function can be used for 7 different variations of
@@ -325,6 +325,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                     over_sample = over_sample,
                                                     bounds = bounds, solver = solver,
                                                     fit_method = fit_method,
+                                                    mean_mix = mean_mix,
                                                     mean = mean, params_file = "temp")
     if sph_cc is True:
         cc_list = []
@@ -385,6 +386,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                          over_sample = over_sample,
                                                          bounds = bounds, solver = solver,
                                                          fit_method = fit_method,
+                                                         mean_mix = mean_mix,
                                                          mean = mean, params_file = "temp")
                 
             if (mean == "mean_model") & (fODF_mode != "single"):
@@ -397,7 +399,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     b_mean1 = b_idx1
                 # Fit a new mean model to all data except the chosen combinations.
                 sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
-                                           mask, bounds, b_inds, b_idx1 = b_mean1, b_idx2 = b_idx2)
+                                        mask, b_inds, bounds=bounds, b_idx1=b_mean1, b_idx2=b_idx2)
                 if (fODF_mode == "multi") & (b_idx2 == None):
                     # Replace the relative signal average of the model object with one calculated.
                     mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
@@ -412,7 +414,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     
                 if ((mean == "MD") & (fODF_mode == "multi")):
                     mod.regressors
-                elif mean == "empirical":
+                elif (mean == "empirical") | (mean_mix == "mm_emp"):
                     mod.empirical_regressors
                 else:
                     mod.regressors = _preload_regressors(si, full_mod, mod,
@@ -499,8 +501,8 @@ def kfold_xval_sph_cc(mp_list, mask, rot_vecs):
     
     return cc_arr
 
-def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver = None,
-                                 mean = "mean_model", fit_method = None, bounds = None):
+def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample=None, solver=None,
+                                 mean="mean_model", fit_method=None, bounds="preset"):
     """
     Predicts signals for a certain percentage of the vertices with all b values.
     
@@ -587,7 +589,7 @@ def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample = None, solver
                                                         over_sample = over_sample,
                                                         solver = solver)
             sig_out, new_params, inds_arr = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
-                                             mask, bounds, b_inds, these_b_inds = these_b_inds)
+                                        mask, b_inds, bounds=bounds, these_b_inds=these_b_inds)
 
             mod.fit_flat_rel_sig_avg = [sig_out, new_params]
             if mean != "empirical":
