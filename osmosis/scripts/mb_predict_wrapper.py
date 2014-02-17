@@ -11,7 +11,7 @@ import numpy as np
 import osmosis.io as oio
 from osmosis.parallel import sge
 
-import osmosis.parallel.mb_predict_template as mb_template
+import osmosis.parallel.mb_predict_template_smm as mb_template
 reload(mb_template)
 template = sge.getsourcelines(mb_template)[0]
 
@@ -22,7 +22,7 @@ batch_sge = []
 for i in range(65): 
     params_dict = dict(i=i)
     code = sge.add_params(template,params_dict)
-    name = 'sfm_mb_start_wls%s'%(i)
+    name = 'predict_smm%s'%(i)
     cmd_file = '/home/klchan13/pycmd/%s.py'%name
     print("Generating: %s"%cmd_file)
                         
