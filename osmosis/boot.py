@@ -44,26 +44,33 @@ def subsample(bvecs, n_dirs, elec_points=None):
             
     # Rotate all the points to align with the seed, the bvec relative to which
     # all the rest are chosen (lots going on in this one line):
-    new_points = np.array(bvecs *
-                          ozu.calculate_rotation(
-                              bvecs[np.ceil(np.random.rand() *
-                                            xyz.shape[0]).astype(int)],
-                              xyz[0]))
+    rot_to_first = ozu.calculate_rotation(
+                              bvecs[:, np.ceil(np.random.randint(xyz.shape[0]))],
+                              xyz[0])
+
+    new_points = np.dot(rot_to_first, bvecs).T
 
     sample_bvecs = np.zeros((3, n_dirs))
     bvec_idx = []
-    
+
+    potential_indices = np.arange(bvecs.shape[-1])
     for vec in xrange(n_dirs):
         this = new_points[vec]
-        delta = np.zeros(bvecs.shape[0])
-        for j in xrange(bvecs.shape[0]):
-            delta[j] = ozu.vector_angle(this, bvecs[j])
+        delta = np.zeros(potential_indices.shape)
+        for j in range(delta.shape[0]):
+            delta[j] = ozu.vector_angle(this, bvecs[:, j])
 
         this_idx = np.where(delta==np.min(delta))
         
-        bvec_idx.append(this_idx)    
-        sample_bvecs[:, vec] = bvecs[this_idx]
+        bvec_idx.append(potential_indices[this_idx])    
+        sample_bvecs[:, vec] = np.squeeze(bvecs[:, this_idx])
 
+        # Remove bvecs that you've used, so that you don't have them more than
+        # once: 
+        bvecs = np.hstack([bvecs[:, :this_idx[0]],bvecs[:, this_idx[0]+1:]])
+        potential_indices = np.hstack([potential_indices[:this_idx[0]],
+                                            potential_indices[this_idx[0]+1:]])
+        
     return sample_bvecs, np.array(bvec_idx).squeeze()
         
 def dyadic_tensor(eigs,average=True):
