@@ -101,18 +101,23 @@ def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
     dti_mod = dti.TensorModel(data, bvecs, bvals, mask=mask, params_file=params_file)
     d = dti_mod.mean_diffusivity[np.where(mask)]
     
+    # Find initial noise floor
+    _, b_inds, _, _ = ozu.separate_bvals(bvals)
+    b0_data = data[np.where(mask)][:, b_inds[0]]
+    nf = np.std(b0_data, -1)/np.mean(b0_data, -1)    
+    
     if model=="single_exp_rs":
-        bounds = [(None, None)]
+        bounds = [(0, 4)]
         initial = d
     elif model=="single_exp_nf_rs":
-        bounds = [(0, 10000), (None, None)]
-        initial = np.concatenate([np.ones((len(d),1)), d[...,None]], -1)
+        bounds = [(0, 10000), (0, 4)]
+        initial = np.concatenate([nf[..., None], d[...,None]], -1)
     elif model=="bi_exp_rs":
-        bounds = [(None, None), (None, None), (None, None)]
+        bounds = [(0, 1), (0, 4), (0, 4)]
         initial = np.concatenate([0.5*np.ones((len(d),1)), d[...,None], d[...,None]], -1)
     elif model=="bi_exp_nf_rs":
-        bounds = [(0, 10000), (0, 1), (None, None), (None, None)]
-        initial = np.concatenate([np.zeros((len(d),1)), 0.5*np.ones((len(d),1)),
+        bounds = [(0, 10000), (0, 1), (0, 4), (0, 4)]
+        initial = np.concatenate([nf[..., None], 0.5*np.ones((len(d),1)),
                                       d[...,None], d[...,None]], -1)
     return bounds, initial
     
