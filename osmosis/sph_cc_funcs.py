@@ -313,7 +313,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                 if f_type is "npy":
                     sub_data = np.load(os.path.join(file_path, this_file))
                 elif f_type is "nii.gz":
-                    sub_data = nib.load(os.path.join(file_path, this_file))
+                    sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
                 # If the name of this file is equal to file name that you want to
                 # aggregate, load it and find the voxels corresponding to its location
                 # in the given mask.

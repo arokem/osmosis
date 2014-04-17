@@ -3,7 +3,7 @@
 # i
 import time
 import osmosis.model.dti as dti
-import osmosis.predict_n_cleaned as pn
+import osmosis.predict_n as pn
 from osmosis.utils import separate_bvals
 import nibabel as nib
 import os
@@ -35,40 +35,14 @@ if __name__=="__main__":
     ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
     rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
     
-    actual_single, predicted_single = pn.predict_n(data, bvals, bvecs,
+    actual_single, predicted_single = pn.kfold_xval(data, bvals, bvecs,
                                                    mask, ad, rd, 10, "single",
-                                                   mean = "mean_model",
-                                                   fit_method = "WLS", solver = "nnls")
-    #actual_multi, predicted_multi = pn.predict_n(data, bvals, bvecs,
-    #                                             mask, ad, rd, 10, "multi",
-    #                                             mean = "MD", solver = "nnls")
-    #actual_pn_bvals, predicted_pn_bvals = pn.predict_n(data, bvals, bvecs,
-    #                                                   mask, ad, rd, 10, "multi",
-    #                                                   mean = "mean_model", solver = "nnls")
-    #actual_pn_grid, predicted_pn_grid = pn.predict_grid(data, bvals, bvecs,
-    #                                                   mask, ad, rd, 10,
-    #                                                   solver = "nnls")
+                                                   mean = "empirical", solver = "ElasticNet")
+
     aff = np.eye(4)
-    nib.Nifti1Image(predicted_single, aff).to_filename("single_mean_model_WLS%s.nii.gz"%(i))
-    #nib.Nifti1Image(predicted_multi, aff).to_filename("/hsgs/nobackup/klchan13/MD_multi_predict%s.nii.gz"%(i))
-    #nib.Nifti1Image(predicted_pn_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
-    #nib.Nifti1Image(predicted_pn_grid, aff).to_filename("/hsgs/nobackup/klchan13/grid_predict%s.nii.gz"%(i))
-    #actual_all, predict_all = pn.predict_n(data, bvals, bvecs,
-                                           #mask, ad, rd, 10,"all")
-    #actual_bvals, predict_bvals = pn.predict_n(data, bvals, bvecs,
-                                               #mask, ad, rd, 10, "bvals")
-                                               
-    ## Predict tensor
-    #bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-    #inds = np.concatenate((b_inds[0], b_inds[1:][0]))
-    #actual_tensor, predict_tensor = pn.kfold_xval(dti.TensorModel, data[:,:,:,inds],
-                                                  #bvecs[:,inds], bvals[inds], 9,
-                                                  #mask)
-   
-    #aff = np.eye(4)
-    #nib.Nifti1Image(actual_all, aff).to_filename("/hsgs/nobackup/klchan13/actual%s.nii.gz"%(i))
-    #nib.Nifti1Image(predict_all, aff).to_filename("/hsgs/nobackup/klchan13/all_predict%s.nii.gz"%(i)) 
-    #nib.Nifti1Image(predict_bvals, aff).to_filename("/hsgs/nobackup/klchan13/bvals_predict%s.nii.gz"%(i))
-    #nib.Nifti1Image(predict_tensor, aff).to_filename("/hsgs/nobackup/klchan13/tensor_predict%s.nii.gz"%(i))
+    save_path = "/hsgs/nobackup/klchan13/"
+    nib.Nifti1Image(predicted_single, aff).to_filename(os.path.join(save_path,
+                                     "single_empirical_elasnet%s.nii.gz"%(i)))
+
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)
