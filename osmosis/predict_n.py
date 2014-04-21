@@ -844,6 +844,11 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
 		    bvec = -1*these_bvecs
 		else:
                     bvec = -1*these_bvecs[:, deg_idx]
+	    else:
+		if len(degs) == 1:
+    		    bvec = these_bvecs
+		else:
+                    bvec = these_bvecs[:, deg_idx]
             
             if flipped_bvecs_arr != None:
                 flipped_bvecs_arr = np.concatenate((flipped_bvecs_arr, bvec[None, ...].T), -1)
@@ -851,10 +856,20 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
                 flipped_bvecs_arr = bvec[None, ...].T
         flipped_bvecs_list.append(flipped_bvecs_arr)
 
-    pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0]).T), -1)
-    pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1]).T), -1)
+    if np.shape(pre_sig1) == (1,1):
+	pre_sig1 = np.reshape(pre_sig1, (1,))
+    if np.shape(pre_sig2) == (1,1):
+	pre_sig2 = np.reshape(pre_sig2, (1,))
+
+    pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0].T)), -1)
+    pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1].T)), -1)
     
     # Put in openCV array format
+    if len(np.shape(pre_sig1)) == 1:
+	pre_sig1 = pre_sig1[None]
+    if len(np.shape(pre_sig2)) == 1:
+	pre_sig2 = pre_sig2[None]
+
     sig1 = cv.fromarray(np.require(np.float32(pre_sig1), requirements='CA'))
     sig2 = cv.fromarray(np.require(np.float32(pre_sig2), requirements='CA'))
     
