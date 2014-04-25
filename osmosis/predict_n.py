@@ -218,7 +218,7 @@ def _preload_regressors(si, full_mod_obj, mod_obj, over_sample, mean):
    
 def _kfold_xval_setup(bvals, mask):
     """
-    Heler function to help set up any separation of b values and initial reallocating
+    Helper function to help set up any separation of b values and initial reallocating
     
     Parameters
     ----------
@@ -252,7 +252,57 @@ def _kfold_xval_setup(bvals, mask):
     predicted = np.empty((int(np.sum(mask)), len(all_b_idx)))
     
     return b_inds, unique_b, b_inds_rm0, all_b_idx, all_b_idx_rm0, predicted
+    
+def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b):
+    """
+    Changes the arrangement of the model parameters and rotational vectors list so that all the multi fODF
+    parameters are together in one list slot.
+    """
+    # Add the single fODFs' model parameters and rotational vectors first
+    out_mp_list = [all_mp_list[len(all_mp_list)-1]]
+    out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_rot_vecs_list)-1]]
+    
+    # Start some new temporary lists to add the multi fODF parameters to before appending them to the
+    # output list.
+    temp_mp_list = []
+    temp_rot_vecs_list = []
+    for mp_idx in np.arange(len(all_mp_list[0])):
+        mp_arr = all_mp_list[0][mp_idx]
+        rot_vecs_arr = all_mp_rot_vecs_list[0][mp_idx]
+        for b_idx in np.arange(1, len(unique_b[1:])):
+            mp_arr = np.concatenate((mp_arr, all_mp_list[b_idx][mp_idx]),-1)
+            rot_vecs_arr = np.concatenate((rot_vecs_arr, all_mp_rot_vecs_list[b_idx][mp_idx]),-1)
+        temp_mp_list.append(mp_arr)
+        temp_rot_vecs_list.append(rot_vecs_arr)
 
+    out_mp_list.append(temp_mp_list)
+    out_rot_vecs_list.append(temp_rot_vecs_list)
+    
+    return out_mp_list, out_rot_vecs_list
+       
+def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type):
+    """
+    Does the actual precision calculation.
+    """
+    if precision_type == "sph_cc":
+        # Mirror the data and the rotational vectors
+        mp_mirr1 = np.concatenate((mp1, mp1), -1)
+        mp_mirr2 = np.concatenate((mp2, mp2), -1)
+        bvecs_mirr1 = np.squeeze(np.concatenate((rot_vecs1,-1*rot_vecs1), -1)).T
+        bvecs_mirr2 = np.squeeze(np.concatenate((rot_vecs2,-1*rot_vecs2), -1)).T
+        deg, p = ozu.sph_cc(mp_mirr1, mp_mirr2, bvecs_mirr1, vertices2=bvecs_mirr2)
+        
+        if all(~np.isfinite(cc)):
+            p_arr[mp_count][vox] = nan
+        else:
+            p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the non-nan values
+    
+    elif precision_type == "emd":
+        emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1], rot_vecs2[:, idx2])
+        p_arr[mp_count][vox] = emd
+    
+    return p_arr
+    
 def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
               mean = "mean_model", mean_mix = None, precision = False,
               fit_method = None, b_idx1 = None, b_idx2 = None,
@@ -331,6 +381,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     if precision is not False:
         p_list = []
     
+    start_fODF_mode = None
     if fODF_mode == "single":
         indices = np.array([0])
     elif fODF_mode == "multi":
@@ -344,20 +395,28 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             predicted12 = np.empty(predicted11.shape)
             predicted21 = np.empty(predicted11.shape)
             predicted22 = np.empty(predicted11.shape)
-    
-    mp_list = []
-
+    elif fODF_mode == "both":
+        start_fODF_mode = "both"
+        indices = np.arange(len(unique_b[1:])+1)
+        all_mp_list = []
+        all_mp_rot_vecs_list = []
+        
     for bi in indices:
-        if fODF_mode == "single":
+        mp_list = []
+        mp_rot_vecs_list = []
+        if (fODF_mode == "single") | ((start_fODF_mode == "both") & (bi == len(unique_b[1:]))):
+            fODF_mode = "single"
             all_inc_0 = np.arange(len(bvals))
             # Indices are locations of all non-b = 0
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
-        elif fODF_mode == "multi":
+        elif (fODF_mode == "multi") | ((start_fODF_mode == "both") & (bi != len(unique_b[1:]))):
+            fODF_mode = "multi"
             # Indices of data with a particular b value
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
             these_b_inds = b_inds[1:][bi]
             these_b_inds_rm0 = b_inds_rm0[bi]
+            
         vec_pool = np.arange(len(these_b_inds))
         
         # Need to choose random indices so shuffle them.
@@ -398,9 +457,11 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     b_mean1 = bi
                 elif b_idx2 is not None:
                     b_mean1 = b_idx1
+                    
                 # Fit a new mean model to all data except the chosen combinations.
                 sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
                                         mask, b_inds, bounds=bounds, b_idx1=b_mean1, b_idx2=b_idx2)
+                
                 if (fODF_mode == "multi") & (b_idx2 == None):
                     # Replace the relative signal average of the model object with one calculated.
                     mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
@@ -415,7 +476,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     
                 if ((mean == "MD") & (fODF_mode == "multi")):
                     mod.regressors
-                elif (mean == "empirical") | (mean_mix == "mm_emp"):
+                elif (mean == "empirical") | (mean_mix == "mm_emp"): #Use empirical regressors but mean model
                     mod.empirical_regressors
                 else:
                     mod.regressors = _preload_regressors(si, full_mod, mod,
@@ -441,11 +502,22 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                 new_params = new_params)[mod.mask]
             else:
+                #Save both the model params and their corresponding rotational vectors for precision function
                 mp_list.append(mod.model_params[mod.mask])
-        if precision is not False:
-            p_arr = kfold_xval_precision(mp_list, mask, mod.rot_vecs, precision)
-            p_list.append(p_arr)
-            
+                mp_rot_vecs_list.append(mod.rot_vecs)
+
+        if start_fODF_mode == "both":
+            all_mp_list.append(mp_list)
+            all_mp_rot_vecs_list.append(mp_rot_vecs_list)
+
+    if start_fODF_mode == "both":
+        # Call to function to aggregate multi fODFs
+        [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b)
+        
+    if precision is not False:
+        p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
+        p_list.append(p_arr)
+    
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
@@ -459,7 +531,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         actual = data[mod.mask][:, all_b_idx]
         return actual, predicted
         
-def kfold_xval_precision(mp_list, mask, rot_vecs, precision_type):
+def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fODF_mode):
     """
     Helper function that finds the spherical cross-correlation between the different
     model params generated by k-fold cross-validation.
@@ -481,37 +553,44 @@ def kfold_xval_precision(mp_list, mask, rot_vecs, precision_type):
         An array consisting of the spherical cross-correlations between each of the
         combinations of model parameters at each voxel
     """
+    
+    if start_fODF_mode is None:
+        itr = itertools.combinations(np.arange(len(mp_list)), 2)
+    elif start_fODF_mode == "both":
+        mp_list1_inds = list(np.arange(len(mp_list[0])))
+        mp_list2_inds = list(np.arange(len(mp_list[1])))
+        itr = itertools.product(*[mp_list1_inds, mp_list2_inds])
+        
     # Calculate the number of combinations that are created
-    num_combos = nchoosek(len(mp_list),2)
+    if start_fODF_mode is None:
+        num_combos = nchoosek(len(mp_list),2)
+    elif start_fODF_mode == "both":
+        num_combos = len(mp_list1_inds)*len(mp_list2_inds)
     
     # Preallocate an array to include one for each combination per voxel
     p_arr = np.zeros((num_combos, int(np.sum(mask))))
     mp_count = 0
-    for mp_inds in itertools.combinations(np.arange(len(mp_list)), 2):
+        
+    for mp_inds in itr:
         for vox in np.arange(int(np.sum(mask))):
-            mp1 = mp_list[mp_inds[0]][vox]
-            mp2 = mp_list[mp_inds[1]][vox]
+            if start_fODF_mode is None:
+                mp1 = mp_list[mp_inds[0]][vox]
+                mp2 = mp_list[mp_inds[1]][vox]
+                rot_vecs1 = rot_vecs_list[mp_inds[0]]
+                rot_vecs2 = rot_vecs_list[mp_inds[1]]
+            elif start_fODF_mode == "both":
+                mp1 = mp_list[0][mp_inds[0]][vox]
+                mp2 = mp_list[1][mp_inds[1]][vox]
+                rot_vecs1 = rot_vecs_list[0][mp_inds[0]]
+                rot_vecs2 = rot_vecs_list[1][mp_inds[1]]
+                
             idx1 = np.where(mp1 > 0)
             idx2 = np.where(mp2 > 0)
             
-            if precision_type == "sph_cc":
-                # Mirror the data and the rotational vectors
-                mp_mirr1 = np.concatenate((mp1, mp1), -1)
-                mp_mirr2 = np.concatenate((mp2, mp2), -1)
-                bvecs_mirr = np.squeeze(np.concatenate((rot_vecs,-1*rot_vecs), -1)).T
-                deg, p = ozu.sph_cc(mp_mirr1, mp_mirr2, bvecs_mirr)
-                
-                if all(~np.isfinite(cc)):
-                    p_arr[mp_count][vox] = nan
-                else:
-                    p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the non-nan values
-            
-            elif precision_type == "emd":
-                emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs[:, idx1], rot_vecs[:, idx2])
-                p_arr[mp_count][vox] = emd
+            p_arr = _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type)
                 
         mp_count = mp_count + 1
-        
+
     return p_arr
 
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample=None, solver=None,
@@ -834,20 +913,20 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
         these_bvecs = np.squeeze(bvecs_list[i])
         flipped_bvecs_arr = None
         # If the angle between the bvec and (0,0,1) are greater than 90 degrees, flip
-	degs = np.rad2deg(np.arccos(np.dot(np.array((0,0,1)), these_bvecs)))
-	if type(degs) is not np.array:
-	    degs = np.array(degs)[..., None]
+        degs = np.rad2deg(np.arccos(np.dot(np.array((0,0,1)), these_bvecs)))
+        if type(degs) is not np.array:
+            degs = np.array(degs)[..., None]
 
         for deg_idx, deg in enumerate(degs):
             if deg > 90:
-		if len(degs) == 1:
-		    bvec = -1*these_bvecs
-		else:
+                if len(degs) == 1:
+                    bvec = -1*these_bvecs
+                else:
                     bvec = -1*these_bvecs[:, deg_idx]
-	    else:
-		if len(degs) == 1:
-    		    bvec = these_bvecs
-		else:
+            else:
+                if len(degs) == 1:
+                    bvec = these_bvecs
+                else:
                     bvec = these_bvecs[:, deg_idx]
             
             if flipped_bvecs_arr != None:
@@ -857,18 +936,18 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
         flipped_bvecs_list.append(flipped_bvecs_arr)
 
     if np.shape(pre_sig1) == (1,1):
-	pre_sig1 = np.reshape(pre_sig1, (1,))
+        pre_sig1 = np.reshape(pre_sig1, (1,))
     if np.shape(pre_sig2) == (1,1):
-	pre_sig2 = np.reshape(pre_sig2, (1,))
+        pre_sig2 = np.reshape(pre_sig2, (1,))
 
     pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0].T)), -1)
     pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1].T)), -1)
     
     # Put in openCV array format
     if len(np.shape(pre_sig1)) == 1:
-	pre_sig1 = pre_sig1[None]
+        pre_sig1 = pre_sig1[None]
     if len(np.shape(pre_sig2)) == 1:
-	pre_sig2 = pre_sig2[None]
+        pre_sig2 = pre_sig2[None]
 
     sig1 = cv.fromarray(np.require(np.float32(pre_sig1), requirements='CA'))
     sig2 = cv.fromarray(np.require(np.float32(pre_sig2), requirements='CA'))
