@@ -293,14 +293,17 @@ def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p
         deg, p = ozu.sph_cc(mp_mirr1, mp_mirr2, bvecs_mirr1, vertices2=bvecs_mirr2)
         
         if all(~np.isfinite(cc)):
-            p_arr[mp_count][vox] = nan
+            p_arr[mp_count][vox] = np.nan
         else:
             p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the non-nan values
     
     elif precision_type == "emd":
-        emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1], rot_vecs2[:, idx2])
-        p_arr[mp_count][vox] = emd
-    
+        if ((len(np.where(mp1)[0]) != 0) & (len(np.where(mp2)[0]) != 0)):
+            emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1], rot_vecs2[:, idx2])
+            p_arr[mp_count][vox] = emd
+        else:
+            p_arr[mp_count][vox] = np.nan
+
     return p_arr
     
 def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
@@ -505,6 +508,10 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                 #Save both the model params and their corresponding rotational vectors for precision function
                 mp_list.append(mod.model_params[mod.mask])
                 mp_rot_vecs_list.append(mod.rot_vecs)
+                
+        if (precision is not False) & (start_fODF_mode != "both"):
+            p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
+            p_list.append(p_arr)
 
         if start_fODF_mode == "both":
             all_mp_list.append(mp_list)
@@ -513,8 +520,6 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     if start_fODF_mode == "both":
         # Call to function to aggregate multi fODFs
         [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b)
-        
-    if precision is not False:
         p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
         p_list.append(p_arr)
     
@@ -590,7 +595,7 @@ def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fOD
             p_arr = _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type)
                 
         mp_count = mp_count + 1
-
+        
     return p_arr
 
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample=None, solver=None,
@@ -902,7 +907,7 @@ def nchoosek(n,k):
 def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     """
     Calcluates the earth mover's distance between two different fODFs
-    """    
+    """
     pre_sig1 = fODF1[..., None]/np.sum(fODF1)
     pre_sig2 = fODF2[..., None]/np.sum(fODF2)
     
@@ -937,6 +942,7 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
 
     if np.shape(pre_sig1) == (1,1):
         pre_sig1 = np.reshape(pre_sig1, (1,))
+
     if np.shape(pre_sig2) == (1,1):
         pre_sig2 = np.reshape(pre_sig2, (1,))
 
