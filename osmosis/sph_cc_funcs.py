@@ -301,7 +301,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
     for fn in file_names:
         # If you don't want to put the voxels back into a volume, just preallocate
         # enough for each voxel included in the mask.
-        if vol is "No":
+        if vol == "No":
             aggre = np.squeeze(np.zeros((int(np.sum(mask_data)),) + (num_dirs,)))
         else:
             aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
@@ -310,9 +310,9 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
             this_file = files[f_idx]
             if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
                 
-                if f_type is "npy":
+                if f_type == "npy":
                     sub_data = np.load(os.path.join(file_path, this_file))
-                elif f_type is "nii.gz":
+                elif f_type == "nii.gz":
                     sub_data = nib.load(os.path.join(file_path, this_file)).get_data()
                 # If the name of this file is equal to file name that you want to
                 # aggregate, load it and find the voxels corresponding to its location
@@ -322,7 +322,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
                     
-                    if vol is "No":
+                    if vol == "No":
                         aggre[low:high] = sub_data
                     else:
                         mask = np.zeros(mask_data_file.shape)
@@ -333,8 +333,8 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
 
         aggre_list.append(aggre)
         
-        if save is "Yes":
-            if vol is "No":
+        if save == "Yes":
+            if vol == "No":
                 np.save("aggre_%s.npy"%fn, aggre)
             else:
                 aff = mask_data_file.get_affine()
