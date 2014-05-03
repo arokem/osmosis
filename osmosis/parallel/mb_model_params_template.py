@@ -44,7 +44,7 @@ if __name__=="__main__":
     all_b_idx = np.where(rounded_bvals != 0)
     
     mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-                                            params_file = "temp", solver = "ElasticNet",
+                                            params_file = "temp", solver = "nnls",
                                             mean = "mean_model", axial_diffusivity = ad,
                                             radial_diffusivity = rd)
     mp = mod.model_params[np.where(mask)]
