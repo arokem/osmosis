@@ -47,20 +47,18 @@ if __name__=="__main__":
 												params_file = "temp", solver = "nnls",
 												mean = "mean_model", axial_diffusivity = ad,
 												radial_diffusivity = rd)
-	sig_out, new_params = mod_full.fit_flat_rel_sig_avg
+    sig_out, new_params = mod_full.fit_flat_rel_sig_avg
 	
-	for idx in np.arange(1, len(unique_b)):
-		b_mod = sfm.SparseDeconvolutionModelMultiB(data[..., b_inds[idx]], bvecs[:, b_inds[idx]],
+    for idx in np.arange(1, len(unique_b)):
+        b_mod = sfm.SparseDeconvolutionModelMultiB(data[..., b_inds[idx]], bvecs[:, b_inds[idx]],
 													bvals[b_inds[idx]], mask = mask,
 													params_file = "temp", solver = "nnls",
 													mean = "mean_model", axial_diffusivity = ad,
 													radial_diffusivity = rd)
-		b_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds[idx]], new_params]
+        b_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds[idx]], new_params]
 		
-		b_mp = mod.model_params[np.where(mask)]
-		np.save("/hsgs/nobackup/klchan13/model_params_se_multi%s.npy"%i, b_mp)
-    
-    aff = np.eye(4)
+        b_mp = mod.model_params[np.where(mask)]
+        np.save("/hsgs/nobackup/klchan13/model_params_se_multi%s.npy"%i, b_mp)
     
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)
