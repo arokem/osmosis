@@ -502,6 +502,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                         predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
                                     bvals[vec_combo], new_params = new_params)[mod.mask]
                 else:
+                    1/0.
                     predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                 new_params = new_params)[mod.mask]
             else:

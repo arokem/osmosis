@@ -36,13 +36,13 @@ if __name__=="__main__":
     rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
     
     actual_single, predicted_single = pn.kfold_xval(data, bvals, bvecs,
-                                                   mask, ad, rd, 10, "single",
-                                                   mean = "empirical", solver = "ElasticNet")
+                                                   mask, ad, rd, 10, "multi",
+                                                   mean = "mean_model", solver = "nnls")
 
     aff = np.eye(4)
     save_path = "/hsgs/nobackup/klchan13/"
     nib.Nifti1Image(predicted_single, aff).to_filename(os.path.join(save_path,
-                                     "single_empirical_elasnet%s.nii.gz"%(i)))
+                                     "multi_mm_single_exp_rs%s.nii.gz"%(i)))
 
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)
