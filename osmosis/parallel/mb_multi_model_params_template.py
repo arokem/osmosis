@@ -41,6 +41,7 @@ if __name__=="__main__":
     rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
+    _, b_inds_rm0, _, _ = ozu.separate_bvals(bvals, mode = "remove0")
     all_b_idx = np.where(rounded_bvals != 0)
     
     mod_full = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
@@ -50,12 +51,13 @@ if __name__=="__main__":
     sig_out, new_params = mod_full.fit_flat_rel_sig_avg
 	
     for idx in np.arange(1, len(unique_b)):
-        b_mod = sfm.SparseDeconvolutionModelMultiB(data[..., b_inds[idx]], bvecs[:, b_inds[idx]],
-													bvals[b_inds[idx]], mask = mask,
+        these_b_inds = np.concatenate((b_inds[0], b_inds[idx]))
+        b_mod = sfm.SparseDeconvolutionModelMultiB(data[..., these_b_inds], bvecs[:, these_b_inds],
+													bvals[these_b_inds], mask = mask,
 													params_file = "temp", solver = "nnls",
 													mean = "mean_model", axial_diffusivity = ad,
 													radial_diffusivity = rd)
-        b_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds[idx]], new_params]
+        b_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_rm0[idx-1]], new_params]
 		
         b_mp = mod.model_params[np.where(mask)]
         np.save("/hsgs/nobackup/klchan13/model_params_se_multi%s.npy"%i, b_mp)
