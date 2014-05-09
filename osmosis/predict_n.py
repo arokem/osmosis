@@ -42,7 +42,7 @@ def partial_round(bvals, factor = 1000.):
     return partially_rounded
     
 def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="preset",
-                         these_b_inds=None, b_idx1=None, b_idx2=None):
+                    mean_mod_func = mean_mod_func, these_b_inds=None, b_idx1=None, b_idx2=None):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     
@@ -103,6 +103,7 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="pre
     # Now put this into SFM multi_b class in order to grab the calculated mean
     mod = sfm.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
                                                 mask = mask, bounds=bounds,
+                                                mean_mod_func = mean_mod_func,
                                                 params_file = "temp")
     _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
     
@@ -253,14 +254,18 @@ def _kfold_xval_setup(bvals, mask):
     
     return b_inds, unique_b, b_inds_rm0, all_b_idx, all_b_idx_rm0, predicted
     
-def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b):
+def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision):
     """
     Changes the arrangement of the model parameters and rotational vectors list so that all the multi fODF
     parameters are together in one list slot.
     """
     # Add the single fODFs' model parameters and rotational vectors first
-    out_mp_list = [all_mp_list[len(all_mp_list)-1]]
-    out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_rot_vecs_list)-1]]
+    out_mp_list = []
+    out_rot_vecs_list = []
+    if precision != "emd_multi_combine":
+         # single fODF model params are last on the list
+        out_mp_list = [all_mp_list[len(all_mp_list)-1]]
+        out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_rot_vecs_list)-1]]
     
     # Start some new temporary lists to add the multi fODF parameters to before appending them to the
     # output list.
@@ -278,7 +283,7 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b):
     out_mp_list.append(temp_mp_list)
     out_rot_vecs_list.append(temp_rot_vecs_list)
     
-    return out_mp_list, out_rot_vecs_list
+    return np.squeeze(out_mp_list), np.squeeze(out_rot_vecs_list)
        
 def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type):
     """
@@ -297,7 +302,7 @@ def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p
         else:
             p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the non-nan values
     
-    elif precision_type == "emd":
+    elif (precision_type == "emd") | (precision_type == "emd_multi_combine"):
         if ((len(np.where(mp1)[0]) != 0) & (len(np.where(mp2)[0]) != 0)):
             emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1], rot_vecs2[:, idx2])
             p_arr[mp_count][vox] = emd
@@ -307,9 +312,10 @@ def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p
     return p_arr
     
 def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
-              mean = "mean_model", mean_mix = None, precision = False,
-              fit_method = None, b_idx1 = None, b_idx2 = None,
-              over_sample=None, bounds = "preset", solver=None):
+               mean_mod_func = "bi_exp_rs", mean = "mean_model",
+               mean_mix = None, precision = False, fit_method = None,
+               b_idx1 = None, b_idx2 = None, over_sample=None,
+               bounds = "preset", solver=None):
     """
     Does k-fold cross-validation leaving out a certain percentage of the vertices
     out at a time.  This function can be used for 7 different variations of
@@ -380,9 +386,13 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                     bounds = bounds, solver = solver,
                                                     fit_method = fit_method,
                                                     mean_mix = mean_mix,
+                                                    mean_mod_func = mean_mod_func
                                                     mean = mean, params_file = "temp")
     if precision is not False:
         p_list = []
+        if precision == "emd_multi_combine":
+            all_mp_list = []
+            all_mp_rot_vecs_list = []
     
     start_fODF_mode = None
     if fODF_mode == "single":
@@ -450,6 +460,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                          bounds = bounds, solver = solver,
                                                          fit_method = fit_method,
                                                          mean_mix = mean_mix,
+                                                         mean_mod_func = mean_mod_func,
                                                          mean = mean, params_file = "temp")
                 
             if (mean == "mean_model") & (fODF_mode != "single"):
@@ -502,7 +513,6 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                         predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
                                     bvals[vec_combo], new_params = new_params)[mod.mask]
                 else:
-                    1/0.
                     predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                                                 new_params = new_params)[mod.mask]
             else:
@@ -510,17 +520,18 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                 mp_list.append(mod.model_params[mod.mask])
                 mp_rot_vecs_list.append(mod.rot_vecs)
                 
-        if (precision is not False) & (start_fODF_mode != "both"):
+        if (precision is not False) & (precision != "emd_multi_combine") & (start_fODF_mode != "both"):
             p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
             p_list.append(p_arr)
 
-        if start_fODF_mode == "both":
+        if (start_fODF_mode == "both") | (precision == "emd_multi_combine"):
             all_mp_list.append(mp_list)
             all_mp_rot_vecs_list.append(mp_rot_vecs_list)
 
-    if start_fODF_mode == "both":
+    if (start_fODF_mode == "both") | (precision == "emd_multi_combine"):
         # Call to function to aggregate multi fODFs
-        [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b)
+        [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list,
+                                                       unique_b, precision)
         p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
         p_list.append(p_arr)
     
@@ -593,7 +604,8 @@ def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fOD
             idx1 = np.where(mp1 > 0)
             idx2 = np.where(mp2 > 0)
             
-            p_arr = _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type)
+            p_arr = _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2,
+                                    mp_count, vox, p_arr, precision_type)
                 
         mp_count = mp_count + 1
         
