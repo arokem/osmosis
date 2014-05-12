@@ -752,7 +752,7 @@ class CanonicalTensorModelOpt(CanonicalTensorModel):
             rot_tensor = ozt.tensor_from_eigs(rot_evecs,
                                               evals,
                                               self.bvecs[:,self.b_idx],
-                                              self.bvals[:,self.b_idx])
+                                              self.bvals[self.b_idx])
             return rot_tensor
 
 

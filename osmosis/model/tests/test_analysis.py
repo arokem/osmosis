@@ -8,6 +8,8 @@ from osmosis.model.dti import TensorModel
 from osmosis.model.base import SphereModel
 
 import osmosis.model.analysis as ozm
+import osmosis.snr as snr
+import osmosis.model.sparse_deconvolution as sfm
 
 data_path = os.path.split(oz.__file__)[0] + '/data/'
 
@@ -125,4 +127,3 @@ def test_relative_rmse():
     # infinite... 
     npt.assert_equal(ozm.relative_rmse(Model1, Model2),
                      np.inf * np.ones(Model1.shape[:-1]))
-    
