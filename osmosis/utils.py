@@ -29,6 +29,7 @@ except ImportError:
 
 import osmosis as oz
 
+
 def intersect(arr_list):
     """
     Return the values that are in all arrays.
@@ -121,6 +122,7 @@ def null_space(A, eps=1e-15):
     null_space = np.compress(null_mask, vh, axis=0)
     return np.transpose(null_space)
 
+
 def quat2rot(w,x,y,z):
     """
     Given a quaternion, defined by w,x,y,z, return the rotation matrix
@@ -128,6 +130,7 @@ def quat2rot(w,x,y,z):
     return np.matrix(np.array([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y],
                                  [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x],
                                 [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]]))
+
 
 def vector_angle(a,b):
     """
@@ -146,6 +149,7 @@ def vector_angle(a,b):
         return np.pi
     else: 
         return np.arccos(np.dot(norm_a,norm_b))
+
 
 def calculate_rotation(a,b):
     """
@@ -202,6 +206,7 @@ def fractional_anisotropy(lambda_1, lambda_2, lambda_3):
         fa =  np.sqrt(0.5) * np.sqrt((lambda_1 - lambda_2)**2 + (lambda_2-lambda_3)**2 + (lambda_3-lambda_1)**2 )/np.sqrt(lambda_1**2 + lambda_2**2 + lambda_3**2)
 
     return fa
+
 
 def ols_matrix(A, norm_func=None):
     """
@@ -274,6 +279,7 @@ def rols_matrix(A, l):
     """
     # XXX Make it! 
     raise NotImplementedError
+
 
 def decompose_tensor(tensor, non_negative=True):
     """
@@ -382,6 +388,7 @@ def root_ss(arr):
     
     return np.sqrt(np.sum(arr**2))
 
+
 def nearest_coord(vol, in_coords, tol=10):
     """
     Find the coordinate in vol that contains data (not nan) that is spatially
@@ -407,6 +414,7 @@ def nearest_coord(vol, in_coords, tol=10):
     # Otherwise, return None: 
     else:
         return None 
+
     
 def coeff_of_determination(data, model, axis=-1):
     """
@@ -436,6 +444,7 @@ def coeff_of_determination(data, model, axis=-1):
     
     return 1 - (ss_err/ss_tot)
 
+
 def rescale(arr):
     """
 
@@ -453,6 +462,7 @@ def rescale(arr):
         arr -= np.abs(min_arr)
         
     return arr/np.nanmax(arr)
+
 
 def rms(arr,axis=-1):
     """
@@ -486,6 +496,7 @@ def rmse(arr1, arr2, axis=-1):
     else:
       return np.sqrt(np.mean((arr1-arr2)**2, axis=axis))
 
+
 def mae(arr1, arr2, axis=-1):
     """
     Calculate the mean absolute error between two arrays
@@ -498,8 +509,7 @@ def mae(arr1, arr2, axis=-1):
 
     arr1 = np.asarray(arr1)
     arr2 = np.asarray(arr2)
-    return np.mean(np.abs(arr1 - arr2),axis=axis)
-    
+    return np.mean(np.abs(arr1 - arr2),axis=axis)    
     
 
 def snr(arr1, arr2=None, axis=-1):
@@ -533,6 +543,7 @@ def snr(arr1, arr2=None, axis=-1):
                 rmse(arr1, arr2, axis=axis))
     else:
         np.mean(arr1, axis=axis)/np.std(arr1, axis=axis)
+
     
 def seed_corrcoef(seed, target):
     """
@@ -938,4 +949,70 @@ class ProgressBar:
         return str(self.prog_bar)
 
 
+def normalize_v3(in_arr):
+    """
+    Normalize a numpy array of 3 component vectors shape=(n,3)
+
+    Parameters
+    ----------
+    in_arr : (n, 3) array
+
+    Returns
+    -------
+    arr : the array normalized to unit length
+
+    Notes
+    -----
+    https://sites.google.com/site/dlampetest/python/calculating-normals-of-a-triangle-mesh-using-numpy
+
+    """
+    lens = np.sqrt(in_arr[:,0]**2 + in_arr[:,1]**2 + in_arr[:,2]**2)
+    arr = np.copy(in_arr)
+    arr[:,0] /= lens
+    arr[:,1] /= lens
+    arr[:,2] /= lens                
+    return arr
+
+
+def surface_normals(vertices, faces):
+    """
+    Generate the surface normals to a vertics/faces triangular mesh
+
+    Parameters
+    ----------
+    vertices : (3, n) array
+    faces : (3, m) array
+
+    Returns
+    -------
+    normals : (3, n) array
+       For each vertex, return the unit vector that averages the surface
+       normals of all of its faces. 
     
+    Notes
+    -----
+    https://sites.google.com/site/dlampetest/python/calculating-normals-of-a-triangle-mesh-using-numpy
+    """
+
+    #Create a zeroed array with the same type and shape as our vertices i.e.,
+    #per vertex normal
+    norm = np.zeros(vertices.shape, dtype=vertices.dtype)
+    #Create an indexed view into the vertex array using the array of three
+    #indices for triangles
+    tris = vertices[faces]
+    #Calculate the normal for all the triangles, by taking the cross product of
+    #the vectors v1-v0, and v2-v0 in each triangle
+    n = np.cross(tris[::, 1] - tris[::, 0], tris[::, 2] - tris[::, 0])
+    # n is now an array of normals per triangle. The length of each normal is
+    # dependent the vertices, we need to normalize these, so that our next step
+    # weights each normal equally.
+    normalize_v3(n)
+    # now we have a normalized array of normals, one per triangle, i.e., per
+    # triangle normals.  But instead of one per triangle (i.e., flat shading),
+    # we add to each vertex in that triangle, the triangles' normal. Multiple
+    # triangles would then contribute to every vertex, so we need to normalize
+    # again afterwards:
+    norm[ faces[:,0] ] += n
+    norm[ faces[:,1] ] += n
+    norm[ faces[:,2] ] += n
+    return normalize_v3(norm)

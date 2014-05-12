@@ -25,7 +25,7 @@ data_path = '/hsgs/u/arokem/tmp/'
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 batch_sge = []
-for subject in ['FP']: #,'HT']    
+for subject in ['SUB1']: #,'HT']    
     wm_file = "%s_wm_mask.nii.gz"%subject
     for b in [1000, 2000, 4000]:
         data = oio.get_dwi_data(b, subject)

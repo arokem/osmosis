@@ -10,6 +10,7 @@ This needs to be run on proclus:
    /hsgs/u/arokem/tmp
    ~/sgeoutput
    ~/pycmd
+   ~/batch_sge.sh
 
 3. Run:  
    python ssd_wrapper.py
@@ -44,7 +45,7 @@ data_path = '/hsgs/u/arokem/tmp/'
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 batch_sge = []
-for subject in ['FP']: #,'HT']
+for subject in ['SUB1']:#,'SUB2']:
     subject_path = os.path.join(oio.data_path, subject)
     wm_mask_file = os.path.join(subject_path, '%s_wm_mask.nii.gz'%subject)
     wm_nifti = ni.load(wm_mask_file)

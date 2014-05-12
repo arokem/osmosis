@@ -738,4 +738,27 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     # Now, let's save some output:
     ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
 
+def read_vtk_surf(filename):
+    """
+    Read vertices and faces from a vtk file 
+    """
+    import vtk
+    reader = vtk.vtkDataSetReader()
+    reader.SetFileName(filename)
+    reader.ReadAllScalarsOn()
+    reader.Update()
+    vtk_data = reader.GetOutput()
+    
+    vert_list = [] 
+    for i in range(vtk_data.GetNumberOfPoints()):
+        vert_list.append(vtk_data.GetPoint(i))
+    vertices = np.array(vert_list)
 
+    face_list = []
+    poly_obj = vtk_data.GetPolys()
+    poly_data = poly_obj.GetData()
+    for i in range(vtk_data.GetNumberOfPolys()):
+        face_list.append([poly_data.GetValue(i*4 + j) for j in [1,2,3]])
+    faces = np.array(face_list)
+
+    return vertices, faces
