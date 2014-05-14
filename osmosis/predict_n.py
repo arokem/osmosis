@@ -42,7 +42,7 @@ def partial_round(bvals, factor = 1000.):
     return partially_rounded
     
 def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="preset",
-                    mean_mod_func = mean_mod_func, these_b_inds=None, b_idx1=None, b_idx2=None):
+                    mean_mod_func = "bi_exp_rs", these_b_inds=None, b_idx1=None, b_idx2=None):
     """
     Helper function for calculating a new mean from all b values and corresponding data
     
@@ -386,7 +386,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                     bounds = bounds, solver = solver,
                                                     fit_method = fit_method,
                                                     mean_mix = mean_mix,
-                                                    mean_mod_func = mean_mod_func
+                                                    mean_mod_func = mean_mod_func,
                                                     mean = mean, params_file = "temp")
     if precision is not False:
         p_list = []
@@ -608,7 +608,7 @@ def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fOD
                                     mp_count, vox, p_arr, precision_type)
                 
         mp_count = mp_count + 1
-        
+
     return p_arr
 
 def predict_grid(data, bvals, bvecs, mask, ad, rd, n, over_sample=None, solver=None,

@@ -741,7 +741,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                  bounds = "preset",
                  mean_mix = None,
                  mean = "mean_model",
-                 mean_mod_func = "single_exp_rs",
+                 mean_mod_func = "bi_exp_rs",
                  params_file=None,
                  axial_diffusivity=AD, # Should be a dict
                  radial_diffusivity=RD, # Should be a dict
