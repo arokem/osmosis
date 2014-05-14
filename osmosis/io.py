@@ -84,6 +84,9 @@ import osmosis.model.dti as dti
 from .utils import ProgressBar
 import osmosis.volume as ozv
 
+from dipy.reconst.dti import TensorModel
+from dipy.core.gradients import gradient_table
+
 osmosis_path =  os.path.split(oz.__file__)[0]
 
 data_path = osmosis_path + '/data/'
@@ -738,4 +741,134 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     # Now, let's save some output:
     ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
 
+def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
+                 file_path=os.getcwd(), vol=False,
+                 f_type="npy", save=False):
+    """
+    Function to aggregate sub data files from parallelizing.  Assumes that
+    the sub_files are in the format: (file name)_(number of sub_file).(file_type)
+    
+    Parameters
+    ----------
+    file_names: list
+        List of strings indicating the base file names for each output data
+        aggregation
+    mask_vox_num: int
+        Number of voxels in each sub file
+    expected_file_num: int
+        Expected number of sub files
+    mask_data_file: obj
+        File handle for brain/white matter mask
+    file_path: str
+        Path to the directory with all the sub files.  Default is the current
+        directory
+    vol: str
+        String indicating whether or not the sub files are in volumes and
+        whether the output files are saved as volumes as well
+    f_type: str
+        String indicating the type of file the sub files are saved as
+    save: str
+        String indicating whether or not to save the output aggregation/volumes
+    num_dirs: int
+        Number of directions in each output aggregation/volume
+    
+    Returns
+    -------
+    missing_files: 1 dimensional array
+        All the sub files that are missing in the aggregation
+    aggre_list: list
+        List with all the aggregations/volumes
+    """
+    files = os.listdir(file_path)
 
+    # Get data and indices
+    mask_data = mask_data_file.get_data()
+    mask_idx = np.where(mask_data)
+    
+    aggre_list = []
+    missing_files_list = []
+    for fn in file_names:
+        # Keep track of files in case there are any missing ones
+        i_track = np.ones(expected_file_num)
+        
+        # If you don't want to put the voxels back into a volume, just preallocate
+        # enough for each voxel included in the mask.
+           
+        for f_idx in np.arange(len(files)):
+            this_file = files[f_idx]
+            if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
+                
+                if f_type == "npy":
+                    sub_data = np.load(os.path.join(file_path, this_file))
+                            
+                elif f_type == "nii.gz":
+                    sub_data = ni.load(os.path.join(file_path, this_file)).get_data()
+                    
+                if f_idx == 0:
+                    num_dirs = sub_data.shape[-1]
+                    if vol is False:
+                        aggre = np.squeeze(np.zeros((int(np.sum(mask_data)),) + (num_dirs,)))
+                    else:
+                        aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
+                # If the name of this file is equal to file name that you want to
+                # aggregate, load it and find the voxels corresponding to its location
+                # in the given mask.
+                if this_file[0:len(fn)] == fn:
+                    i = int(this_file.split(".")[0][len(fn):])
+                    low = i*mask_vox_num
+                    high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
+                    
+                    if vol is False:
+                        aggre[low:high] = sub_data
+                    else:
+                        mask = np.zeros(mask_data_file.shape)
+                        mask[mask_idx[0][low:high], mask_idx[1][low:high], mask_idx[2][low:high]] = 1
+                        aggre[np.where(mask)] = sub_data
+                    # If the file is present, change its index within the tracking array to 0.    
+                    i_track[i] = 0
+        
+        missing_files_list.append(np.squeeze(np.where(i_track)))
+        aggre_list.append(aggre)
+        
+        if save is True:
+            if vol is False:
+                np.save("aggre_%s.npy"%fn, aggre)
+            else:
+                aff = mask_data_file.get_affine()
+                ni.Nifti1Image(aggre, aff).to_filename("vol_%s.nii.gz"%fn)            
+    
+    return missing_files_list, aggre_list
+
+def rm_ventricles(wm_data_file, bvals, data):
+    """
+    Removes the ventricles from the white matter mask
+    """
+    # Separate b-values and find the indices corresponding to the b0 and
+    # bNk measurements where N = the lowest b-value other than 0
+    
+    bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
+    all_b_idx = np.where(bvals_scaled != 0)
+    bNk_b0_inds = np.concatenate((b_inds[0], b_inds[1]))
+    
+    # Fit a tensor model 
+    gtab = gradient_table(np.concatenate((bval_list[0], bval_list[1])),
+                          bvecs[:, bNk_b0_inds])
+    tenmodel = TensorModel(gtab)
+    tensorfit = tenmodel.fit(data[..., bNk_b0_inds], mask = wm_data)
+    
+    # Find the median, and 25th and 75th percentiles of mean diffusivities
+    md_median = median(tensorfit.md[np.where(wm_data)])
+    q1 = scoreatpercentile(tensorfit.md[np.where(wm_data)],25)
+    q3 = scoreatpercentile(tensorfit.md[np.where(wm_data)],75)
+    
+    # Exclude voxels with MDs above median + 2*interquartile range
+    md_exclude = md_median + 2*(q3 - q1)
+    md_include = np.where(tensorfit.md[np.where(wm_data)] < md_exclude)
+    new_wm_mask = np.zeros(wm_data.shape)
+    new_wm_mask[np.where(wm_data)[0][md_include],
+                np.where(wm_data)[1][md_include],
+                np.where(wm_data)[2][md_include]] = 1
+    
+    wm = nib.Nifti1Image(new_wm_mask, wm_data_file.get_affine())
+    nib.save(wm, 'wm_mask_no_vent.nii.gz')
+    return new_wm_mask

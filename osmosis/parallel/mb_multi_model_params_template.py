@@ -4,7 +4,6 @@
 import time
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
-import osmosis.predict_n as pn
 from osmosis.utils import separate_bvals
 import osmosis.utils as ozu
 import nibabel as nib
@@ -45,22 +44,21 @@ if __name__=="__main__":
     all_b_idx = np.where(rounded_bvals != 0)
     
     mod_full = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-												params_file = "temp", solver = "nnls",
-												mean = "mean_model", axial_diffusivity = ad,
-												radial_diffusivity = rd)
+                                                  params_file = "temp", solver = "nnls",
+                                                  mean = "mean_model", axial_diffusivity = ad,
+                                                  radial_diffusivity = rd)
     sig_out, new_params = mod_full.fit_flat_rel_sig_avg
-	
     for idx in np.arange(1, len(unique_b)):
         these_b_inds = np.concatenate((b_inds[0], b_inds[idx]))
         b_mod = sfm.SparseDeconvolutionModelMultiB(data[..., these_b_inds], bvecs[:, these_b_inds],
-													bvals[these_b_inds], mask = mask,
-													params_file = "temp", solver = "nnls",
-													mean = "mean_model", axial_diffusivity = ad,
-													radial_diffusivity = rd)
+                                                    bvals[these_b_inds], mask = mask,
+                                                    params_file = "temp", solver = "nnls",
+                                                    mean = "mean_model", axial_diffusivity = ad,
+                                                    radial_diffusivity = rd)
         b_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_rm0[idx-1]], new_params]
 		
-        b_mp = mod.model_params[np.where(mask)]
-        np.save("/hsgs/nobackup/klchan13/model_params_se_multi%s.npy"%i, b_mp)
+        b_mp = b_mod.model_params[np.where(mask)]
+        np.save("/hsgs/nobackup/klchan13/model_params_se_b%sk%s.npy"%(idx,i), b_mp)
     
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

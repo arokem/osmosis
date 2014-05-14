@@ -22,7 +22,7 @@ batch_sge = []
 for i in range(65): 
     params_dict = dict(i=i)
     code = sge.add_params(template,params_dict)
-    name = 'multi_mm_single_exp_rs%s'%(i)
+    name = 'multi_bi_exp_rs%s'%(i)
     cmd_file = '/home/klchan13/pycmd/%s.py'%name
     print("Generating: %s"%cmd_file)
                         

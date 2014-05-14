@@ -50,7 +50,7 @@ if __name__=="__main__":
     mp = mod.model_params[np.where(mask)]
     
     aff = np.eye(4)
-    np.save("/hsgs/nobackup/klchan13/model_params_s_mm_elasNet%s.npy"%i, mp)
+    np.save("/hsgs/nobackup/klchan13/model_params_se_single%s.npy"%i, mp)
     
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

@@ -323,7 +323,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
                     
                     if vol == "No":
-                        aggre[low:high] = sub_data
+                        aggre[low:high] = sub_data.T
                     else:
                         mask = np.zeros(mask_data_file.shape)
                         mask[mask_idx[0][low:high], mask_idx[1][low:high], mask_idx[2][low:high]] = 1
