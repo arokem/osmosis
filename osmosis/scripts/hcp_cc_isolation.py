@@ -14,7 +14,7 @@ sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
 
 for sid in sid_list:
-    data_path = "/hsgs/projects/wandell/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
+    data_path = "/biac4/wandell/data/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     data = data_file.get_data()
 
@@ -25,10 +25,9 @@ for sid in sid_list:
     bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
     all_b_idx = np.where(bvals_scaled != 0)
     
-    for b_idx in np.arange(1, len(unique_b)):
-        ad_arr = np.zeros(3)
-        rd_arr = np.zeros(3)
-        
+    ad_arr = np.zeros(3)
+    rd_arr = np.zeros(3)
+    for b_idx in np.arange(1, len(unique_b)):       
         # Separate data by b-value and create a b0 mask.
         bnk_b0_inds = np.concatenate((b_inds[0], b_inds[b_idx]))
         bnk_data = data[..., bnk_b0_inds]
@@ -57,13 +56,15 @@ for sid in sid_list:
         mask_corpus_callosum, cfa = segment_from_cfa(tensorfit, CC_box,
                                                      threshold, return_cfa=True)
         
-        tm = dti.TensorModel(data, bvecs[:, bnk_b0_inds], bvals[bnk_b0_inds], mask=mask, params_file = "temp")
+        # Clean up the cc isolation
+        new_mask = isolate_cc(mask_corpus_callosum)
         
-        ad_arr[b_idx-1] = np.median(tensorfit.ad[np.where(mask)])
-        rd_arr[b_idx-1] = np.median(tensorfit.rd[np.where(mask)])
+        tm = dti.TensorModel(bnk_data, bvecs[:, bnk_b0_inds], bvals[bnk_b0_inds],
+                             mask=new_mask, params_file = "temp")
+        
+        ad_arr[b_idx-1] = np.median(tm.axial_diffusivity[np.where(new_mask)])
+        rd_arr[b_idx-1] = np.median(tm.radial_diffusivity[np.where(new_mask)])
         
     os.chdir(data_path)
     ad_rd = open("ad_rd_%s.txt"%sid, "w")
-    ad_rd = ad_rd.write("AD - %s\n"%ad_arr)
-    ad_rd = ad_rd.write("RD - %s"%rd_arr)
-    ad_rd.close()
+    ad_rd = ad_rd.write("AD - %s\nRD - %s"%(ad_arr, rd_arr))
