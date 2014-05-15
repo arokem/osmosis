@@ -122,7 +122,7 @@ for jobs_round in np.arange(total_submits):
 # Aggregate files and reorganize.
 for sid_idx, sid in enumerate(sid_list):
     data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
-    sp.call(['cd', data_path])
+    os.chdir(data_path)
     wm_data_file = nib.load("wm_mask_no_vent.nii.gz")
     
     # Grab the number of files total for this subject
