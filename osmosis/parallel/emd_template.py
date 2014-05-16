@@ -30,9 +30,10 @@ if __name__=="__main__":
     mask = np.zeros(wm_data_file.shape)
     mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
 
-    # Predict 10% (n = 10)
-    ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
-    rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
+    # Load the AD, RD values for this subject.
+    ad_rd = np.loadtxt(os.path.join(data_path, "ad_rd_%s.txt"%sid))
+    ad = {1000:ad_rd[0,0], 2000:ad_rd[0,1], 3000:ad_rd[0,2]}
+    rd = {1000:ad_rd[1,0], 2000:ad_rd[1,1], 3000:ad_rd[1,2]}
     
     if fODF == "multi":
         precision = "emd_multi_combine"
@@ -43,12 +44,13 @@ if __name__=="__main__":
         shorthand_im = "be"
     elif im == "single_exp_rs":
         shorthand_im = "se"
-        
+    
+    # Predict 10% (n = 10)
     emd = pn.kfold_xval(data, bvals, bvecs, mask, ad, rd, 10, fODF,
                         mean = "mean_model", precision = precision,
                         solver = "nnls", mean_mod_func = im)
                         
-    np.save(os.path.join(data_path, "emd_%s_%s%s.npy"%(fODF,shorthand_im,i), emd[0].T)
+    np.save(os.path.join(data_path, "emd_%s_%s%s.npy"%(fODF,shorthand_im,i)), emd[0].T)
 
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

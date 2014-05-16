@@ -799,7 +799,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
             if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
                 
                 if f_type == "npy":
-                    sub_data = np.load(os.path.join(file_path, this_file))
+                    sub_data = np.load(os.path.join(file_path, this_file)).T
                             
                 elif f_type == "nii.gz":
                     sub_data = ni.load(os.path.join(file_path, this_file)).get_data()
