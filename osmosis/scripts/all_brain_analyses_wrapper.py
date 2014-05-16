@@ -133,15 +133,15 @@ for sid_idx, sid in enumerate(sid_list):
     [missing_files, vol] = oio.place_files(other_file_names, 2000, other_fnum,
                                            wm_data_file, save = "Yes")
     # Keep a log of the missing files:
-    missing_files_txt = open("missing_files_%s.txt"%sid, "w")
-    missing_files_txt.write("%s\n"%sid)
+    str_to_write = ""
     for efname_idx, emd_fname in enumerate(emd_file_names):
-        missing_files_txt.write("%s is missing files:%s\n"%(emd_fname, missing_files_emd[efname_idx]))
-        
+        str_to_write = str_to_write + "%s is missing files:%s\n"%(emd_fname,
+                                                                  missing_files_emd[efname_idx])        
     for fname_idx, fname in enumerate(other_file_names):
-        missing_files_txt.write("%s is missing files:%s\n"%(emd_fname, missing_files[fname_idx]))
+        str_to_write = str_to_write + "%s is missing files:%s\n"%(fname, missing_files[fname_idx]))
     
-    missing_files_txt.close()
+    missing_files_txt = open("missing_files_%s.txt"%sid, "w")
+    missing_files_txt.write("%s"%str_to_write)
     
     sp.call(['mkdir', 'file_pieces'])
     sp.call(['mkdir', 'analysis_results'])
