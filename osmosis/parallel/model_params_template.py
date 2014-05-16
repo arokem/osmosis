@@ -35,9 +35,10 @@ if __name__=="__main__":
     mask = np.zeros(wm_data_file.shape)
     mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
 
-    # Predict 10% (n = 10)
-    ad = {1000:1.6386920952169737, 2000:1.2919249903637751, 3000:0.99962593218241236}
-    rd = {1000:0.33450124887561905, 2000:0.28377379537043729, 3000:0.24611723207420028}
+    # Load the AD, RD values for this subject.
+    ad_rd = np.loadtxt(os.path.join(data_path, "ad_rd_%s.txt"%sid))
+    ad = {1000:ad_rd[0,0], 2000:ad_rd[0,1], 3000:ad_rd[0,2]}
+    rd = {1000:ad_rd[1,0], 2000:ad_rd[1,1], 3000:ad_rd[1,2]}
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     all_b_idx = np.where(rounded_bvals != 0)
