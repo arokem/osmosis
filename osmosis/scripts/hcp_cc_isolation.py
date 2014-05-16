@@ -14,7 +14,7 @@ sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
 
 for sid in sid_list:
-    data_path = "/biac4/wandell/data/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
+    data_path = "/hsgs/projects/wandell/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     data = data_file.get_data()
 
@@ -67,4 +67,4 @@ for sid in sid_list:
         
     os.chdir(data_path)
     ad_rd = open("ad_rd_%s.txt"%sid, "w")
-    ad_rd = ad_rd.write("AD - %s\nRD - %s"%(ad_arr, rd_arr))
+    ad_rd = ad_rd.write("%s\n%s"%(ad_arr, rd_arr))
