@@ -852,7 +852,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         # Get rid of places 
         # Get restraints and initial values for fitting the mean model
         if (bounds == "preset") | (initial == "preset"):
-            all_params = mdm.initial_params(data, bvecs, bvals, self.func_str, mask=mask,
+            all_params = mdm.initial_params(data, bvecs, bvals, self.func_str, mask=self.mask,
                                             params_file="temp")
         if bounds == "preset":
             self.bounds = all_params[0]
