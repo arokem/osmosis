@@ -124,31 +124,41 @@ for sid_idx, sid in enumerate(sid_list):
 batch_sge = ['#!/bin/bash'] + batch_sge
 sge.write_file_ssh(ssh, batch_sge, batch_sge_file)
 
-# Stagger the jobs so you don't go over the max limit
-job_status = sp.check_output(["qstat", "-u", "%s"%username])
+# Read batch_sge.sh and get the individual qsub commands.
 batch_sge = sp.check_output(["cat", "batch_sge.sh"])
 cmd_line_split = batch_sge.split('\n')
-total_submits = int(np.ceil(count/float(max_jobs)))
 
-for jobs_round in np.arange(total_submits):
-    if jobs_round == 0:
-        low = 1
-    else:
-        low = int(jobs_round*max_jobs)
-    high = int(np.min([(jobs_round+1)*max_jobs, int(count)]))
+# Submit the first max number of jobs
+for qsub_idx in np.arange(1, max_jobs+1):
+    cmd_arr = np.array(cmd_line_split[qsub_idx].split(' '))
+    sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
     
-    if jobs_round != 0:
-        while "%s"%username in job_status:
-            time.sleep(10)
-            job_status = sp.check_output(["qstat", "-u", "%s"%username])
-                
-    for qsub_idx in np.arange(low, high):
+cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
+cur_submit_num = int(max_jobs) + 1
+
+while cur_submit_num < count:
+    while cur_job_num == int(max_jobs):
+        time.sleep(10)
+        cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
+    
+    # If the number of jobs is less than the max number, submit a few more until
+    # the max number of jobs is queued on the cluster
+    num_to_submit = int(max_jobs) - cur_job_num
+    qsub_range = np.arange(cur_submit_num, np.min([cur_submit_num + num_to_submit, count]))
+    for qsub_idx in qsub_range:
+        cur_submit_num + 1
         cmd_arr = np.array(cmd_line_split[qsub_idx].split(' '))
         sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
         
-    job_status = sp.check_output(["qstat", "-u", "%s"%username])
+    cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
 
-# Aggregate files and reorganize.
+# Once the last of the jobs are submitted, keep checking to see if the jobs have finished
+job_status = sp.check_output(["qstat", "-u", "%s"%username])
+while '%s'%username in job_status:
+    time.sleep(10)
+    job_status = sp.check_output(["qstat", "-u", "%s"%username])
+    
+# Now that the jobs are done, aggregate files and reorganize.
 for sid_idx, sid in enumerate(sid_list):
     data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
     os.chdir(data_path)
