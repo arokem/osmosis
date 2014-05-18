@@ -849,6 +849,7 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
         self.initial_orig = initial
         self.bounds_orig = bounds
         
+        # Get rid of places 
         # Get restraints and initial values for fitting the mean model
         if (bounds == "preset") | (initial == "preset"):
             all_params = mdm.initial_params(data, bvecs, bvals, self.func_str, mask=mask,
@@ -1398,7 +1399,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                         avg_sig = 0.0
                     if self.mean_mix != "mm_emp":
                         design_matrix = tensor_regressor - avg_sig
+                        
                     vox_fit_to_demeaned = fit_to_with_mean[vox] - np.squeeze(avg_sig)
+                    
                     if self.fit_method == "WLS":
                         sig_out = sig_out.astype(float)
                         weighting_matrix = np.diag(sig_out[vox]/np.max(sig_out[vox]))

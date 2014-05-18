@@ -25,7 +25,7 @@ port = 22
 
 def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
                  cmd_file_path=cmd_file_path, python_path=python_path,
-                 bashcmd=bashcmd):
+                 bashcmd=bashcmd, mem=25):
     reload(template)
     template = sge.getsourcelines(template)[0]
 
@@ -43,7 +43,7 @@ def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
             
     cmd_file = os.path.join(cmd_file_path, '%s.py'%name)
     batch_sge.append(sge.qsub_cmd(
-        '%s %s'%(bashcmd, cmd_file), name))
+        '%s %s'%(bashcmd, cmd_file), name, mem_usage=mem))
 
 # Analyses done:
 # Reliability, isotropic model accuracy, diffusion model accuracy, fitted model parameters
@@ -80,7 +80,12 @@ for sid_idx, sid in enumerate(sid_list):
             # Reliability
             for i in np.arange(emd_file_num):
                 import osmosis.parallel.emd_template as template
-                qsub_cmd_gen(template, 'emd_%s'%sid, i, sid, fODF, im, data_path)
+                if fODF == "single":
+                    mem = 30
+                else:
+                    mem = 25
+                    
+                qsub_cmd_gen(template, 'emd_%s'%sid, i, sid, fODF, im, data_path, mem=mem)
                 count = count + 1
                 if sid_idx == 0:
                     emd_file_names.append("emd_%s_%s"%(fODF, shorthand_im))
