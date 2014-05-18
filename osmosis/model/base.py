@@ -129,7 +129,13 @@ class DWI(desc.ResetMixin):
             # a binary mask: 
             if isinstance(mask, str):
                 mask = ni.load(mask).get_data()
-            self.mask = np.array(mask, dtype=bool)
+                
+            pre_mask = np.array(mask, dtype=bool)
+            ravel_mask = np.ravel(pre_mask)
+            
+            # Eliminate the voxels where self.S0 == 0.
+            ravel_mask[np.where(ravel_mask)[0][np.where(self.S0[pre_mask] == 0)]] = False
+            self.mask = np.reshape(ravel_mask, pre_mask.shape)
 
         else:
             # If only one voxel was provided, we will assume that all the data
