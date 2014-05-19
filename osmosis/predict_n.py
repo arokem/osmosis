@@ -474,7 +474,8 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     
                 # Fit a new mean model to all data except the chosen combinations.
                 sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
-                                        mask, b_inds, bounds=bounds, b_idx1=b_mean1, b_idx2=b_idx2)
+                                        mask, b_inds, bounds=bounds, mean_mod_func = mean_mod_func,
+                                        b_idx1=b_mean1, b_idx2=b_idx2)
                 
                 if (fODF_mode == "multi") & (b_idx2 == None):
                     # Replace the relative signal average of the model object with one calculated.

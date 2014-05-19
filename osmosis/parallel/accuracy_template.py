@@ -47,8 +47,8 @@ if __name__=="__main__":
                                         mean = "mean_model", solver = "nnls")
     
     cod = ozu.coeff_of_determination(actual, predicted)
-    np.save(os.path.join(data_path, "sfm_predict_%s_%s%s.nii.gz"%(fODF,shorthand_im,i)), predicted)
-    np.save(os.path.join(data_path, "sfm_cod_%s_%s%s.nii.gz"%(fODF,shorthand_im,i)), cod)
+    np.save(os.path.join(data_path, "sfm_predict_%s_%s%s.npy"%(fODF,shorthand_im,i)), predicted)
+    np.save(os.path.join(data_path, "sfm_cod_%s_%s%s.npy"%(fODF,shorthand_im,i)), cod)
 
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

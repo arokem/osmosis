@@ -12,6 +12,7 @@ import osmosis.io as oio
 from osmosis.parallel import sge
 import subprocess as sp
 import time
+import glob
 
 cmd_file_path = "/home/klchan13/pycmd/"
 python_path = "/home/klchan13/anaconda/bin/python"
@@ -28,11 +29,17 @@ def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
                  bashcmd=bashcmd, mem=25):
     reload(template)
     template = sge.getsourcelines(template)[0]
-
-    params_dict = dict(i=i, sid=sid, fODF=fODF, im=im,
-                       data_path=data_path)
+    
+    if job_name[0:2] != "im":
+        params_dict = dict(i=i, sid=sid, fODF=fODF, im=im,
+                        data_path=data_path)
+        name = '%s_%s_%s%s'%(job_name,fODF,shorthand_im,i)
+    else:
+        params_dict = dict(i=i, sid=sid, im=im,
+                        data_path=data_path)
+        name = '%s_%s%s'%(job_name,shorthand_im,i)
+        
     code = sge.add_params(template,params_dict)
-    name = '%s_%s_%s%s'%(job_name,fODF,shorthand_im,i)
     cmd_file = os.path.join(cmd_file_path, '%s.py'%name)
     print("Generating: %s"%cmd_file)
                         
@@ -52,7 +59,6 @@ ssh = sge.SSH(hostname=hostname,username=username, port=port)
 batch_sge = []
 sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
-count = 0 # For counting how many total qsub commands needed
 
 # For aggregating later:
 emd_file_names = []
@@ -86,7 +92,6 @@ for sid_idx, sid in enumerate(sid_list):
                     mem = 25
                     
                 qsub_cmd_gen(template, 'emd_%s'%sid, i, sid, fODF, im, data_path, mem=mem)
-                count = count + 1
                 if sid_idx == 0:
                     emd_file_names.append("emd_%s_%s"%(fODF, shorthand_im))
             
@@ -96,8 +101,7 @@ for sid_idx, sid in enumerate(sid_list):
             if fODF == "multi":
                 for i in np.arange(others_file_num):
                     import osmosis.parallel.im_accuracy_template as template
-                    qsub_cmd_gen(template, 'im_cod_%s'%sid, i, sid, fODF, im, data_path)
-                    count = count + 1
+                    qsub_cmd_gen(template, 'im_cod_%s'%sid, i, sid, fODF, im, data_path, mem=20)
                     if sid_idx == 0:
                         other_file_names.append("im_cod_%s"%shorthand_im)
                         other_file_names.append("im_predict_out_%s"%shorthand_im)
@@ -106,8 +110,12 @@ for sid_idx, sid in enumerate(sid_list):
             # Diffusion Model Accuracy
             for i in np.arange(others_file_num):
                 import osmosis.parallel.accuracy_template as template
-                qsub_cmd_gen(template, 'sfm_cod_%s'%sid, i, sid, fODF, im, data_path)
-                count = count + 1
+                if fODF == "single":
+                    mem = 30
+                else:
+                    mem = 25
+                    
+                qsub_cmd_gen(template, 'sfm_cod_%s'%sid, i, sid, fODF, im, data_path, mem=mem)
                 if sid_idx == 0:
                     other_file_names.append("sfm_predict_%s_%s"%(fODF,shorthand_im))
                     other_file_names.append("sfm_cod_%s_%s"%(fODF,shorthand_im))
@@ -115,8 +123,7 @@ for sid_idx, sid in enumerate(sid_list):
             # Model Parameters
             for i in np.arange(others_file_num):
                 import osmosis.parallel.model_params_template as template
-                qsub_cmd_gen(template, 'sfm_mp_%s'%sid, i, sid, fODF, im, data_path)
-                count = count + 1
+                qsub_cmd_gen(template, 'sfm_mp_%s'%sid, i, sid, fODF, im, data_path, mem=20)
                 if sid_idx == 0:
                     other_file_names.append("model_params_%s_%s"%(fODF, shorthand_im))
         
@@ -128,9 +135,49 @@ sge.write_file_ssh(ssh, batch_sge, batch_sge_file)
 batch_sge = sp.check_output(["cat", "batch_sge.sh"])
 cmd_line_split = batch_sge.split('\n')
 
+# Check to see if the output files from each command exists already
+# and eliminate them from the cmd_line
+red_cmd_line = []
+for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
+    pycmd = cmd_line_split[cmd_idx].split(' ')[2].split('_')
+    
+    # Take this out once fix is implemented:    
+    #if pycmd[0][0:2] == "im":
+    #    pycmd = [pycmd[0], pycmd[1], pycmd[2], pycmd[4]]
+    ##
+    
+    if pycmd[0] == "im":
+        sid_idx = len(pycmd) - 2
+    else:
+        sid_idx = len(pycmd) - 3
+    
+    data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%pycmd[sid_idx])
+    
+    # Rearrange the output file string
+    file_str = []
+    for str_splt in np.arange(len(pycmd)):
+        if pycmd[1] != 'mp':
+            if (str_splt != sid_idx) & (str_splt != len(pycmd) -1):
+                file_str.append('%s_'%pycmd[str_splt])
+            elif str_splt == len(pycmd) - 1:
+                file_str.append('%s'%pycmd[str_splt])
+        else:
+            if str_splt == 0:
+                file_str.append('model_params_')
+                file_str.append('%s_'%pycmd[len(pycmd) - 2])
+                file_str.append('%s'%pycmd[len(pycmd) - 1])
+    file_str = ''.join(file_str)
+    
+    # Check if the file exists and if it doesn't, add to the new command list
+    if glob.glob(os.path.join(data_path, '%s.*'%file_str)) == []:
+        red_cmd_line.append(cmd_line_split[cmd_idx])
+
+# For counting how many total qsub commands needed
+count = len(red_cmd_line)
+
 # Submit the first max number of jobs
 for qsub_idx in np.arange(1, max_jobs+1):
-    cmd_arr = np.array(cmd_line_split[qsub_idx].split(' '))
+    cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
     sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
     
 cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
@@ -147,7 +194,7 @@ while cur_submit_num < count:
     qsub_range = np.arange(cur_submit_num, np.min([cur_submit_num + num_to_submit, count]))
     for qsub_idx in qsub_range:
         cur_submit_num + 1
-        cmd_arr = np.array(cmd_line_split[qsub_idx].split(' '))
+        cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
         sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
         
     cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
