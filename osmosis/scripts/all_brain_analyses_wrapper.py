@@ -176,12 +176,12 @@ for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
 count = len(red_cmd_line)
 
 # Submit the first max number of jobs
-for qsub_idx in np.arange(1, max_jobs+1):
+for qsub_idx in np.arange(1, int(max_jobs+1)):
     cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
     sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
     
 cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
-cur_submit_num = int(max_jobs) + 1
+cur_submit_num = int(max_jobs + 1)
 
 while cur_submit_num < count:
     while cur_job_num == int(max_jobs):
@@ -193,7 +193,7 @@ while cur_submit_num < count:
     num_to_submit = int(max_jobs) - cur_job_num
     qsub_range = np.arange(cur_submit_num, np.min([cur_submit_num + num_to_submit, count]))
     for qsub_idx in qsub_range:
-        cur_submit_num + 1
+        cur_submit_num = cur_submit_num + 1
         cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
         sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
         
