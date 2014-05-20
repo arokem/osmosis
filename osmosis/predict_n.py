@@ -413,7 +413,8 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         indices = np.arange(len(unique_b[1:])+1)
         all_mp_list = []
         all_mp_rot_vecs_list = []
-        
+    
+    count = 0
     for bi in indices:
         mp_list = []
         mp_rot_vecs_list = []
@@ -514,15 +515,19 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                         predicted22[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo],
                                     bvals[vec_combo], new_params = new_params)[mod.mask]
                 else:
-                    predicted[:, vec_combo_rm0] = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
-                                                                new_params = new_params)[mod.mask]
+                    this_pred = mod.predict(bvecs[:, vec_combo], bvals[vec_combo],
+                                                new_params = new_params)[mod.mask]
+                    if count == 0:
+                        predicted = np.zeros((np.sum(mod.mask), predicted.shape[1]))
+                        predicted[:, vec_combo_rm0] = this_pred
+                        count = count + 1
             else:
                 #Save both the model params and their corresponding rotational vectors for precision function
                 mp_list.append(mod.model_params[mod.mask])
                 mp_rot_vecs_list.append(mod.rot_vecs)
                 
         if (precision is not False) & (precision != "emd_multi_combine") & (start_fODF_mode != "both"):
-            p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
+            p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list, precision, start_fODF_mode)
             p_list.append(p_arr)
 
         if (start_fODF_mode == "both") | (precision == "emd_multi_combine"):
@@ -533,7 +538,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         # Call to function to aggregate multi fODFs
         [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list,
                                                        unique_b, precision)
-        p_arr = kfold_xval_precision(mp_list, mask, mp_rot_vecs_list, precision, start_fODF_mode)
+        p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list, precision, start_fODF_mode)
         p_list.append(p_arr)
     
     t2 = time.time()

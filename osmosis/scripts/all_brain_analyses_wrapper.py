@@ -87,7 +87,7 @@ for sid_idx, sid in enumerate(sid_list):
             for i in np.arange(emd_file_num):
                 import osmosis.parallel.emd_template as template
                 if fODF == "single":
-                    mem = 30
+                    mem = 35
                 else:
                     mem = 25
                     
@@ -111,7 +111,7 @@ for sid_idx, sid in enumerate(sid_list):
             for i in np.arange(others_file_num):
                 import osmosis.parallel.accuracy_template as template
                 if fODF == "single":
-                    mem = 30
+                    mem = 35
                 else:
                     mem = 25
                     
@@ -140,12 +140,7 @@ cmd_line_split = batch_sge.split('\n')
 red_cmd_line = []
 for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
     pycmd = cmd_line_split[cmd_idx].split(' ')[2].split('_')
-    
-    # Take this out once fix is implemented:    
-    #if pycmd[0][0:2] == "im":
-    #    pycmd = [pycmd[0], pycmd[1], pycmd[2], pycmd[4]]
-    ##
-    
+       
     if pycmd[0] == "im":
         sid_idx = len(pycmd) - 2
     else:
