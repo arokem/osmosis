@@ -123,7 +123,7 @@ for sid_idx, sid in enumerate(sid_list):
             # Model Parameters
             for i in np.arange(others_file_num):
                 import osmosis.parallel.model_params_template as template
-                qsub_cmd_gen(template, 'sfm_mp_%s'%sid, i, sid, fODF, im, data_path, mem=20)
+                qsub_cmd_gen(template, 'sfm_mp_%s'%sid, i, sid, fODF, im, data_path, mem=25)
                 if sid_idx == 0:
                     other_file_names.append("model_params_%s_%s"%(fODF, shorthand_im))
         
