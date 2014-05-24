@@ -119,7 +119,7 @@ for sid_idx, sid in enumerate(sid_list):
                 if sid_idx == 0:
                     other_file_names.append("sfm_predict_%s_%s"%(fODF,shorthand_im))
                     other_file_names.append("sfm_cod_%s_%s"%(fODF,shorthand_im))
-                    
+
             # Model Parameters
             for i in np.arange(others_file_num):
                 import osmosis.parallel.model_params_template as template
@@ -179,7 +179,7 @@ cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n
 cur_submit_num = int(max_jobs + 1)
 
 while cur_submit_num < count:
-    while cur_job_num == int(max_jobs):
+    while (cur_job_num == int(max_jobs)) | (cur_job_num > int(max_jobs)):
         time.sleep(10)
         cur_job_num = len(str(sp.check_output(["qstat", "-u", "%s"%username])).split('\n'))
     
