@@ -71,17 +71,17 @@ for sid_idx, sid in enumerate(sid_list):
     
     wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     wm_vox_num = np.sum(wm_data_file.get_data())
+    
+    # For dividing up data
+    emd_file_num = int(np.ceil(wm_vox_num/200.))
+    others_file_num = int(np.ceil(wm_vox_num/2000.))
+    subj_file_nums.append(np.array((emd_file_num, others_file_num)))
     for fODF in ["multi", "single"]:
         for im in ["bi_exp_rs", "single_exp_rs"]:
             if im == "bi_exp_rs":
                 shorthand_im = "be"
             elif im == "single_exp_rs":
                 shorthand_im = "se"
-            
-            # For dividing up data
-            emd_file_num = int(np.ceil(wm_vox_num/200.))
-            others_file_num = int(np.ceil(wm_vox_num/2000.))
-            subj_file_nums.append(np.array((emd_file_num, others_file_num)))
             
             # Reliability
             for i in np.arange(emd_file_num):
