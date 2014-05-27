@@ -787,6 +787,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
     
     aggre_list = []
     missing_files_list = []
+    count = 0
     for fn in file_names:
         # Keep track of files in case there are any missing ones
         i_track = np.ones(expected_file_num)
@@ -799,25 +800,30 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
             if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
                 
                 if f_type == "npy":
-                    sub_data = np.load(os.path.join(file_path, this_file)).T
+                    sub_data = np.load(os.path.join(file_path, this_file))
                             
                 elif f_type == "nii.gz":
                     sub_data = ni.load(os.path.join(file_path, this_file)).get_data()
-                    
-                if f_idx == 0:
-                    num_dirs = sub_data.shape[-1]
-                    if vol is False:
-                        aggre = np.squeeze(np.zeros((int(np.sum(mask_data)),) + (num_dirs,)))
-                    else:
-                        aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
+ 
                 # If the name of this file is equal to file name that you want to
                 # aggregate, load it and find the voxels corresponding to its location
                 # in the given mask.
                 if this_file[0:len(fn)] == fn:
+                    if count == 0:
+                        if len(sub_data.shape) == 1:
+                            num_dirs = 1
+                        else:
+                            num_dirs = sub_data.shape[-1]
+                        if vol is False:
+                            aggre = np.squeeze(np.zeros((int(np.sum(mask_data)),) + (num_dirs,)))
+                        else:
+                            aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
+                        count = count + 1
+                            
                     i = int(this_file.split(".")[0][len(fn):])
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
-                    
+
                     if vol is False:
                         aggre[low:high] = sub_data
                     else:
