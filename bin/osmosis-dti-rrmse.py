@@ -53,6 +53,6 @@ if __name__ == "__main__":
                                          params_file='temp')
     
     # Do it and save: 
-    fvf = nib.Nifti1Image(ana.relative_rmse(Model1, Model2),
-                          Model1.affine).to_filename(params.out_file)
+    nib.Nifti1Image(ana.relative_rmse(Model1, Model2),
+                    Model1.affine).to_filename(params.out_file)
 
