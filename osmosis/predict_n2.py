@@ -266,8 +266,8 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
     if (precision != "emd_multi_combine") | (start_fODF_mode == "both_s"):
         if start_fODF_mode == "both_ms":
             # single fODF model params are last on the list for both_ms
-            out_mp_list = [all_mp_list[idx]]
-            out_rot_vecs_list = [all_mp_rot_vecs_list[idx]]
+            out_mp_list = [all_mp_list[len(all_mp_list)-1]]
+            out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_list)-1]]
         elif start_fODF_mode == "both_m":
             indices = np.array([0,len(all_mp_list)/2])
     
@@ -279,7 +279,8 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
         for mp_idx in np.arange(len(all_mp_list[0])):
             mp_arr = all_mp_list[ii][mp_idx]
             rot_vecs_arr = all_mp_rot_vecs_list[ii][mp_idx]
-
+            
+            # mp_list differs depending on the fODF mode
             if ((precision == "emd_multi_combine") |
                 (start_fODF_mode == "both_ms")):
                 end = len(unique_b[1:])
