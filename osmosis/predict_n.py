@@ -519,8 +519,9 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                                                 new_params = new_params)[mod.mask]
                     if count == 0:
                         predicted = np.zeros((np.sum(mod.mask), predicted.shape[1]))
-                        predicted[:, vec_combo_rm0] = this_pred
                         count = count + 1
+                        
+                    predicted[:, vec_combo_rm0] = this_pred
             else:
                 #Save both the model params and their corresponding rotational vectors for precision function
                 mp_list.append(mod.model_params[mod.mask])

@@ -741,8 +741,8 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     # Now, let's save some output:
     ni.Nifti1Image(vol, dwi_ni.get_affine()).to_filename(out_path)
 
-def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
-                 file_path=os.getcwd(), vol=False,
+def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
+                 non0_mask = None, file_path=os.getcwd(), vol=False,
                  f_type="npy", save=False):
     """
     Function to aggregate sub data files from parallelizing.  Assumes that
@@ -782,7 +782,6 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
     files = os.listdir(file_path)
 
     # Get data and indices
-    mask_data = mask_data_file.get_data()
     mask_idx = np.where(mask_data)
     
     aggre_list = []
@@ -823,12 +822,14 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data_file,
                     i = int(this_file.split(".")[0][len(fn):])
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num, int(np.sum(mask_data))])
-
+                        
                     if vol is False:
-                        aggre[low:high] = sub_data
+                        aggre[low:high][non0_mask] = sub_data
                     else:
                         mask = np.zeros(mask_data_file.shape)
-                        mask[mask_idx[0][low:high], mask_idx[1][low:high], mask_idx[2][low:high]] = 1
+                        mask[mask_idx[0][low:high][non0_mask],
+                             mask_idx[1][low:high][non0_mask],
+                             mask_idx[2][low:high][non0_mask]] = 1
                         aggre[np.where(mask)] = sub_data
                     # If the file is present, change its index within the tracking array to 0.    
                     i_track[i] = 0

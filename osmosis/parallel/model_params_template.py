@@ -41,18 +41,30 @@ if __name__=="__main__":
     rd = {1000:ad_rd[1,0], 2000:ad_rd[1,1], 3000:ad_rd[1,2]}
     
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
+    _, b_inds_rm0, _, _ = ozu.separate_bvals(bvals, mode="remove0")
     all_b_idx = np.where(rounded_bvals != 0)
     
     if im == "bi_exp_rs":
         shorthand_im = "be"
     elif im == "single_exp_rs":
         shorthand_im = "se"
-        
-    mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-                                            params_file = "temp", solver = "nnls",
-                                            mean = "mean_model", mean_mod_func = im,
-                                            axial_diffusivity = ad, radial_diffusivity = rd)
-    mp = mod.model_params[np.where(mask)]
+    
+    if fODF == "single":
+        mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
+                                                params_file = "temp", solver = "nnls",
+                                                mean = "mean_model", mean_mod_func = im,
+                                                axial_diffusivity = ad, radial_diffusivity = rd)
+        mp = mod.model_params[mod.mask]
+    elif fODF == "multi":
+        mp = np.zeros((2000, len(all_b_idx[0])))
+        for b_idx in np.arange(1, len(unique_b)):
+            b_inds_w0 = np.concatenate((b_inds[0], b_inds[b_idx]))
+            this_mod = sfm.SparseDeconvolutionModelMultiB(data[...,b_inds_w0],
+                                        bvecs[:,b_inds_w0], bvals[b_inds_w0], mask = mask,
+                                        params_file = "temp", solver = "nnls",
+                                        mean = "mean_model", mean_mod_func = im,
+                                        axial_diffusivity = ad, radial_diffusivity = rd)
+            mp[:, b_inds_rm0[b_idx]] = this_mod.model_params[mod.mask]
     
     np.save(os.path.join(data_path, "model_params_%s_%s%s.npy"%(fODF, shorthand_im, i)), mp)
     
