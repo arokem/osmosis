@@ -263,7 +263,7 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
     out_mp_list = []
     out_rot_vecs_list = []
     indices = np.array([0])
-    if (precision != "emd_multi_combine") | (start_fODF_mode == "both_s"):
+    if precision != "emd_multi_combine":
         if start_fODF_mode == "both_ms":
             # single fODF model params are last on the list for both_ms
             out_mp_list = [all_mp_list[len(all_mp_list)-1]]
@@ -283,22 +283,25 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
             # mp_list differs depending on the fODF mode
             if ((precision == "emd_multi_combine") |
                 (start_fODF_mode == "both_ms")):
+                start = 1
                 end = len(unique_b[1:])
             elif start_fODF_mode == "both_m":
+                start = ii + 1
                 end = ii + len(unique_b[1:])
              
-            for b_idx in np.arange(ii, end):
+            for b_idx in np.arange(start, end):
                 mp_arr = np.concatenate((mp_arr,
                                          all_mp_list[b_idx][mp_idx]),-1)
                 rot_vecs_arr = np.concatenate((rot_vecs_arr,
                                                all_mp_rot_vecs_list[b_idx][
                                                mp_idx]),-1)
+            
             temp_mp_list.append(mp_arr)
             temp_rot_vecs_list.append(rot_vecs_arr)
 
         out_mp_list.append(temp_mp_list)
         out_rot_vecs_list.append(temp_rot_vecs_list)
-    
+
     return np.squeeze(out_mp_list), np.squeeze(out_rot_vecs_list)
        
 def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type):
@@ -429,6 +432,11 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         indices = np.arange(len(unique_b[1:])+1)
         all_mp_list = []
         all_mp_rot_vecs_list = []
+    elif fODF_mode == "both_s":
+        start_fODF_mode = "both_s"
+        indices = np.array([0,0])
+        all_mp_list = []
+        all_mp_rot_vecs_list = []
     elif fODF_mode == "both_m":
         start_fODF_mode = "both_m"
         indices = np.concatenate((np.arange(len(unique_b[1:])),
@@ -445,9 +453,13 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             mean_mod_func = "bi_exp_rs"
         elif (start_fODF_mode == "both_m") & (bi_idx == len(indices)/2):
             mean_mod_func = "single_exp_rs"
+        elif (start_fODF_mode == "both_s") & (bi_idx == 0):
+            mean_mod_func = "bi_exp_rs"
+        elif (start_fODF_mode == "both_s") & (bi_idx == 1):
+            mean_mod_func = "single_exp_rs"
             
         if (fODF_mode == "single") | ((start_fODF_mode == "both_ms") &
-                                        (bi == len(unique_b[1:]))):
+           (bi == len(unique_b[1:]))) | (start_fODF_mode == "both_s"):
             fODF_mode = "single"
             all_inc_0 = np.arange(len(bvals))
             # Indices are locations of all non-b = 0
@@ -564,13 +576,17 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             all_mp_list.append(mp_list)
             all_mp_rot_vecs_list.append(mp_rot_vecs_list)
 
-    if (start_fODF_mode[:4] == "both") | (precision == "emd_multi_combine"):
+    if ((start_fODF_mode[:4] == "both") & (start_fODF_mode != "both_s") |
+                                      (precision == "emd_multi_combine")):
         # Call to function to aggregate multi fODFs
         [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list,
                                                        unique_b, precision, start_fODF_mode)
         p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list, precision, start_fODF_mode)
         p_list.append(p_arr)
-    
+    elif start_fODF_mode == "both_s":
+        p_arr = kfold_xval_precision(all_mp_list, mod.mask, all_mp_rot_vecs_list, precision, start_fODF_mode)
+        p_list.append(p_arr)
+        
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     

@@ -13,7 +13,7 @@ from dipy.reconst.dti import TensorModel
 sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
 
-for sid in sid_list:
+for sid in sid_list:params_file = "temp"
     data_path = "/hsgs/projects/wandell/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     data = data_file.get_data()
@@ -54,13 +54,15 @@ for sid in sid_list:
                bounds_min[2]:bounds_max[2]] = 1
         
         mask_corpus_callosum, cfa = segment_from_cfa(tensorfit, CC_box,
-                                                     threshold, return_cfa=True)
+                                                     threshold,
+                                                     return_cfa=True)
         
         # Clean up the cc isolation
         new_mask = isolate_cc(mask_corpus_callosum)
         
-        tm = dti.TensorModel(bnk_data, bvecs[:, bnk_b0_inds], bvals[bnk_b0_inds],
-                             mask=new_mask, params_file = "temp")
+        tm = dti.TensorModel(bnk_data, bvecs[:, bnk_b0_inds],
+                             bvals[bnk_b0_inds], mask=new_mask,
+                             params_file = "temp")
         
         ad_arr[b_idx-1] = np.median(tm.axial_diffusivity[np.where(new_mask)])
         rd_arr[b_idx-1] = np.median(tm.radial_diffusivity[np.where(new_mask)])
