@@ -131,7 +131,8 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         All b values
     b_inds: list
         List of the indices corresponding to the separated b values.  Each index
-        contains an array of the indices to the grouped b values with similar values
+        contains an array of the indices to the grouped b values with similar
+        values
     rounded_bvals: 1 dimensional array
         B values after rounding
         
@@ -154,8 +155,9 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         b0_inds = b_inds[0]
     
     return all_b_idx, b0_inds
-def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000, initial="preset",
-                       bounds="preset", params_file='temp', signal="relative_signal"):
+def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000,
+                       initial="preset", bounds="preset", params_file='temp',
+                       signal="relative_signal"):
     """
     Finds the parameters of the given function to the given data
     that minimizes the sum squared errors.
