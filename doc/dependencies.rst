@@ -16,6 +16,6 @@
 To install all of them run:
 
 sudo apt-get install python-numpy python-scipy python-matplotlib python-nibabel
-python-nipy python-dipy-lib mayavi2 python-numexp ipython ipython-notebook python-sklearn
+python-nipy python-dipy-lib mayavi2 python-numexpr ipython ipython-notebook python-sklearn
 
 

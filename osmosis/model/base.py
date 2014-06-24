@@ -151,7 +151,7 @@ class DWI(desc.ResetMixin):
             if np.iterable(sub_sample):
                 idx = sub_sample
             else:
-                idx = boot.subsample(self.bvecs[:,self.b_idx].T, sub_sample)[1]
+                idx = boot.subsample(self.bvecs[:,self.b_idx], sub_sample)[1]
             
             self.b_idx = self.b_idx[idx]
             # At this point, signal will be taken according to these

@@ -11,7 +11,7 @@ import numpy as np
 import osmosis.io as oio
 from osmosis.parallel import sge
 
-import osmosis.parallel.mb_predict_template as mb_template
+import osmosis.parallel.mb_predict_template_smm as mb_template
 reload(mb_template)
 template = sge.getsourcelines(mb_template)[0]
 

@@ -65,7 +65,8 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="pre
     b_inds: list
         List of indices corresponding to each b value
     these_b_inds: 1 dimensional array
-        Indices currently undergoing k-fold cross-validation.  Used for single fODF
+        Indices currently undergoing k-fold cross-validation.  Used for single
+        fODF 
     b_idx1: int
         First index into b_inds
     b_idx2: int
@@ -101,10 +102,11 @@ def new_mean_combos(vec_pool_inds, data, bvals, bvecs, mask, b_inds, bounds="pre
     fit_all_bvals = bvals[inds_arr]
 
     # Now put this into SFM multi_b class in order to grab the calculated mean
-    mod = sfm.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs, fit_all_bvals,
-                                                mask = mask, bounds=bounds,
-                                                mean_mod_func = mean_mod_func,
-                                                params_file = "temp")
+    mod = sfm.SparseDeconvolutionModelMultiB(fit_all_data, fit_all_bvecs,
+                                             fit_all_bvals, mask = mask,
+                                             bounds=bounds,
+                                             mean_mod_func = mean_mod_func,
+                                             params_file = "temp")
     _, b_inds_ar, _, _ = separate_bvals(fit_all_bvals, mode = "remove0")
     
     # Get the new means at each direction and the new parameters at each voxel
@@ -154,9 +156,11 @@ def _predict_across_b(mod_obj, vec_combo, vec_pool_inds, bvecs, bvals,
     predicted_to: 2 dimensional array
         Predicted values at each direction for predicting to the same b values
     """
-    predicted_across = mod_obj.predict(bvecs[:, b_inds[1:][b_across][vec_pool_inds]],
+    predicted_across = \
+        mod_obj.predict(bvecs[:, b_inds[1:][b_across][vec_pool_inds]],
                                    bvals[b_inds[1:][b_across][vec_pool_inds]], 
                                    new_params = new_params)[mod_obj.mask]
+
     predicted_to = mod_obj.predict(bvecs[:, vec_combo], bvals[vec_combo],
                                    new_params = new_params)[mod_obj.mask]
 
@@ -239,7 +243,8 @@ def _kfold_xval_setup(bvals, mask):
     all_b_idx: 1 dimensional array
         Indices corresponding to all non-zero b values
     all_b_idx_rm0: 1 dimensional array
-        Indicecs corresponding to all b values with respect to the non-zero b values
+        Indicecs corresponding to all b values with respect to the non-zero b
+        values 
     """
     # Separating b values and grabbing indices
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)    
@@ -254,10 +259,11 @@ def _kfold_xval_setup(bvals, mask):
     
     return b_inds, unique_b, b_inds_rm0, all_b_idx, all_b_idx_rm0, predicted
     
-def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, start_fODF_mode):
+def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision,
+                     start_fODF_mode):
     """
-    Changes the arrangement of the model parameters and rotational vectors list so that all the multi fODF
-    parameters are together in one list slot.
+    Changes the arrangement of the model parameters and rotational vectors list
+    so that all the multi fODF parameters are together in one list slot.
     """
     # Add the single fODFs' model parameters and rotational vectors first
     out_mp_list = []
@@ -271,8 +277,8 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
         elif start_fODF_mode == "both_m":
             indices = np.array([0,len(all_mp_list)/2])
     
-    # Start some new temporary lists to add the multi fODF parameters to before appending them to the
-    # output list.
+    # Start some new temporary lists to add the multi fODF parameters to before
+    # appending them to the output list.
     for ii in indices:
         temp_mp_list = []
         temp_rot_vecs_list = []
@@ -304,7 +310,8 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, sta
 
     return np.squeeze(out_mp_list), np.squeeze(out_rot_vecs_list)
        
-def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type):
+def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox,
+                    p_arr, precision_type):
     """
     Does the actual precision calculation.
     """
@@ -314,16 +321,19 @@ def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p
         mp_mirr2 = np.concatenate((mp2, mp2), -1)
         bvecs_mirr1 = np.squeeze(np.concatenate((rot_vecs1,-1*rot_vecs1), -1)).T
         bvecs_mirr2 = np.squeeze(np.concatenate((rot_vecs2,-1*rot_vecs2), -1)).T
-        deg, p = ozu.sph_cc(mp_mirr1, mp_mirr2, bvecs_mirr1, vertices2=bvecs_mirr2)
+        deg, p = ozu.sph_cc(mp_mirr1, mp_mirr2, bvecs_mirr1,
+                            vertices2=bvecs_mirr2)
         
         if all(~np.isfinite(cc)):
             p_arr[mp_count][vox] = np.nan
         else:
-            p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the non-nan values
+            p_arr[mp_count][vox] = np.max(cc[np.isfinite(cc)]) # Maximum of the
+                                        # non-nan values 
     
     elif (precision_type == "emd") | (precision_type == "emd_multi_combine"):
         if ((len(np.where(mp1)[0]) != 0) & (len(np.where(mp2)[0]) != 0)):
-            emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1], rot_vecs2[:, idx2])
+            emd = fODF_EMD(mp1[idx1], mp2[idx2], rot_vecs1[:, idx1],
+                           rot_vecs2[:, idx2])
             p_arr[mp_count][vox] = emd
         else:
             p_arr[mp_count][vox] = np.nan
@@ -395,18 +405,22 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
     [b_inds, unique_b, b_inds_rm0,
     all_b_idx, all_b_idx_rm0, predicted] = _kfold_xval_setup(bvals, mask)
     
-    # Generate the regressors in the full model from which we choose the regressors in
-    # the reduced model from.  This is so you won't have to recalculate the regressors
-    # each time you do cross-validation.     
-    full_mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-                                                    axial_diffusivity = ad,
-                                                    radial_diffusivity = rd,
-                                                    over_sample = over_sample,
-                                                    bounds = bounds, solver = solver,
-                                                    fit_method = fit_method,
-                                                    mean_mix = mean_mix,
-                                                    mean_mod_func = mean_mod_func,
-                                                    mean = mean, params_file = "temp")
+    # Generate the regressors in the full model from which we choose the
+    # regressors in the reduced model from.  This is so you won't have to
+    # recalculate the regressors each time you do cross-validation.
+    full_mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
+                                                  mask = mask,
+                                                  axial_diffusivity = ad,
+                                                  radial_diffusivity = rd,
+                                                  over_sample = over_sample,
+                                                  bounds = bounds, solver =
+                                                  solver, 
+                                                  fit_method = fit_method,
+                                                  mean_mix = mean_mix,
+                                                  mean_mod_func =
+                                                  mean_mod_func, 
+                                                  mean = mean,
+                                                  params_file = "temp")
     if precision is not False:
         p_list = []
         if precision == "emd_multi_combine":
@@ -488,46 +502,58 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             raise ValueError(e)
         
         for combo_num in np.arange(np.floor(100./n)):                
-            # Create the combinations of directions to leave out at a time and remove them
-            # from the original data for fitting purposes.
+            # Create the combinations of directions to leave out at a time and
+            # remove them from the original data for fitting purposes.
             (si, vec_combo, vec_combo_rm0,
             vec_pool_inds, these_bvecs, these_bvals,
-            this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data, these_b_inds,
-                                                    these_b_inds_rm0, all_inc_0, vec_pool,
-                                                    num_choose, combo_num)                
-            # Initial a model object with reduced data (not including the chosen combinations)    
-            mod = sfm.SparseDeconvolutionModelMultiB(this_data, these_bvecs, these_bvals,
-                                                         mask = mask, axial_diffusivity = ad,
-                                                         radial_diffusivity = rd,
-                                                         over_sample = over_sample,
-                                                         bounds = bounds, solver = solver,
-                                                         fit_method = fit_method,
-                                                         mean_mix = mean_mix,
-                                                         mean_mod_func = mean_mod_func,
-                                                         mean = mean, params_file = "temp")
+            this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data,
+                                                       these_b_inds,
+                                                       these_b_inds_rm0,
+                                                       all_inc_0, vec_pool,
+                                                       num_choose, combo_num)
+            # Initial a model object with reduced data (not including the
+            # chosen combinations)    
+            mod = sfm.SparseDeconvolutionModelMultiB(this_data, these_bvecs,
+                                                     these_bvals,
+                                                     mask = mask,
+                                                     axial_diffusivity = ad,
+                                                     radial_diffusivity = rd,
+                                                     over_sample = over_sample,
+                                                     bounds = bounds,
+                                                     solver = solver,
+                                                     fit_method = fit_method,
+                                                     mean_mix = mean_mix,
+                                                mean_mod_func = mean_mod_func,
+                                                mean = mean,
+                                                params_file = "temp")
                 
             if (mean == "mean_model") & (fODF_mode != "single"):
-                # Get the parameters from fitting a mean model to all b values not including
-                # the ones left out.  The "single" b model already fetches a mean according fit
-                # to all b values
+                # Get the parameters from fitting a mean model to all b values
+                # not including the ones left out.  The "single" b model
+                # already fetches a mean according fit to all b values
                 if (fODF_mode == "multi") & (b_idx2 == None):
                     b_mean1 = bi
                 elif b_idx2 is not None:
                     b_mean1 = b_idx1
                     
                 # Fit a new mean model to all data except the chosen combinations.
-                sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds, data, bvals, bvecs,
-                                        mask, b_inds, bounds=bounds, mean_mod_func = mean_mod_func,
-                                        b_idx1=b_mean1, b_idx2=b_idx2)
+                sig_out, new_params, b_inds_ar = new_mean_combos(vec_pool_inds,
+                                                                 data, bvals,
+                                                                 bvecs,
+                                                                 mask, b_inds,
+                                                                 bounds=bounds,
+                                                mean_mod_func = mean_mod_func,
+                                                b_idx1=b_mean1, b_idx2=b_idx2)
                 
                 if (fODF_mode == "multi") & (b_idx2 == None):
-                    # Replace the relative signal average of the model object with one calculated.
+                    # Replace the relative signal average of the model object
+                    # with one calculated.
                     mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_ar], new_params]
             else:
                 new_params = None
 
-            # Grab regressors from full model's preloaded regressors.  This only works if
-            # not predicting across b values.
+            # Grab regressors from full model's preloaded regressors.  This
+            # only works if not predicting across b values.
             if b_idx2 == None:
                 if mean == "MD":
                     full_mod.tensor_model.mean_diffusivity = mod.tensor_model.mean_diffusivity
@@ -980,6 +1006,7 @@ def nchoosek(n,k):
     n!/(k!*(n-k)!)
     """
     return f(n)/f(k)/f(n-k)
+
     
 def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     """
@@ -994,7 +1021,8 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     for i in np.arange(2):
         these_bvecs = np.squeeze(bvecs_list[i])
         flipped_bvecs_arr = None
-        # If the angle between the bvec and (0,0,1) are greater than 90 degrees, flip
+        # If the angle between the bvec and (0,0,1) are greater than 90
+        # degrees, flip
         degs = np.rad2deg(np.arccos(np.dot(np.array((0,0,1)), these_bvecs)))
         if type(degs) is not np.array:
             degs = np.array(degs)[..., None]
@@ -1012,7 +1040,8 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
                     bvec = these_bvecs[:, deg_idx]
             
             if flipped_bvecs_arr != None:
-                flipped_bvecs_arr = np.concatenate((flipped_bvecs_arr, bvec[None, ...].T), -1)
+                flipped_bvecs_arr = np.concatenate((flipped_bvecs_arr,
+                                                     bvec[None, ...].T), -1)
             else:
                 flipped_bvecs_arr = bvec[None, ...].T
         flipped_bvecs_list.append(flipped_bvecs_arr)
@@ -1023,8 +1052,10 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     if np.shape(pre_sig2) == (1,1):
         pre_sig2 = np.reshape(pre_sig2, (1,))
 
-    pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0].T)), -1)
-    pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1].T)), -1)
+    pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0].T)),
+                              -1)
+    pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1].T)),
+                              -1)
     
     # Put in openCV array format
     if len(np.shape(pre_sig1)) == 1:

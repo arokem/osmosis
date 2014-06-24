@@ -547,7 +547,7 @@ def freesurfer_labels():
 
     label_dict = {}
     for idx, this_num in enumerate(num):
-        label_dict[int(this_num.item())] = name[idx].item()
+        label_dict[int(this_num)] = str(name[idx])
 
     return label_dict
 
