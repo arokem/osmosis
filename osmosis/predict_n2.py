@@ -1016,35 +1016,12 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     pre_sig2 = fODF2[..., None]/np.sum(fODF2)
     
     #Flip bvecs:
-    bvecs_list = [bvecs1, bvecs2]
     flipped_bvecs_list = []
-    for i in np.arange(2):
-        these_bvecs = np.squeeze(bvecs_list[i])
-        flipped_bvecs_arr = None
-        # If the angle between the bvec and (0,0,1) are greater than 90
-        # degrees, flip
-        degs = np.rad2deg(np.arccos(np.dot(np.array((0,0,1)), these_bvecs)))
-        if type(degs) is not np.array:
-            degs = np.array(degs)[..., None]
-
-        for deg_idx, deg in enumerate(degs):
-            if deg > 90:
-                if len(degs) == 1:
-                    bvec = -1*these_bvecs
-                else:
-                    bvec = -1*these_bvecs[:, deg_idx]
-            else:
-                if len(degs) == 1:
-                    bvec = these_bvecs
-                else:
-                    bvec = these_bvecs[:, deg_idx]
-            
-            if flipped_bvecs_arr != None:
-                flipped_bvecs_arr = np.concatenate((flipped_bvecs_arr,
-                                                     bvec[None, ...].T), -1)
-            else:
-                flipped_bvecs_arr = bvec[None, ...].T
-        flipped_bvecs_list.append(flipped_bvecs_arr)
+    for bvi, bv in enumerate([bvecs1, bvecs2]):
+        degs = np.rad2deg(np.arccos(np.dot(np.array((1, 0, 0)), bv)))
+        is_large = np.where(degs>90)
+        bv[:, is_large] = bv[:, is_large] * -1    
+        flipped_bvecs_list.append(bv)
 
     if np.shape(pre_sig1) == (1,1):
         pre_sig1 = np.reshape(pre_sig1, (1,))
@@ -1065,6 +1042,6 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
 
     sig1 = cv.fromarray(np.require(np.float32(pre_sig1), requirements='CA'))
     sig2 = cv.fromarray(np.require(np.float32(pre_sig2), requirements='CA'))
-    
-    EMD = cv.CalcEMD2(sig1, sig2, cv.CV_DIST_L1)
+
+    EMD = cv.CalcEMD2(sig1, sig2, cv.CV_DIST_L2)
     return EMD
