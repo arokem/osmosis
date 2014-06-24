@@ -11,7 +11,7 @@ import numpy as np
 import osmosis.io as oio
 from osmosis.parallel import sge
 
-import osmosis.parallel.kfold_xval_precision_template as mb_template
+import osmosis.parallel.mb_multi_model_params_template as mb_template
 reload(mb_template)
 template = sge.getsourcelines(mb_template)[0]
 
@@ -19,10 +19,10 @@ template = sge.getsourcelines(mb_template)[0]
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='klchan13', port=22)
 
 batch_sge = []
-for i in np.arange(65): 
+for i in range(65): 
     params_dict = dict(i=i)
     code = sge.add_params(template,params_dict)
-    name = 'kfold_xval_sph_cc_m%s'%(i)
+    name = 'mp_multi_se%s'%(i)
     cmd_file = '/home/klchan13/pycmd/%s.py'%name
     print("Generating: %s"%cmd_file)
                         
@@ -33,8 +33,7 @@ for i in np.arange(65):
 
     cmd_file = '/home/klchan13/pycmd/%s.py'%name
     batch_sge.append(sge.qsub_cmd(
-        '/home/klchan13/bashcmd.sh %s'%cmd_file,name,
-        email = 'kimberlylchan@berkeley.edu'))
+        '/home/klchan13/bashcmd.sh %s'%cmd_file,name))
 
 # Add some header stuff:
 batch_sge = ['#!/bin/bash'] + batch_sge

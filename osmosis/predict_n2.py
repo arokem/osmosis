@@ -254,7 +254,7 @@ def _kfold_xval_setup(bvals, mask):
     
     return b_inds, unique_b, b_inds_rm0, all_b_idx, all_b_idx_rm0, predicted
     
-def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision):
+def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision, start_fODF_mode):
     """
     Changes the arrangement of the model parameters and rotational vectors list so that all the multi fODF
     parameters are together in one list slot.
@@ -262,27 +262,46 @@ def _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list, unique_b, precision):
     # Add the single fODFs' model parameters and rotational vectors first
     out_mp_list = []
     out_rot_vecs_list = []
+    indices = np.array([0])
     if precision != "emd_multi_combine":
-         # single fODF model params are last on the list
-        out_mp_list = [all_mp_list[len(all_mp_list)-1]]
-        out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_rot_vecs_list)-1]]
+        if start_fODF_mode == "both_ms":
+            # single fODF model params are last on the list for both_ms
+            out_mp_list = [all_mp_list[len(all_mp_list)-1]]
+            out_rot_vecs_list = [all_mp_rot_vecs_list[len(all_mp_list)-1]]
+        elif start_fODF_mode == "both_m":
+            indices = np.array([0,len(all_mp_list)/2])
     
     # Start some new temporary lists to add the multi fODF parameters to before appending them to the
     # output list.
-    temp_mp_list = []
-    temp_rot_vecs_list = []
-    for mp_idx in np.arange(len(all_mp_list[0])):
-        mp_arr = all_mp_list[0][mp_idx]
-        rot_vecs_arr = all_mp_rot_vecs_list[0][mp_idx]
-        for b_idx in np.arange(1, len(unique_b[1:])):
-            mp_arr = np.concatenate((mp_arr, all_mp_list[b_idx][mp_idx]),-1)
-            rot_vecs_arr = np.concatenate((rot_vecs_arr, all_mp_rot_vecs_list[b_idx][mp_idx]),-1)
-        temp_mp_list.append(mp_arr)
-        temp_rot_vecs_list.append(rot_vecs_arr)
+    for ii in indices:
+        temp_mp_list = []
+        temp_rot_vecs_list = []
+        for mp_idx in np.arange(len(all_mp_list[0])):
+            mp_arr = all_mp_list[ii][mp_idx]
+            rot_vecs_arr = all_mp_rot_vecs_list[ii][mp_idx]
+            
+            # mp_list differs depending on the fODF mode
+            if ((precision == "emd_multi_combine") |
+                (start_fODF_mode == "both_ms")):
+                start = 1
+                end = len(unique_b[1:])
+            elif start_fODF_mode == "both_m":
+                start = ii + 1
+                end = ii + len(unique_b[1:])
+             
+            for b_idx in np.arange(start, end):
+                mp_arr = np.concatenate((mp_arr,
+                                         all_mp_list[b_idx][mp_idx]),-1)
+                rot_vecs_arr = np.concatenate((rot_vecs_arr,
+                                               all_mp_rot_vecs_list[b_idx][
+                                               mp_idx]),-1)
+            
+            temp_mp_list.append(mp_arr)
+            temp_rot_vecs_list.append(rot_vecs_arr)
 
-    out_mp_list.append(temp_mp_list)
-    out_rot_vecs_list.append(temp_rot_vecs_list)
-    
+        out_mp_list.append(temp_mp_list)
+        out_rot_vecs_list.append(temp_rot_vecs_list)
+
     return np.squeeze(out_mp_list), np.squeeze(out_rot_vecs_list)
        
 def _calc_precision(mp1, mp2, rot_vecs1, rot_vecs2, idx1, idx2, mp_count, vox, p_arr, precision_type):
@@ -315,7 +334,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                mean_mod_func = "bi_exp_rs", mean = "mean_model",
                mean_mix = None, precision = False, fit_method = None,
                b_idx1 = None, b_idx2 = None, over_sample=None,
-               bounds = "preset", solver=None):
+               bounds = "preset", solver=None, viz = False):
     """
     Does k-fold cross-validation leaving out a certain percentage of the vertices
     out at a time.  This function can be used for 7 different variations of
@@ -394,7 +413,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             all_mp_list = []
             all_mp_rot_vecs_list = []
     
-    start_fODF_mode = None
+    start_fODF_mode = "None"
     if fODF_mode == "single":
         indices = np.array([0])
     elif fODF_mode == "multi":
@@ -408,23 +427,46 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             predicted12 = np.empty(predicted11.shape)
             predicted21 = np.empty(predicted11.shape)
             predicted22 = np.empty(predicted11.shape)
-    elif fODF_mode == "both":
-        start_fODF_mode = "both"
+    elif fODF_mode == "both_ms":
+        start_fODF_mode = "both_ms"
         indices = np.arange(len(unique_b[1:])+1)
+        all_mp_list = []
+        all_mp_rot_vecs_list = []
+    elif fODF_mode == "both_s":
+        start_fODF_mode = "both_s"
+        indices = np.array([0,0])
+        all_mp_list = []
+        all_mp_rot_vecs_list = []
+    elif fODF_mode == "both_m":
+        start_fODF_mode = "both_m"
+        indices = np.concatenate((np.arange(len(unique_b[1:])),
+                                 np.arange(len(unique_b[1:]))))
         all_mp_list = []
         all_mp_rot_vecs_list = []
     
     count = 0
-    for bi in indices:
+    for bi_idx, bi in enumerate(indices):
         mp_list = []
         mp_rot_vecs_list = []
-        if (fODF_mode == "single") | ((start_fODF_mode == "both") & (bi == len(unique_b[1:]))):
+        
+        if (start_fODF_mode == "both_m") & (bi_idx == 0):
+            mean_mod_func = "bi_exp_rs"
+        elif (start_fODF_mode == "both_m") & (bi_idx == len(indices)/2):
+            mean_mod_func = "single_exp_rs"
+        elif (start_fODF_mode == "both_s") & (bi_idx == 0):
+            mean_mod_func = "bi_exp_rs"
+        elif (start_fODF_mode == "both_s") & (bi_idx == 1):
+            mean_mod_func = "single_exp_rs"
+            
+        if (fODF_mode == "single") | ((start_fODF_mode == "both_ms") &
+           (bi == len(unique_b[1:]))) | (start_fODF_mode == "both_s"):
             fODF_mode = "single"
             all_inc_0 = np.arange(len(bvals))
             # Indices are locations of all non-b = 0
             these_b_inds = all_b_idx
             these_b_inds_rm0 = all_b_idx_rm0
-        elif (fODF_mode == "multi") | ((start_fODF_mode == "both") & (bi != len(unique_b[1:]))):
+        elif (fODF_mode == "multi") | ((start_fODF_mode == "both_ms") &
+             (bi != len(unique_b[1:]))) | (start_fODF_mode == "both_m"):
             fODF_mode = "multi"
             # Indices of data with a particular b value
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
@@ -520,28 +562,31 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                     if count == 0:
                         predicted = np.zeros((np.sum(mod.mask), predicted.shape[1]))
                         count = count + 1
-                        
                     predicted[:, vec_combo_rm0] = this_pred
             else:
                 #Save both the model params and their corresponding rotational vectors for precision function
                 mp_list.append(mod.model_params[mod.mask])
                 mp_rot_vecs_list.append(mod.rot_vecs)
                 
-        if (precision is not False) & (precision != "emd_multi_combine") & (start_fODF_mode != "both"):
+        if (precision is not False) & (precision != "emd_multi_combine") & (start_fODF_mode[:4] != "both"):
             p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list, precision, start_fODF_mode)
             p_list.append(p_arr)
 
-        if (start_fODF_mode == "both") | (precision == "emd_multi_combine"):
+        if (start_fODF_mode[:4] == "both") | (precision == "emd_multi_combine"):
             all_mp_list.append(mp_list)
             all_mp_rot_vecs_list.append(mp_rot_vecs_list)
 
-    if (start_fODF_mode == "both") | (precision == "emd_multi_combine"):
+    if ((start_fODF_mode[:4] == "both") & (start_fODF_mode != "both_s") |
+                                      (precision == "emd_multi_combine")):
         # Call to function to aggregate multi fODFs
         [mp_list, mp_rot_vecs_list] = _aggregate_fODFs(all_mp_list, all_mp_rot_vecs_list,
-                                                       unique_b, precision)
+                                                       unique_b, precision, start_fODF_mode)
         p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list, precision, start_fODF_mode)
         p_list.append(p_arr)
-    
+    elif start_fODF_mode == "both_s":
+        p_arr = kfold_xval_precision(all_mp_list, mod.mask, all_mp_rot_vecs_list, precision, start_fODF_mode)
+        p_list.append(p_arr)
+        
     t2 = time.time()
     print "This program took %4.2f minutes to run"%((t2 - t1)/60)
     
@@ -550,7 +595,10 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         actual2 = data[mod.mask][:, b_inds[1:][b_idx2]] # Actual values for b_idx2
         return actual1, actual2, predicted11, predicted12, predicted22, predicted21
     elif precision is not False:
-        return p_list
+        if viz == True:
+            return p_list, mp_list, mp_rot_vecs_list
+        else:
+            return p_list
     else:
         actual = data[mod.mask][:, all_b_idx]
         return actual, predicted
@@ -578,17 +626,17 @@ def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fOD
         combinations of model parameters at each voxel
     """
     
-    if start_fODF_mode is None:
+    if start_fODF_mode == "None":
         itr = itertools.combinations(np.arange(len(mp_list)), 2)
-    elif start_fODF_mode == "both":
+    elif start_fODF_mode[:4] == "both":
         mp_list1_inds = list(np.arange(len(mp_list[0])))
         mp_list2_inds = list(np.arange(len(mp_list[1])))
         itr = itertools.product(*[mp_list1_inds, mp_list2_inds])
         
     # Calculate the number of combinations that are created
-    if start_fODF_mode is None:
+    if start_fODF_mode == "None":
         num_combos = nchoosek(len(mp_list),2)
-    elif start_fODF_mode == "both":
+    elif start_fODF_mode[:4] == "both":
         num_combos = len(mp_list1_inds)*len(mp_list2_inds)
     
     # Preallocate an array to include one for each combination per voxel
@@ -597,17 +645,17 @@ def kfold_xval_precision(mp_list, mask, rot_vecs_list, precision_type, start_fOD
         
     for mp_inds in itr:
         for vox in np.arange(int(np.sum(mask))):
-            if start_fODF_mode is None:
+            if start_fODF_mode == "None":
                 mp1 = mp_list[mp_inds[0]][vox]
                 mp2 = mp_list[mp_inds[1]][vox]
                 rot_vecs1 = rot_vecs_list[mp_inds[0]]
                 rot_vecs2 = rot_vecs_list[mp_inds[1]]
-            elif start_fODF_mode == "both":
+            elif start_fODF_mode[:4] == "both":
                 mp1 = mp_list[0][mp_inds[0]][vox]
                 mp2 = mp_list[1][mp_inds[1]][vox]
                 rot_vecs1 = rot_vecs_list[0][mp_inds[0]]
                 rot_vecs2 = rot_vecs_list[1][mp_inds[1]]
-                
+
             idx1 = np.where(mp1 > 0)
             idx2 = np.where(mp2 > 0)
             
@@ -794,15 +842,25 @@ def kfold_xval_gen(model_class, data, bvecs, bvals, k, mask = None, fODF_mode = 
         Actual signals for the predicted vertices
     predicted: 2 dimensional array 
         Predicted signals for the vertices left out of the fit
-    """ 
+    """
     t1 = time.time()
-    bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
-    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
+    bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
+    _, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = ozu.separate_bvals(bvals,
                                                                     mode = 'remove0')
+
     all_b_idx = np.squeeze(np.where(rounded_bvals != 0))
     all_b_idx_rm0 = np.arange(len(all_b_idx))
     
-    actual = np.empty((np.sum(mask), len(all_b_idx)))
+    # Take out the voxels with 0 signal values out of the mask
+    S0 = np.mean(data[...,b_inds[0]],-1)
+    pre_mask = np.array(mask, dtype=bool)
+    ravel_mask = np.ravel(pre_mask)
+    
+    # Eliminate the voxels where self.S0 == 0.
+    ravel_mask[np.where(ravel_mask)[0][np.where(S0[pre_mask] == 0)]] = False
+    new_mask = np.reshape(ravel_mask, pre_mask.shape)
+    
+    actual = np.empty((np.sum(new_mask), len(all_b_idx)))
     predicted = np.empty(actual.shape)
     
     # Generate the regressors in the full model from which we choose the regressors in
@@ -880,7 +938,6 @@ def predict_bvals(data, bvals, bvecs, mask, ad, rd, b_idx1, b_idx2, n = 10,
     predicted: 2 dimensional array 
         Predicted signals for the vertices left out of the fit
     """
-    
     bval_list, b_inds, unique_b, rounded_bvals = separate_bvals(bvals)
     bval_list_rm0, b_inds_rm0, unique_b_rm0, rounded_bvals_rm0 = separate_bvals(bvals,
                                                                      mode = 'remove0')
