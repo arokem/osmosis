@@ -459,6 +459,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         all_mp_rot_vecs_list = []
     
     count = 0
+    vec_pool_list = []
     for bi_idx, bi in enumerate(indices):
         mp_list = []
         mp_rot_vecs_list = []
@@ -486,11 +487,20 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             all_inc_0 = np.concatenate((b_inds[0], b_inds[1:][bi]))
             these_b_inds = b_inds[1:][bi]
             these_b_inds_rm0 = b_inds_rm0[bi]
-            
-        vec_pool = np.arange(len(these_b_inds))
         
-        # Need to choose random indices so shuffle them.
-        np.random.shuffle(vec_pool)
+        if (((bi_idx < len(indices)/2.) & ((start_fODF_mode == "both_s")
+           | (start_fODF_mode == "both_m"))) | (start_fODF_mode == "None")
+           | (start_fODF_mode == "both_ms")):
+               
+            vec_pool = np.arange(len(these_b_inds))
+            
+            # Need to choose random indices so shuffle them.
+            np.random.shuffle(vec_pool)
+            this_vec_pool = np.copy(vec_pool)            
+            vec_pool_list.append(np.copy(vec_pool))
+        elif start_fODF_mode != "both_ms":
+            this_vec_pool = vec_pool_list[bi]
+            
         # How many of the indices are you going to leave out at a time?
         num_choose = (n/100.)*len(these_b_inds)
                    
@@ -509,7 +519,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             this_data, these_inc0) = ozu.create_combos(bvecs, bvals, data,
                                                        these_b_inds,
                                                        these_b_inds_rm0,
-                                                       all_inc_0, vec_pool,
+                                                       all_inc_0, this_vec_pool,
                                                        num_choose, combo_num)
             # Initial a model object with reduced data (not including the
             # chosen combinations)    
