@@ -55,7 +55,8 @@ PACKAGES = ['osmosis',
             'osmosis.tests',
             'osmosis.leastsqbound',
             'osmosis.viz',
-            'osmosis.model']
+            'osmosis.model',
+            'osmosis.emd']
             
 PACKAGE_DATA = {"osmosis": ["LICENSE", "data/*.pdb", "data/*.mat",
                             "data/*.nii.gz", "data/*.trk","data/*.bvals",
@@ -65,3 +66,5 @@ REQUIRES = ["numpy", "matplotlib", "scipy", "nibabel", "dipy", "mayavi",
             "sklearn"]
 
 BIN='bin/'
+
+EXTENSIONS = [dict(name="emd.emd", sources=["osmosis/emd/pyemd.c", "osmosis/emd/emd.c"], extra_compile_args=['-g'])]
