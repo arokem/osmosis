@@ -101,7 +101,7 @@ static PyObject *compute_emd(PyObject *self, PyObject *args, PyObject *keywds)
 
 static PyMethodDef functions[] = {
     {"emd", (PyCFunction)compute_emd, METH_VARARGS | METH_KEYWORDS,
-     "Compute the Earth Mover's Distance.\n\nParameters\n----------\ndist : list (length n by m)\n\tAny distance metric between item i in w1 and item j in w2 in the weights\n w1 : list (length n) \n\t The first set of weights \nw2 : list (length m)\n\tSecond set of weights\n\n"},
+     "Compute the Earth Mover's Distance.\n\nParameters\n----------\nw1 : list (length n) \n\t The first set of weights \nw2 : list (length m)\n\tSecond set of weights\ndist : list (length n times m)\n\tAny distance metric between item i in w1 and item j in w2.\n"},
     {NULL, NULL, 0, NULL}
 };
 
