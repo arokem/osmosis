@@ -1024,6 +1024,9 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     """
     pre_sig1 = fODF1[..., None]/np.sum(fODF1)
     pre_sig2 = fODF2[..., None]/np.sum(fODF2)
+
+    bv1 = np.copy(bvecs1)
+    bv2 = np.copy(bvecs2)            
     
     #Flip bvecs:
     flipped_bvecs_list = []
@@ -1054,4 +1057,8 @@ def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
     sig2 = cv.fromarray(np.require(np.float32(pre_sig2), requirements='CA'))
 
     EMD = cv.CalcEMD2(sig1, sig2, cv.CV_DIST_L2)
+    #EMD = EMD/np.sqrt(2)
+    #if EMD>1.0:
+    #    EMD = 2 * np.sqrt(1-(EMD/np.sqrt(2)))
+
     return EMD

@@ -23,7 +23,7 @@ if not os.path.exists('./osmosis/data'):
 if os.path.exists('MANIFEST'):
     os.remove('MANIFEST')
 
-from distutils.core import setup
+from distutils.core import setup, Extension
 
 # Get version and release info, which is all stored in nitime/version.py
 ver_file = os.path.join('osmosis', 'version.py')
@@ -46,6 +46,8 @@ opts = dict(name=NAME,
             package_data=PACKAGE_DATA,
             requires=REQUIRES,
             scripts=[BIN + x for x in os.listdir(BIN)],
+            ext_package='osmosis',
+            ext_modules = [Extension(**e) for e in EXTENSIONS]
             )
 
 # For some commands, use setuptools.  Note that we do NOT list install here!

@@ -6,3 +6,4 @@ __docformat__ = 'restructuredtext'
 
 from osmosis.version import  __version__
 from osmosis.testlib import test
+import osmosis.emd.emd as emd
