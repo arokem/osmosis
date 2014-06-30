@@ -12,11 +12,11 @@ import os
 import inspect
 import nibabel as nib
 import osmosis.utils as ozu
+import osmosis.emd as emd
 from osmosis.utils import separate_bvals
 
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
-import cv
 
 def partial_round(bvals, factor = 1000.):
     """
@@ -1008,47 +1008,35 @@ def nchoosek(n,k):
     return f(n)/f(k)/f(n-k)
 
     
-def fODF_EMD(fODF1, fODF2, bvecs1, bvecs2):
+def fODF_EMD(fODF1, fODF2, bvecs1=None, bvecs2=None, dist=None):
     """
     Calcluates the earth mover's distance between two different fODFs
+
+    Parameters
+    ----------
+    fODF1 : 1d array
+        The first fODF in the comparison
+
+    fODF2 : 1d array
+        The second fODF in the comparison
+
+    bvecs1, bvecs2 : (3, n), (3, m) arrays
+        The bvectors used in the comparison. 
+
+    dist : 1d array shape: (n * m, )
+        The angular pair-wise distances between bvecs1 and bvecs2 *in radians*,
+        should already be calculated with the antipodal symmetry incorporated,
+        so should lie in the interval [0-pi].
+    
     """
-    pre_sig1 = fODF1[..., None]/np.sum(fODF1)
-    pre_sig2 = fODF2[..., None]/np.sum(fODF2)
+    if dist is None:
+        angles = np.arccos(np.dot(bvecs1.T, bvecs2))
+        angles[np.isnan(angles)] = 0
+        angles = np.min(np.array([angles, np.pi - angles]), 0)
+        dist = angles.ravel()
 
-    bv1 = np.copy(bvecs1)
-    bv2 = np.copy(bvecs2)            
+    # The result is normalized such that 1 is the EMD of a weight of 1 moved 90
+    # degrees: 
+    my_emd = emd.emd(fODF1, fODF2, dist) / (np.pi/2)
     
-    #Flip bvecs:
-    flipped_bvecs_list = []
-    for bvi, bv in enumerate([bvecs1, bvecs2]):
-        degs = np.rad2deg(np.arccos(np.dot(np.array((1, 0, 0)), bv)))
-        is_large = np.where(degs>90)
-        bv[:, is_large] = bv[:, is_large] * -1    
-        flipped_bvecs_list.append(bv)
-
-    if np.shape(pre_sig1) == (1,1):
-        pre_sig1 = np.reshape(pre_sig1, (1,))
-
-    if np.shape(pre_sig2) == (1,1):
-        pre_sig2 = np.reshape(pre_sig2, (1,))
-
-    pre_sig1 = np.concatenate((pre_sig1, np.squeeze(flipped_bvecs_list[0].T)),
-                              -1)
-    pre_sig2 = np.concatenate((pre_sig2, np.squeeze(flipped_bvecs_list[1].T)),
-                              -1)
-    
-    # Put in openCV array format
-    if len(np.shape(pre_sig1)) == 1:
-        pre_sig1 = pre_sig1[None]
-    if len(np.shape(pre_sig2)) == 1:
-        pre_sig2 = pre_sig2[None]
-
-    sig1 = cv.fromarray(np.require(np.float32(pre_sig1), requirements='CA'))
-    sig2 = cv.fromarray(np.require(np.float32(pre_sig2), requirements='CA'))
-
-    EMD = cv.CalcEMD2(sig1, sig2, cv.CV_DIST_L2)
-    #EMD = EMD/np.sqrt(2)
-    #if EMD>1.0:
-    #    EMD = 2 * np.sqrt(1-(EMD/np.sqrt(2)))
-
-    return EMD
+    return my_emd
