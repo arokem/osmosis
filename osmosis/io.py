@@ -79,6 +79,7 @@ import nibabel.trackvis as tv
 
 
 import osmosis as oz
+import osmosis.utils as ozu
 import osmosis.fibers as ozf
 import osmosis.model.dti as dti
 from .utils import ProgressBar
@@ -846,36 +847,35 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
     
     return missing_files_list, aggre_list
 
-def rm_ventricles(wm_data_file, bvals, data):
+def rm_ventricles(wm_data_file, bvals, bvecs, data, data_path):
     """
     Removes the ventricles from the white matter mask
     """
     # Separate b-values and find the indices corresponding to the b0 and
     # bNk measurements where N = the lowest b-value other than 0
-    
+    wm_data = wm_data_file.get_data()
     bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
     all_b_idx = np.where(bvals_scaled != 0)
     bNk_b0_inds = np.concatenate((b_inds[0], b_inds[1]))
     
     # Fit a tensor model 
-    gtab = gradient_table(np.concatenate((bval_list[0], bval_list[1])),
-                          bvecs[:, bNk_b0_inds])
-    tenmodel = TensorModel(gtab)
-    tensorfit = tenmodel.fit(data[..., bNk_b0_inds], mask = wm_data)
-    
+    tm = dti.TensorModel(data[..., bNk_b0_inds], bvecs[:, bNk_b0_inds],
+                         bvals[bNk_b0_inds], mask=wm_data,
+                         params_file = "temp")
+                         
     # Find the median, and 25th and 75th percentiles of mean diffusivities
-    md_median = median(tensorfit.md[np.where(wm_data)])
-    q1 = scoreatpercentile(tensorfit.md[np.where(wm_data)],25)
-    q3 = scoreatpercentile(tensorfit.md[np.where(wm_data)],75)
+    md_median = np.median(tm.mean_diffusivity[np.where(wm_data)])
+    q1 = stats.scoreatpercentile(tm.mean_diffusivity[np.where(wm_data)],25)
+    q3 = stats.scoreatpercentile(tm.mean_diffusivity[np.where(wm_data)],75)
     
     # Exclude voxels with MDs above median + 2*interquartile range
     md_exclude = md_median + 2*(q3 - q1)
-    md_include = np.where(tensorfit.md[np.where(wm_data)] < md_exclude)
+    md_include = np.where(tm.mean_diffusivity[np.where(wm_data)] < md_exclude)
     new_wm_mask = np.zeros(wm_data.shape)
     new_wm_mask[np.where(wm_data)[0][md_include],
                 np.where(wm_data)[1][md_include],
                 np.where(wm_data)[2][md_include]] = 1
-    
-    wm = nib.Nifti1Image(new_wm_mask, wm_data_file.get_affine())
-    nib.save(wm, 'wm_mask_no_vent.nii.gz')
+
+    wm = ni.Nifti1Image(new_wm_mask, wm_data_file.get_affine())
+    ni.save(wm, os.path.join(data_path, 'wm_mask_no_vent.nii.gz'))
     return new_wm_mask

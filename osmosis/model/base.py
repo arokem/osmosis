@@ -129,7 +129,9 @@ class DWI(desc.ResetMixin):
             # a binary mask: 
             if isinstance(mask, str):
                 mask = ni.load(mask).get_data()
-                
+            else:
+                self.mask = np.array(mask, dtype=bool)
+
             pre_mask = np.array(mask, dtype=bool)
             ravel_mask = np.ravel(pre_mask)
             

@@ -56,6 +56,13 @@ if __name__=="__main__":
                                                 axial_diffusivity = ad, radial_diffusivity = rd)
         mp = mod.model_params[mod.mask]
     elif fODF == "multi":
+        full_mod = sfm.SparseDeconvolutionModelMultiB(data,
+                                bvecs, bvals, mask = mask,
+                                params_file = "temp", solver = "nnls",
+                                mean = "mean_model", mean_mod_func = im,
+                                axial_diffusivity = ad, radial_diffusivity = rd)
+        sig_out, new_params = full_mod.fit_flat_rel_sig_avg
+
         mp = np.zeros((2000, len(all_b_idx[0])))
         for b_idx in np.arange(1, len(unique_b)):
             b_inds_w0 = np.concatenate((b_inds[0], b_inds[b_idx]))
@@ -64,6 +71,7 @@ if __name__=="__main__":
                                         params_file = "temp", solver = "nnls",
                                         mean = "mean_model", mean_mod_func = im,
                                         axial_diffusivity = ad, radial_diffusivity = rd)
+            this_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_rm0[b_idx-1]], new_params]
             mp[:, b_inds_rm0[b_idx]] = this_mod.model_params[mod.mask]
     
     np.save(os.path.join(data_path, "model_params_%s_%s%s.npy"%(fODF, shorthand_im, i)), mp)
