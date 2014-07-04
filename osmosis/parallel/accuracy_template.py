@@ -17,7 +17,7 @@ if __name__=="__main__":
     wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     
     data = data_file.get_data()
-    wm_data = wm_data_file.get_data()
+    wm_data = wm_data_file.get_data().astype(int)
     wm_idx = np.where(wm_data==1)
     
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))

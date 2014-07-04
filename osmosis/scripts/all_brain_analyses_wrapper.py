@@ -47,28 +47,27 @@ port = 22
                #code,
                #file_name=cmd_file,
                #python=python_path)
-            
-    #cmd_file = os.path.join(cmd_file_path, '%s.py'%name)
-    #batch_sge.append(sge.qsub_cmd(
-        #'%s %s'%(bashcmd, cmd_file), name, mem_usage=mem))
+    cmd_file = os.path.join(cmd_file_path, '%s.py'%name)
+    batch_sge.append(sge.qsub_cmd(
+        '%s %s'%(bashcmd, cmd_file), name, mem_usage=mem))
 
-## Analyses done:
-## Reliability, isotropic model accuracy, diffusion model accuracy,
-## fitted model parameters
-#ssh = sge.SSH(hostname=hostname,username=username, port=port)
+# Analyses done:
+# Reliability, isotropic model accuracy, diffusion model accuracy,
+# fitted model parameters
+ssh = sge.SSH(hostname=hostname,username=username, port=port)
 
-#batch_sge = []
-#sid_list = ["103414", "105115", "110411", "111312", "113619",
-            #"115320", "117122", "118730", "118932"]
+batch_sge = []
+# For aggregating later:
+emd_file_names = []
+other_file_names = []
 
-## For aggregating later:
-#emd_file_names = []
-#other_file_names = []
-
-## Start qsub generation:
-#subj_file_nums = []
-#for sid_idx, sid in enumerate(sid_list):
-    #data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
+# Start qsub generation:
+subj_file_nums = []
+for sid_idx, sid in enumerate(sid_list):
+    data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
+    
+    wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
+    wm_vox_num = np.sum(wm_data_file.get_data().astype(int))
     
     #wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     #wm_vox_num = np.sum(wm_data_file.get_data())
