@@ -40,4 +40,4 @@ for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
     if glob.glob(os.path.join(data_path, '%s.*'%file_str)) == []:
         red_cmd_line.append(cmd_line_split[cmd_idx])
         
-print "%s jobs done."%(len(red_cmd_line).astype(float)/len(cmd_line_split))
+print "%s jobs done."%(float(len(red_cmd_line))/len(cmd_line_split))
