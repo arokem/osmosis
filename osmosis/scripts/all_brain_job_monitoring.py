@@ -7,6 +7,9 @@ import subprocess as sp
 import time
 import glob
 
+sid_list = ["103414", "105115", "110411", "111312", "113619",
+            "115320", "117122", "118730", "118932"]
+hcp_path = '/hsgs/projects/wandell/klchan13/hcp_data_q3'
 batch_sge = sp.check_output(["cat", "batch_sge.sh"])
 cmd_line_split = batch_sge.split('\n')
 
