@@ -24,6 +24,9 @@ username = 'klchan13'
 max_jobs = 8000.
 port = 22
 
+sid_list = ["103414", "105115", "111312", "113619",
+            "115320", "117122", "118730", "118932"] #"110411",
+            
 #def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
                  #cmd_file_path=cmd_file_path, python_path=python_path,
                  #bashcmd=bashcmd, mem=25):
@@ -66,8 +69,8 @@ subj_file_nums = []
 for sid_idx, sid in enumerate(sid_list):
     data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
     
-    wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
-    wm_vox_num = np.sum(wm_data_file.get_data().astype(int))
+    #wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
+    #wm_vox_num = np.sum(np.round(wm_data_file.get_data()).astype(int))
     
     #wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     #wm_vox_num = np.sum(wm_data_file.get_data())
@@ -81,18 +84,17 @@ for sid_idx, sid in enumerate(sid_list):
                 shorthand_im = "be"
             elif im == "single_exp_rs":
                 shorthand_im = "se"
-            
-            # Reliability
-            for i in np.arange(emd_file_num):
-                import osmosis.parallel.emd_template as template
-                if fODF == "single":
-                    mem = 30
-                else:
-                    mem = 30
+            ## Reliability
+            #for i in np.arange(emd_file_num):
+                #import osmosis.parallel.emd_template as template
+                #if fODF == "single":
+                    #mem = 35
+                #else:
+                    #mem = 30
                     
                 #qsub_cmd_gen(template, 'emd_%s'%sid, i, sid, fODF, im,
                                                    #data_path, mem=mem)
-                #if sid_idx == 0:
+                #if (sid_idx == 0) & (i == 0):
                     #emd_file_names.append("emd_%s_%s"%(fODF, shorthand_im))
             
             ## Isotropic Model Accuracy
@@ -103,7 +105,7 @@ for sid_idx, sid in enumerate(sid_list):
                     #import osmosis.parallel.im_accuracy_template as template
                     #qsub_cmd_gen(template, 'im_cod_%s'%sid, i, sid, fODF, im,
                                                            #data_path, mem=20)
-                    #if sid_idx == 0:
+                    #if (sid_idx == 0) & (i == 0):
                         #other_file_names.append("im_cod_%s"%shorthand_im)
                         #other_file_names.append("im_predict_out_%s"
                                                      #%shorthand_im)
@@ -120,7 +122,7 @@ for sid_idx, sid in enumerate(sid_list):
                     
                 #qsub_cmd_gen(template, 'sfm_cod_%s'%sid, i, sid, fODF, im,
                                                        #data_path, mem=mem)
-                #if sid_idx == 0:
+                #if (sid_idx == 0) & (i == 0):
                     #other_file_names.append("sfm_predict_%s_%s"%(fODF,
                                                         #shorthand_im))
                     #other_file_names.append("sfm_cod_%s_%s"%(fODF,
@@ -131,7 +133,7 @@ for sid_idx, sid in enumerate(sid_list):
                 #import osmosis.parallel.model_params_template as template
                 #qsub_cmd_gen(template, 'sfm_mp_%s'%sid, i, sid, fODF, im,
                                                        #data_path, mem=25)
-                #if sid_idx == 0:
+                #if (sid_idx == 0) & (i == 0):
                     #other_file_names.append("model_params_%s_%s"%(fODF,
                                                          #shorthand_im))
         
@@ -172,15 +174,21 @@ for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
 
 # For counting how many total qsub commands needed
 count = len(red_cmd_line)
+print "%s jobs to be submitted."%count
 
 # Submit the first max number of jobs
-for qsub_idx in np.arange(1, int(max_jobs+1)):
+if count < max_jobs:
+    these_max_jobs = count
+else:
+    these_max_jobs = int(max_jobs+1)
+    
+for qsub_idx in np.arange(these_max_jobs):
     cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
     sp.call(list(cmd_arr[np.where(cmd_arr != '')]))
-    
+
 cur_job_num = len(str(sp.check_output(["qstat", "-u",
                         "%s"%username])).split('\n'))
-cur_submit_num = int(max_jobs + 1)
+cur_submit_num = these_max_jobs
 
 while cur_submit_num < count:
     while (cur_job_num == int(max_jobs)) | (cur_job_num > int(max_jobs)):
@@ -213,16 +221,17 @@ for sid_idx, sid in enumerate(sid_list):
     data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%sid)
     os.chdir(data_path)
     wm_data_file = nib.load("wm_mask_no_vent.nii.gz")
+    wm_data = np.round(wm_data_file.get_data()).astype(int)
     
     # Grab the number of files total for this subject
     emd_fnum = subj_file_nums[sid_idx][0]
     other_fnum = subj_file_nums[sid_idx][1]
-    [missing_files_emd, vol_emd] = oio.place_files(emd_file_names, 200,
-                                                   emd_fnum, wm_data_file,
-                                                   file_path=data_path,
-                                                   save=True)
+    #[missing_files_emd, vol_emd] = oio.place_files(emd_file_names, 2000,
+    #                                               emd_fnum, wm_data,
+    #                                               file_path=data_path,
+    #                                               save=True)
     [missing_files, vol] = oio.place_files(other_file_names, 2000, other_fnum,
-                                           wm_data_file, file_path=data_path,
+                                           wm_data, file_path=data_path,
                                            save=True)
     # Keep a log of the missing files:
     str_to_write = ""
