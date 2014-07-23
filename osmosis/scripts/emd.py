@@ -20,7 +20,7 @@ wm_vox_num = np.sum(wm_data_file.get_data().astype(int))
 
 # For dividing up data
 emd_file_num = int(np.ceil(wm_vox_num/2000.))
-fODF="multi"
+fODF="single"
 im="bi_exp_rs"
 
 for i in np.arange(emd_file_num):

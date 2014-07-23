@@ -3,7 +3,7 @@
 # i, sid, fODF, im, data_path
 import time
 import osmosis.model.dti as dti
-import osmosis.predict_n as pn
+import osmosis.predict_n2 as pn
 from osmosis.utils import separate_bvals
 import nibabel as nib
 import os
@@ -17,7 +17,7 @@ if __name__=="__main__":
     wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     
     data = data_file.get_data()
-    wm_data = wm_data_file.get_data().astype(int)
+    wm_data = np.round(wm_data_file.get_data()).astype(int)
     wm_idx = np.where(wm_data==1)
     
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))

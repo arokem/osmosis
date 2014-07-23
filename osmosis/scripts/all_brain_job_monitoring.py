@@ -51,8 +51,8 @@ while '%s'%username in job_status:
     for sj in submitted_jobs:
         if '     r    ' in sj:
             cur_nodes = cur_nodes + 1
-    sys.stdout.write('\r' + "%s out of %s jobs done."%(len(cmd_line_split)
-                    - int(len(red_cmd_line)), len(cmd_line_split)) + "\r" +
-                    "Using %s nodes"%cur_nodes)
-    sys.flush()
+    sys.stdout.write('\r' + "%s out of %s jobs done.  Using %s nodes."%(
+                     len(cmd_line_split) - int(len(red_cmd_line)),
+                     len(cmd_line_split), cur_nodes))
+    sys.stdout.flush()
     job_status = sp.check_output(["qstat", "-u", "%s"%username])

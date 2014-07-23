@@ -315,7 +315,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                mean_mod_func = "bi_exp_rs", mean = "mean_model",
                mean_mix = None, precision = False, fit_method = None,
                b_idx1 = None, b_idx2 = None, over_sample=None,
-               bounds = "preset", solver=None):
+               bounds = "preset", solver=None, viz = False, bias_var=False):
     """
     Does k-fold cross-validation leaving out a certain percentage of the vertices
     out at a time.  This function can be used for 7 different variations of

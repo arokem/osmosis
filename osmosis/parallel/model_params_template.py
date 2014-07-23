@@ -4,7 +4,7 @@
 import time
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
-import osmosis.predict_n as pn
+import osmosis.predict_n2 as pn
 from osmosis.utils import separate_bvals
 import osmosis.utils as ozu
 import nibabel as nib
@@ -18,7 +18,7 @@ if __name__=="__main__":
     wm_data_file = nib.load(os.path.join(data_path,"wm_mask_no_vent.nii.gz"))
     
     data = data_file.get_data()
-    wm_data = wm_data_file.get_data().astype(int)
+    wm_data = np.round(wm_data_file.get_data()).astype(int)
     wm_idx = np.where(wm_data==1)
     
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
@@ -63,7 +63,7 @@ if __name__=="__main__":
                                 axial_diffusivity = ad, radial_diffusivity = rd)
         sig_out, new_params = full_mod.fit_flat_rel_sig_avg
 
-        mp = np.zeros((2000, len(all_b_idx[0])))
+        mp = np.zeros((np.sum(mask), len(all_b_idx[0])))
         for b_idx in np.arange(1, len(unique_b)):
             b_inds_w0 = np.concatenate((b_inds[0], b_inds[b_idx]))
             this_mod = sfm.SparseDeconvolutionModelMultiB(data[...,b_inds_w0],
@@ -72,7 +72,7 @@ if __name__=="__main__":
                                         mean = "mean_model", mean_mod_func = im,
                                         axial_diffusivity = ad, radial_diffusivity = rd)
             this_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_rm0[b_idx-1]], new_params]
-            mp[:, b_inds_rm0[b_idx]] = this_mod.model_params[mod.mask]
+            mp[:, b_inds_rm0[b_idx-1]] = this_mod.model_params[this_mod.mask]
     
     np.save(os.path.join(data_path, "model_params_%s_%s%s.npy"%(fODF, shorthand_im, i)), mp)
     
