@@ -47,10 +47,16 @@ while '%s'%username in job_status:
 
     submitted_jobs = str(sp.check_output(["qstat", "-u",
                             "%s"%username])).split('\n')
+
+    # Find the jobs with "r" in them which indicates that it's currently using
+    # a node.
     cur_nodes = 0
     for sj in submitted_jobs:
         if '     r    ' in sj:
             cur_nodes = cur_nodes + 1
+
+    # Print out how many jobs are done and how many nodes are currently being
+    # used.
     sys.stdout.write('\r' + "%s out of %s jobs done.  Using %s nodes."%(
                      len(cmd_line_split) - int(len(red_cmd_line)),
                      len(cmd_line_split), cur_nodes))

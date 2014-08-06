@@ -1,7 +1,7 @@
 """
 
-This is a wrapper for creating sge commands for parallel computation of model
-parameters for SFM models from many subjects.
+This is a wrapper for creating sge commands for parallel computation of various
+analyses for SFM models from many subjects.
 
 """
 
@@ -25,7 +25,7 @@ max_jobs = 8000.
 port = 22
 
 sid_list = ["103414", "110411", "105115", "111312", "113619",
-            "115320", "117122", "118730", "118932"] #"100307"
+            "100307", "115320", "117122", "118730", "118932"]
 
 def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
                  cmd_file_path=cmd_file_path, python_path=python_path,
@@ -33,6 +33,7 @@ def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
     reload(template)
     template = sge.getsourcelines(template)[0]
 
+    # Name the job and generate the parameters for each job
     if job_name[0:2] != "im":
         params_dict = dict(i=i, sid=sid, fODF=fODF, im=im,
                         data_path=data_path)
@@ -158,6 +159,8 @@ for cmd_idx in np.arange(1, len(cmd_line_split)):
         sid_idx = len(pycmd) - 3
     data_path = os.path.join(hcp_path, "%s/T1w/Diffusion"%pycmd[sid_idx])
     file_str_list = []
+
+    # Find the output file names that correspond to the job names.
     for str_splt in np.arange(len(pycmd)):
         if pycmd[1] != 'mp':
             if (str_splt != sid_idx) & (str_splt != len(pycmd) -1):
@@ -170,6 +173,8 @@ for cmd_idx in np.arange(1, len(cmd_line_split)):
                 file_str_list.append('%s_'%pycmd[len(pycmd) - 2])
                 file_str_list.append('%s'%pycmd[len(pycmd) - 1])
     file_str = ''.join(file_str_list)
+
+    # Check to see if an output file is there.
     if glob.glob(os.path.join(data_path, '%s.*'%file_str)) == []:
         red_cmd_line.append(cmd_line_split[cmd_idx])
 
@@ -191,8 +196,9 @@ cur_job_num = len(str(sp.check_output(["qstat", "-u",
                         "%s"%username])).split('\n'))
 cur_submit_num = these_max_jobs
 
+# While max number of jobs are still in queue don't submit anymore jobs
 while cur_submit_num < count:
-    while (cur_job_num == int(max_jobs)) | (cur_job_num > int(max_jobs)):
+    while cur_job_num >= int(max_jobs):
         time.sleep(10)
         cur_job_num = len(str(sp.check_output(["qstat", "-u",
                                 "%s"%username])).split('\n'))
@@ -227,12 +233,15 @@ for sid_idx, sid in enumerate(sid_list):
     # Grab the number of files total for this subject
     emd_fnum = subj_file_nums[sid_idx][0]
     other_fnum = subj_file_nums[sid_idx][1]
-    [missing_files_emd, vol_emd] = oio.place_files(emd_file_names,
+
+    # Put the output files together.
+    [missing_files_emd, vol_emd] = oio.place_files(emd_file_names, mask_vox_num
                                                    emd_fnum, wm_data,
                                                    file_path=data_path,
                                                    save=True)
     [missing_files, vol] = oio.place_files(other_file_names, other_fnum,
-                                          wm_data, file_path=data_path,
+                                          mask_vox_num, wm_data,
+                                          file_path=data_path,
                                           save=True)
     # Keep a log of the missing files:
     str_to_write = ""
@@ -250,7 +259,7 @@ for sid_idx, sid in enumerate(sid_list):
     sp.call(['mkdir', 'file_pieces'])
     sp.call(['mkdir', 'analysis_results'])
 
-    params = "mv aggre_* analysis_results | mv *.txt analysis_results "
+    params = "mv aggre_* analysis_results | mv missing_files_* analysis_results"
     params = params + "| mv *.npy file_pieces"
 
     pipe = sp.Popen(params, shell=True)
