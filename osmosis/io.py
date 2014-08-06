@@ -828,7 +828,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
                             num_dirs = sub_data.shape[-1]
                             
                         if vol is False:
-                            aggre = np.squeeze(ozu.nans((int(np.sum(ravel_mask)),) + (num_dirs,)))
+                            aggre = np.squeeze(ozu.nans((int(np.sum(mask_data)),) + (num_dirs,)))
                         else:
                             aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
                     
@@ -839,7 +839,10 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
                                 int(np.sum(mask_data))])
                         
                     if vol is False:
-                        aggre[ravel_mask[low:high]] = np.squeeze(sub_data)
+			if sub_data.shape[0] > aggre[low:high][ravel_mask[low:high]].shape[0]:
+			    aggre[low:high][ravel_mask[low:high]] = np.squeeze(sub_data)[ravel_mask[low:high]]
+                        else:
+                            aggre[low:high][ravel_mask[low:high]] = np.squeeze(sub_data)
                     else:
                         mask = np.zeros(mask_data_file.shape)
                         mask[mask_idx[0][low:high],

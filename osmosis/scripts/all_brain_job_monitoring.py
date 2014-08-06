@@ -21,7 +21,7 @@ job_status = sp.check_output(["qstat", "-u", "%s"%username])
 while '%s'%username in job_status:
     time.sleep(10)
     red_cmd_line = []
-    for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
+    for cmd_idx in np.arange(2, len(cmd_line_split)-1):
         pycmd = cmd_line_split[cmd_idx].split(' ')[2].split('_')
 
         if pycmd[0] == "im":

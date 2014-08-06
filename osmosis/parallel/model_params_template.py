@@ -40,41 +40,58 @@ if __name__=="__main__":
     ad = {1000:ad_rd[0,0], 2000:ad_rd[0,1], 3000:ad_rd[0,2]}
     rd = {1000:ad_rd[1,0], 2000:ad_rd[1,1], 3000:ad_rd[1,2]}
     
+    # Separate the b-values and find the indices to the data at every
+    # b-value as well as the diffusion weighted data.
     bval_list, b_inds, unique_b, rounded_bvals = ozu.separate_bvals(bvals)
     _, b_inds_rm0, _, _ = ozu.separate_bvals(bvals, mode="remove0")
     all_b_idx = np.where(rounded_bvals != 0)
     
+    # Set some shorthand notations for the different isotropic models
+    # for file naming purposes.
     if im == "bi_exp_rs":
         shorthand_im = "be"
     elif im == "single_exp_rs":
         shorthand_im = "se"
     
     if fODF == "single":
-        mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals, mask = mask,
-                                                params_file = "temp", solver = "nnls",
-                                                mean = "mean_model", mean_mod_func = im,
-                                                axial_diffusivity = ad, radial_diffusivity = rd)
-        mp = mod.model_params[mod.mask]
+        # Initialize the model object.
+        mod = sfm.SparseDeconvolutionModelMultiB(data, bvecs, bvals,
+                                                 mask=mask,
+                                                 params_file="temp",
+                                                 solver="nnls",
+                                                 mean = "mean_model",
+                                                 mean_mod_func=im,
+                                                 axial_diffusivity=ad,
+                                                 radial_diffusivity = rd)
+        mp = mod.model_params[mod.mask] # Grab the model parameters.
     elif fODF == "multi":
+        # Initialize a full model with data from all b-values to get the
+        # parameters for the isotropic models
         full_mod = sfm.SparseDeconvolutionModelMultiB(data,
                                 bvecs, bvals, mask = mask,
-                                params_file = "temp", solver = "nnls",
-                                mean = "mean_model", mean_mod_func = im,
-                                axial_diffusivity = ad, radial_diffusivity = rd)
+                                params_file="temp", solver="nnls",
+                                mean="mean_model", mean_mod_func=im,
+                                axial_diffusivity=ad,
+                                radial_diffusivity=rd)
         sig_out, new_params = full_mod.fit_flat_rel_sig_avg
 
-        mp = np.zeros((np.sum(mask), len(all_b_idx[0])))
+        mp = np.zeros((2000, len(all_b_idx[0])))
         for b_idx in np.arange(1, len(unique_b)):
             b_inds_w0 = np.concatenate((b_inds[0], b_inds[b_idx]))
+            # Create a model object for the data from this b-value.
             this_mod = sfm.SparseDeconvolutionModelMultiB(data[...,b_inds_w0],
-                                        bvecs[:,b_inds_w0], bvals[b_inds_w0], mask = mask,
-                                        params_file = "temp", solver = "nnls",
-                                        mean = "mean_model", mean_mod_func = im,
-                                        axial_diffusivity = ad, radial_diffusivity = rd)
+                                        bvecs[:,b_inds_w0], bvals[b_inds_w0],
+                                        mask=mask, params_file="temp",
+                                        solver="nnls", mean = "mean_model",
+                                        mean_mod_func = im,
+                                        axial_diffusivity=ad,
+                                        radial_diffusivity=rd)
+            # Replace the model parameters within the model object.
             this_mod.fit_flat_rel_sig_avg = [sig_out[:, b_inds_rm0[b_idx-1]], new_params]
             mp[:, b_inds_rm0[b_idx-1]] = this_mod.model_params[this_mod.mask]
     
-    np.save(os.path.join(data_path, "model_params_%s_%s%s.npy"%(fODF, shorthand_im, i)), mp)
+    np.save(os.path.join(data_path, "model_params_%s_%s%s.npy"%(fODF,
+                                               shorthand_im, i)), mp)
     
     t2 = time.time()
     print "This program took %4.2f minutes to run."%((t2 - t1)/60.)

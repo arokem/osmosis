@@ -24,8 +24,8 @@ username = 'klchan13'
 max_jobs = 8000.
 port = 22
 
-sid_list = ["103414", "105115", "111312", "113619",
-            "115320", "117122", "118730", "118932"] #"110411",
+sid_list = ["103414", "110411", "105115", "111312", "113619",
+            "115320", "117122", "118730", "118932"] #"100307"
 
 def qsub_cmd_gen(template, job_name, i, sid, fODF, im, data_path,
                  cmd_file_path=cmd_file_path, python_path=python_path,
@@ -149,7 +149,7 @@ cmd_line_split = batch_sge.split('\n')
 # Check to see if the output files from each command exists already
 # and eliminate them from the cmd_line
 red_cmd_line = []
-for cmd_idx in np.arange(1, len(cmd_line_split) - 1):
+for cmd_idx in np.arange(1, len(cmd_line_split)):
     pycmd = cmd_line_split[cmd_idx].split(' ')[2].split('_')
 
     if pycmd[0] == "im":
@@ -181,7 +181,7 @@ print "%s jobs to be submitted."%count
 if count < max_jobs:
     these_max_jobs = count
 else:
-    these_max_jobs = int(max_jobs+1)
+    these_max_jobs = int(max_jobs)
 
 for qsub_idx in np.arange(these_max_jobs):
     cmd_arr = np.array(red_cmd_line[qsub_idx].split(' '))
@@ -227,13 +227,13 @@ for sid_idx, sid in enumerate(sid_list):
     # Grab the number of files total for this subject
     emd_fnum = subj_file_nums[sid_idx][0]
     other_fnum = subj_file_nums[sid_idx][1]
-    #[missing_files_emd, vol_emd] = oio.place_files(emd_file_names, 2000,
-    #                                               emd_fnum, wm_data,
-    #                                               file_path=data_path,
-    #                                               save=True)
-    [missing_files, vol] = oio.place_files(other_file_names, 2000, other_fnum,
-                                           wm_data, file_path=data_path,
-                                           save=True)
+    [missing_files_emd, vol_emd] = oio.place_files(emd_file_names,
+                                                   emd_fnum, wm_data,
+                                                   file_path=data_path,
+                                                   save=True)
+    [missing_files, vol] = oio.place_files(other_file_names, other_fnum,
+                                          wm_data, file_path=data_path,
+                                          save=True)
     # Keep a log of the missing files:
     str_to_write = ""
     for efname_idx, emd_fname in enumerate(emd_file_names):
@@ -241,8 +241,8 @@ for sid_idx, sid in enumerate(sid_list):
                         "%s is missing files:%s\n"%(emd_fname,
                                missing_files_emd[efname_idx]))
     for fname_idx, fname in enumerate(other_file_names):
-        str_to_write = (str_to_write + "%s is missing files:%s\n"%(fname,
-                                               missing_files[fname_idx]))
+       str_to_write = (str_to_write + "%s is missing files:%s\n"%(fname,
+                                              missing_files[fname_idx]))
 
     missing_files_txt = open("missing_files_%s.txt"%sid, "w")
     missing_files_txt.write("%s"%str_to_write)

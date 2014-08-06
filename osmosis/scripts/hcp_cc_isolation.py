@@ -13,12 +13,12 @@ from dipy.reconst.dti import TensorModel
 sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
 
-for sid in sid_list:params_file = "temp"
+for sid in sid_list:
     data_path = "/hsgs/projects/wandell/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     data = data_file.get_data()
 
-    # b values
+    # Load b values and b vectors
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
     
@@ -42,10 +42,12 @@ for sid in sid_list:params_file = "temp"
         threshold = (0.5, 1, 0, 0.2, 0, 0.2)
         CC_box = np.zeros_like(data[..., b_inds[0][0]])
         
+        # Create a bounding box in which to look for the corpus
+        # callosum in
         mins, maxs = bounding_box(mask)
         mins = np.array(mins)
         maxs = np.array(maxs)
-        diff = (maxs - mins) // 4
+        diff = (maxs - mins) // 5
         bounds_min = mins + diff
         bounds_max = maxs - diff
         
@@ -68,5 +70,9 @@ for sid in sid_list:params_file = "temp"
         rd_arr[b_idx-1] = np.median(tm.radial_diffusivity[np.where(new_mask)])
         
     os.chdir(data_path)
+    aff = data_file.get_affine()
+    nib.Nifti1Image(new_mask).to_filename(os.path.join(data_path,
+                                                "cc_mask.nii.gz"))
+    nib.data_file.get_affine()
     ad_rd = open("ad_rd_%s.txt"%sid, "w")
     ad_rd = ad_rd.write("%s\n%s"%(ad_arr, rd_arr))
