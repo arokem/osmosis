@@ -150,7 +150,7 @@ cmd_line_split = batch_sge.split('\n')
 # Check to see if the output files from each command exists already
 # and eliminate them from the cmd_line
 red_cmd_line = []
-for cmd_idx in np.arange(1, len(cmd_line_split)):
+for cmd_idx in np.arange(1, len(cmd_line_split)-1):
     pycmd = cmd_line_split[cmd_idx].split(' ')[2].split('_')
 
     if pycmd[0] == "im":
