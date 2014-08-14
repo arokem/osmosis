@@ -852,9 +852,9 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
                     # If you don't have a volume input and don't want a volume
                     # output, output just an aggregate the output files.
                     if vol is False:
-            			if sub_data.shape[0] > aggre[low:high][ravel_mask[
+                        if sub_data.shape[0] > aggre[low:high][ravel_mask[
                                                       low:high]].shape[0]:
-            			    aggre[low:high][ravel_mask[low:high]] = np.squeeze(
+                            aggre[low:high][ravel_mask[low:high]] = np.squeeze(
                                                 sub_data)[ravel_mask[low:high]]
                         else:
                             aggre[low:high][ravel_mask[low:high]] = np.squeeze(
