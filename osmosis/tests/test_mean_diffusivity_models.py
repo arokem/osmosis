@@ -57,7 +57,7 @@ def test_optimize_MD_params():
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "single_exp_rs",
                                                         signal="relative_signal")
-    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.shape(param_out) == (2,1), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
@@ -70,13 +70,13 @@ def test_optimize_MD_params():
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "bi_exp_rs",
                                                         signal="relative_signal")
-    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.shape(param_out) == (2,3), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
     param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "bi_exp_nf_rs",
                                                         signal="relative_signal")
-    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.shape(param_out) == (2,4), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
 def test_kfold_xval_MD_mod():
