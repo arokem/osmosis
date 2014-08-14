@@ -711,7 +711,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
                 mp_list.append(mod.model_params[mod.mask])
                 mp_rot_vecs_list.append(mod.rot_vecs)
 
-        if ()(precision is not False) & (precision != "emd_multi_combine") &
+        if ((precision is not False) & (precision != "emd_multi_combine") &
                                             (start_fODF_mode[:4] != "both")):
             p_arr = kfold_xval_precision(mp_list, mod.mask, mp_rot_vecs_list,
                                          precision, start_fODF_mode)
