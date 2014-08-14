@@ -54,6 +54,31 @@ def test_optimize_MD_params():
     npt.assert_equal(np.shape(param_out) == (2,3), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
+    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+                                                        mask_pv, "single_exp_rs",
+                                                        signal="relative_signal")
+    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+                                                        mask_pv,
+                                                        "single_exp_nf_rs",
+                                                        signal="relative_signal")
+    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+                                                        mask_pv, "bi_exp_rs",
+                                                        signal="relative_signal")
+    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+                                                        mask_pv, "bi_exp_nf_rs",
+                                                        signal="relative_signal")
+    npt.assert_equal(np.shape(param_out) == (2,2), 1)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
 def test_kfold_xval_MD_mod():
     ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
                                                 mask_pv, "decaying_exp",
@@ -77,4 +102,20 @@ def test_kfold_xval_MD_mod():
                                                 bounds=[(None, None), (None, None),
                                                 (None, None)],
                                                 signal="log")
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, "single_exp_rs", 10)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, "single_exp_nf_rs", 10)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, "bi_exp_rs", 10)
+    npt.assert_equal(np.mean(ss_err) < 200, 1)
+
+    ss_err, predict_out = mdm.kfold_xval_MD_mod(data_pv, bvals_pv, bvecs_pv,
+                                                mask_pv, "bi_exp_nf_rs", 10)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
