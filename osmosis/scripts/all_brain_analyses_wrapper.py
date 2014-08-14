@@ -256,6 +256,8 @@ for sid_idx, sid in enumerate(sid_list):
     missing_files_txt = open("missing_files_%s.txt"%sid, "w")
     missing_files_txt.write("%s"%str_to_write)
 
+    # Move all the file pieces and aggregate output files into different
+    # directories.
     sp.call(['mkdir', 'file_pieces'])
     sp.call(['mkdir', 'analysis_results'])
 

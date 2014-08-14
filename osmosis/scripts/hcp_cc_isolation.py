@@ -1,4 +1,9 @@
-# Script for segmenting all the CC
+"""
+
+This is a script for segmenting the corpus callosum from all the brains
+from the human connectome project.
+
+"""
 from dipy.segment.mask import bounding_box
 import nibabel as nib
 import numpy as np
@@ -14,6 +19,7 @@ sid_list = ["103414", "105115", "110411", "111312", "113619",
             "115320", "117122", "118730", "118932"]
 
 for sid in sid_list:
+    # Load the data for this particular subject.
     data_path = "/hsgs/projects/wandell/klchan13/hcp_data_q3/%s/T1w/Diffusion/"%sid
     data_file = nib.load(os.path.join(data_path, "data.nii.gz"))
     data = data_file.get_data()
@@ -22,6 +28,7 @@ for sid in sid_list:
     bvals = np.loadtxt(os.path.join(data_path, "bvals"))
     bvecs = np.loadtxt(os.path.join(data_path, "bvecs"))
 
+    # Separate the b-values and find the indices.
     bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
     all_b_idx = np.where(bvals_scaled != 0)
 
@@ -72,7 +79,7 @@ for sid in sid_list:
         rd_arr[b_idx-1] = np.median(tm.radial_diffusivity[np.where(new_mask)])
 
     os.chdir(data_path)
-    
+
     # Save a mask of the corpus callsoum.
     aff = data_file.get_affine()
     nib.Nifti1Image(new_mask).to_filename(os.path.join(data_path,

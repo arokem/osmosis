@@ -12,7 +12,7 @@ The PDB file format is sometimes used for reading and writing information about
 tractography results. The *nominal* PDB file format specification is as
 follows, but note that some of these things are not implemented in PDB version
 3. For example, there are no algorithms to speak of, so that whole bit is
-completely ignored. 
+completely ignored.
 
  The file-format is organized as a semi-hierarchical data-base, according to
     the following specification:
@@ -53,7 +53,7 @@ completely ignored.
        -- PATHWAY HEADER ENDS --
        for each point:
             [ position of the point ] - 3 doubles (ALREADY TRANSFORMED from
-                                                   voxel space!)  
+                                                   voxel space!)
           for each statistic:
              IF computed per point (see statistics header, second bool field):
              for each point:
@@ -62,13 +62,13 @@ completely ignored.
 
 """
 
-# Import from standard lib: 
-import struct 
+# Import from standard lib:
+import struct
 import os
 import inspect
 import warnings
 import urllib
-import zipfile    
+import zipfile
 
 import numpy as np
 import scipy.io as sio
@@ -108,7 +108,7 @@ def fg_from_pdb(file_name, verbose=True):
     ----
     This only reads Version 3 PDB. For the full file-format spec, see the
     osmosis.io module top-level docstring
-    
+
     """
     # Read the file as binary info:
     f_obj = file(file_name, 'r')
@@ -116,18 +116,18 @@ def fg_from_pdb(file_name, verbose=True):
     f_obj.close()
     # This is an updatable index into this read:
     idx = 0
-    
-    # First part is an int encoding the offset to the fiber part: 
-    offset, idx = _unpacker(f_read, idx, 1)  
+
+    # First part is an int encoding the offset to the fiber part:
+    offset, idx = _unpacker(f_read, idx, 1)
 
     # Next bit are doubles, encoding the xform (4 by 4 = 16 of them):
     xform, idx  = _unpacker(f_read, idx, 16, 'double')
     xform = np.reshape(xform, (4, 4))
-   
-    # Next is an int encoding the number of stats: 
+
+    # Next is an int encoding the number of stats:
     numstats, idx = _unpacker(f_read, idx, 1)
 
-    # The stats header is a dict with lists holding the stat per 
+    # The stats header is a dict with lists holding the stat per
     stats_header = dict(luminance_encoding=[],  # int => bool
                         computed_per_point=[],  # int => bool
                         viewable=[],  # int => bool
@@ -149,13 +149,13 @@ def fg_from_pdb(file_name, verbose=True):
         for k in ["agg_name", "local_name"]:
             this, idx = _unpacker(f_read, idx, 255, 'char')
             stats_header[k].append(_word_maker(this))
-        # Must have integer reads be word aligned (?): 
+        # Must have integer reads be word aligned (?):
         idx += 2
         this, idx = _unpacker(f_read, idx, 1)
         stats_header["uid"].append(this)
-    
+
     # We skip the whole bit with the algorithms and go straight to the version
-    # number, which is one int length before the fibers:  
+    # number, which is one int length before the fibers:
     idx = offset - 4
     version, idx = _unpacker(f_read, idx, 1)
     if int(version) < 2:
@@ -165,10 +165,10 @@ def fg_from_pdb(file_name, verbose=True):
 
     if int(version) == 2:
         idx = offset
-        
+
     # How many fibers?
     numpaths, idx = _unpacker(f_read, idx, 1)
-    
+
     if int(version) == 2:
         pts = []
         if verbose:
@@ -198,7 +198,7 @@ def fg_from_pdb(file_name, verbose=True):
             idx = ppos
             # Read the nodes:
             pathways, idx = _unpacker(f_read, idx, n_nodes*3, 'double')
-            
+
             pts.append(np.reshape(pathways, (n_nodes, 3)).T)
             for stat_idx in range(numstats):
                 if stats_header["computed_per_point"][stat_idx]:
@@ -207,9 +207,9 @@ def fg_from_pdb(file_name, verbose=True):
                                                     'double')
 
             n_stats.append(n_stats_dict)
-            
+
         fibers = []
-            
+
         # Initialize all the fibers:
         for p_idx in range(numpaths):
             this_fstats_dict = f_stats[p_idx]
@@ -222,17 +222,17 @@ def fg_from_pdb(file_name, verbose=True):
                                 xform,
                                 fiber_stats=dict(zip(f_stat_k, f_stat_v)),
                                 node_stats=dict(zip(n_stats_k, n_stats_v))))
-            
-            
-    elif int(version) == 3: 
+
+
+    elif int(version) == 3:
         # The next few bytes encode the number of points in each fiber:
         pts_per_fiber, idx = _unpacker(f_read, idx, numpaths)
         total_pts = np.sum(pts_per_fiber)
-        # Next we have the xyz coords of the nodes in all fibers: 
+        # Next we have the xyz coords of the nodes in all fibers:
         fiber_pts, idx = _unpacker(f_read, idx, total_pts * 3, 'double')
 
         # We extract the information on a fiber-by-fiber basis
-        pts_read = 0 
+        pts_read = 0
         pts = []
 
         if verbose:
@@ -245,13 +245,13 @@ def fg_from_pdb(file_name, verbose=True):
                        (n_nodes, 3)).T)
             pts_read += n_nodes
             if verbose:
-                prog_bar.animate(p_idx, f_name=f_name)            
+                prog_bar.animate(p_idx, f_name=f_name)
 
         f_stats_dict = {}
         for stat_idx in range(numstats):
             per_fiber_stat, idx = _unpacker(f_read, idx, numpaths, 'double')
             # This is a fiber-stat only if it's not computed per point:
-            if not stats_header["computed_per_point"][stat_idx]: 
+            if not stats_header["computed_per_point"][stat_idx]:
                 f_stats_dict[stats_header["local_name"][stat_idx]] =\
                     per_fiber_stat
 
@@ -285,12 +285,12 @@ def fg_from_pdb(file_name, verbose=True):
                                 node_stats=dict(zip(n_stats_k, n_stats_v))))
     if verbose:
         print("Done reading from file")
-        
+
     name = os.path.split(file_name)[-1].split('.')[0]
     return ozf.FiberGroup(fibers, name=name, affine=xform)
-    
-# This one's a global used in both packing and unpacking the data 
-    
+
+# This one's a global used in both packing and unpacking the data
+
 _fmt_dict = {'int':['=i', 4],
              'double':['=d', 8],
              'char':['=c', 1],
@@ -308,7 +308,7 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
 
     file_name: str
        Full path to the pdb file to be saved.
-    
+
     """
 
     fwrite = file(file_name, 'w')
@@ -317,17 +317,17 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
     n_stats = len(fg[0].fiber_stats.keys()) + len(fg[0].node_stats.keys())
     stats_hdr_sz = (4 * _fmt_dict['int'][1] + 2 * _fmt_dict['char'][1] * 255 + 2)
 
-    
+
     # This is the 'offset' to the beginning of the fiber-data. Note that we are
     # just skipping the whole algorithms thing, since that seems to be unused
-    # in mrDiffusion anyway. 
+    # in mrDiffusion anyway.
     hdr_sz = (4 * _fmt_dict['int'][1] + # ints: hdr_sz itself, n_stats, n_algs
                                         # (always 0), version
              16 *_fmt_dict['double'][1] +      # doubles: the 4 by 4 affine
              n_stats * stats_hdr_sz) # The stats part of the header, add
                                         # one for good measure(?).
 
-    
+
     _packer(fwrite, hdr_sz)
     if affine is None:
         if fg.affine is None:
@@ -336,13 +336,13 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
             affine = tuple(np.array(fg.affine).ravel().squeeze())
     else:
         affine = tuple(np.array(affine).ravel().squeeze())
-        
+
     _packer(fwrite, affine, 'double')
     _packer(fwrite, n_stats)
 
-    
+
     # We are going to assume that fibers are homogenous on the following
-    # properties. XXX Should we check that when making FiberGroup instances? 
+    # properties. XXX Should we check that when making FiberGroup instances?
     uid = 0
     for f_stat in fg[0].fiber_stats:
         _packer(fwrite, True)   # currently unused
@@ -350,7 +350,7 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
         _packer(fwrite, True)   # currently unused
         _stat_hdr_set(fwrite, f_stat, uid)
         uid += 1  # We keep tracking that across fiber and node stats
-        
+
     for n_stat in fg[0].node_stats:
         # Three True bools for this one:
         for x in range(3):
@@ -359,13 +359,13 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
         uid += 1
 
     _packer(fwrite, 0) # Number of algorithms - set to 0 always
-     
+
     fwrite.seek(hdr_sz - _fmt_dict['int'][1])
-    
+
     # This is the PDB file version:
     _packer(fwrite, 3)
     _packer(fwrite, fg.n_fibers)
-    
+
     for fib in fg.fibers:
         # How many coords in each fiber:
         _packer(fwrite, fib.coords.shape[-1])
@@ -379,15 +379,15 @@ def pdb_from_fg(fg, file_name='fibers.pdb', verbose=True, affine=None):
             _packer(fwrite, fib.fiber_stats[stat],'double')
 
     # The per-node stats have to be inserted in here as well, with their mean
-    # value: 
+    # value:
     for stat in fg[1].node_stats:
         for fib in fg.fibers:
             _packer(fwrite, np.mean(fib.node_stats[stat]), 'double')
-     
+
     for stat in fg[1].node_stats:
         for fib in fg.fibers:
             _packer(fwrite, fib.node_stats[stat], 'double')
-    
+
     if verbose:
         "Done saving data in file%s"%file_name
 
@@ -405,17 +405,17 @@ def _unpacker(file_read, idx, obj_to_read, fmt='int'):
     file_read: The output of file.read() from a file object
     idx: An index into x
     obj_to_read: How many objects to read
-    fmt: A format string, telling us what to read from there 
+    fmt: A format string, telling us what to read from there
     """
-    # For each one, this is [fmt_string, size] 
-    
+    # For each one, this is [fmt_string, size]
+
     fmt_str = _fmt_dict[fmt][0]
     fmt_sz = _fmt_dict[fmt][1]
-    
+
     out = np.array([struct.unpack(fmt_str,
                     file_read[idx + fmt_sz * j:idx + fmt_sz + fmt_sz * j])[0]
         for j in range(obj_to_read)])
-                         
+
     idx += obj_to_read * fmt_sz
     return out, idx
 
@@ -423,8 +423,8 @@ def _packer(file_write, vals, fmt='int'):
     """
     Helper function to pack binary data to files, using the struct library:
 
-    Relies on http://docs.python.org/library/struct.html    
-    
+    Relies on http://docs.python.org/library/struct.html
+
     """
     fmt_str = _fmt_dict[fmt][0]
     if np.iterable(vals):
@@ -435,10 +435,10 @@ def _packer(file_write, vals, fmt='int'):
     else:
         s = struct.pack(fmt_str, vals)
         file_write.write(s)
-    
+
 def _word_maker(arr):
     """
-    Helper function Make a string out of pdb stats header "name" variables 
+    Helper function Make a string out of pdb stats header "name" variables
     """
     make_a_word = []
     for this in arr:
@@ -448,12 +448,12 @@ def _word_maker(arr):
         else:
             break
     return ''.join(make_a_word)
-    
+
 def _char_list_maker(name):
     """
     Helper function that does essentially the opposite of _word_maker. Takes a
     string and makes it into a 255 long list of characters with the name of a
-    stat, followed by a single white-space and then 'g' for the rest of the 255 
+    stat, followed by a single white-space and then 'g' for the rest of the 255
     """
 
     l = list(name)
@@ -466,9 +466,9 @@ def _stat_hdr_set(fwrite, stat, uid):
     """
     Helper function for writing stuff into stats header portion of pdb files
     """
-    # Name of the stat: 
+    # Name of the stat:
     char_list = _char_list_maker(stat)
-    _packer(fwrite, char_list, 'char')  
+    _packer(fwrite, char_list, 'char')
     _packer(fwrite, char_list, 'char')  # Twice for some reason
     _packer(fwrite, ['g','g'], 'char')  # Add this, so that that the uid ends
                                         # up "word-aligned".
@@ -491,7 +491,7 @@ def fg_from_trk(trk_file, affine=None):
     # Per default read from the affine from the file header:
     if affine is not None:
         aff = affine
-    else: 
+    else:
         hdr = read_trk[1]
         aff= tv.aff_from_hdr(hdr)
         # If the header contains a bogus affine, we revert to np.eye(4), so we
@@ -499,7 +499,7 @@ def fg_from_trk(trk_file, affine=None):
         try:
             np.matrix(aff).getI()
         except np.linalg.LinAlgError:
-            e_s = "trk file contains bogus header, reverting to np.eye(4)" 
+            e_s = "trk file contains bogus header, reverting to np.eye(4)"
             warnings.warn(e_s)
             aff = np.eye(4)
 
@@ -516,13 +516,13 @@ def trk_from_fg(fg, trk_file, affine=None):
     Note
     ----
     Stats?
-    
+
     """
 
     # XXX Something to consider when implementing this: We might want to stick
     # the stats into the header somehow. That would also imply making changes
     # to fg_from_trk to allow reading out these stats, if they exist (if osmosis
-    # created this file...).  
+    # created this file...).
 
     raise NotImplementedError
 
@@ -534,12 +534,12 @@ def freesurfer_labels():
 
     Parameters
     ----------
-    None. 
+    None.
 
     Returns
     -------
     A dict with label-name key-value pairs.
-    
+
     """
     data_path = oz.__path__[0] + '/data/'
     fslabel = sio.loadmat(data_path + 'fslabel.mat', squeeze_me=True)['fslabel']
@@ -567,7 +567,7 @@ def nii_from_volume(vol, file_name, affine=None):
 
     affine: 4 by 4 array/matrix
        The affine transformation to world/acpc coordinates. Default to np.eye(4)
-    
+
 
     Returns
     -------
@@ -583,11 +583,11 @@ def nii_from_volume(vol, file_name, affine=None):
 def make_data_set(root, subject):
     """
     Create the full paths to the data given a root
-    """ 
+    """
     exts = ['.nii.gz', '.bvecs', '.bvals']
     dwi, bvecs, bvals = [os.path.join(data_path, subject, root + ext)
                          for ext in exts]
-    return dwi, bvecs, bvals 
+    return dwi, bvecs, bvals
 
 def get_dwi_data(b, subject):
     """
@@ -596,7 +596,7 @@ def get_dwi_data(b, subject):
     """
     return [make_data_set(subject + '_b%s_1'%b , subject),
             make_data_set(subject + '_b%s_2'%b, subject)]
-    
+
 
 def download_data():
     """
@@ -604,7 +604,7 @@ def download_data():
 
     Needs to be run once before running any of the analyses that require the
     main DWI data set
-    
+
     """
     print ("Downloading the data from arokem.org...")
     f=urllib.urlretrieve("http://arokem.org/data/osmosis_data.zip")[0]
@@ -684,17 +684,17 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     seg_path : str
        Full path to an itk-gray segmentation
 
-       
+
     dwi_path : str
         Full path to some DWI data (used to determine the mean diffusivity in
         each voxel, see below)
 
     out_path : str (optional)
         Where to put the resulting file
-        
+
     n_IQR: float (optional)
-        How many IQRs away for the definition of MD outliers (see below) 
-    
+        How many IQRs away for the definition of MD outliers (see below)
+
 
     Note
     ----
@@ -717,7 +717,7 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     Mapping. doi: 10.1002/hbm.2209
 
     """
-    dwi_nii, dwi_bvecs, dwi_bvals = make_data_set(dwi_path) 
+    dwi_nii, dwi_bvecs, dwi_bvals = make_data_set(dwi_path)
     # Resample the segmentation image to the DWI resolution:
     seg_resamp = ozv.resample_volume(seg_path, dwi_nii)
     # Find WM voxels (this is ITK gray coding 3=LHWM, 4=RHWM)
@@ -725,12 +725,12 @@ def make_wm_mask(seg_path, dwi_path, out_path=data_path + 'wm_mask.nii.gz',
     vol = np.zeros(seg_resamp.shape)
     vol[wm_idx] = 1
 
-    # OK - now we need to find and exclude MD outliers: 
+    # OK - now we need to find and exclude MD outliers:
     TM = ozm.TensorModel(dwi_nii, dwi_bvecs, dwi_bvals, mask=vol,
-                         params_file='temp')    
+                         params_file='temp')
 
     MD = TM.mean_diffusivity
-    
+
     IQR = (stats.scoreatpercentile(MD[np.isfinite(MD)],75) -
           stats.scoreatpercentile(MD[np.isfinite(MD)],25))
     cutoff = np.median(MD[np.isfinite(MD)]) + n_IQR * IQR
@@ -747,8 +747,9 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
                 f_type="npy", save=False):
     """
     Function to aggregate sub data files from parallelizing.  Assumes that
-    the sub_files are in the format: (file name)_(number of sub_file).(file_type)
-    
+    the sub_files are in the format:
+    (file name)_(number of sub_file).(file_type)
+
     Parameters
     ----------
     file_names: list
@@ -758,8 +759,12 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
         Number of voxels in each sub file
     expected_file_num: int
         Expected number of sub files
-    mask_data_file: obj
-        File handle for brain/white matter mask
+    mask_data: 3 dimensional array
+        White matter mask
+    data: 4 dimensional array
+        The diffusion data
+    bvals: 1 dimensional array
+        The b-values used for the diffusion data
     file_path: str
         Path to the directory with all the sub files.  Default is the current
         directory
@@ -772,7 +777,7 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
         String indicating whether or not to save the output aggregation/volumes
     num_dirs: int
         Number of directions in each output aggregation/volume
-    
+
     Returns
     -------
     missing_files: 1 dimensional array
@@ -784,10 +789,12 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
 
     # Get data and indices
     mask_idx = np.where(mask_data)
-    
+
     bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
     all_b_idx = np.where(bvals_scaled != 0)
 
+    # Remove voxels from the mask that contain zero signal values and turn the
+    # mask into linear form.
     S0 = np.mean(data[..., b_inds[0]],-1)
     pre_mask = np.array(mask_data, dtype=bool)
     ravel_mask = np.ravel(pre_mask).astype(int)
@@ -795,30 +802,31 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
     ravel_mask = ravel_mask[np.where(ravel_mask != 0)]
     ravel_mask[np.where(ravel_mask == 2)] = 0
     ravel_mask = ravel_mask.astype(bool)
-    
+
     aggre_list = []
     missing_files_list = []
     for fn in file_names:
         count = 0
         # Keep track of files in case there are any missing ones
         i_track = np.ones(expected_file_num)
-        
-        # If you don't want to put the voxels back into a volume, just preallocate
-        # enough for each voxel included in the mask.
-           
+
+        # If you don't want to put the voxels back into a volume, just
+        # preallocate enough for each voxel included in the mask.
+
         for f_idx in np.arange(len(files)):
             this_file = files[f_idx]
             if this_file[(len(this_file)-len(f_type)):len(this_file)] == f_type:
-                
+
                 if f_type == "npy":
                     sub_data = np.load(os.path.join(file_path, this_file))
-                            
+
                 elif f_type == "nii.gz":
-                    sub_data = ni.load(os.path.join(file_path, this_file)).get_data()
- 
-                # If the name of this file is equal to file name that you want to
-                # aggregate, load it and find the voxels corresponding to its location
-                # in the given mask.
+                    sub_data = ni.load(os.path.join(file_path,
+                                        this_file)).get_data()
+
+                # If the name of this file is equal to file name that you want
+                # to aggregate, load it and find the voxels corresponding to its
+                # location in the given mask.
                 if this_file[0:len(fn)] == fn:
                     if count == 0:
                         if len(sub_data.shape) == 1:
@@ -826,47 +834,75 @@ def place_files(file_names, mask_vox_num, expected_file_num, mask_data,
 
                         else:
                             num_dirs = sub_data.shape[-1]
-                            
+
                         if vol is False:
-                            aggre = np.squeeze(ozu.nans((int(np.sum(mask_data)),) + (num_dirs,)))
+                            aggre = np.squeeze(ozu.nans((int(np.sum(mask_data)),
+                                                               ) + (num_dirs,)))
                         else:
-                            aggre = np.squeeze(ozu.nans((mask_data_file.shape + (num_dirs,))))
-                    
-                    count = count + 1                            
+                            aggre = np.squeeze(ozu.nans((mask_data_file.shape
+                                                             + (num_dirs,))))
+
+                    count = count + 1
+                    # Find the location in this aggregate for this file piece.
                     i = int(this_file.split(".")[0][len(fn):])
                     low = i*mask_vox_num
                     high = np.min([(i+1) * mask_vox_num,
                                 int(np.sum(mask_data))])
-                        
+
+                    # If you don't have a volume input and don't want a volume
+                    # output, output just an aggregate the output files.
                     if vol is False:
-			if sub_data.shape[0] > aggre[low:high][ravel_mask[low:high]].shape[0]:
-			    aggre[low:high][ravel_mask[low:high]] = np.squeeze(sub_data)[ravel_mask[low:high]]
+            			if sub_data.shape[0] > aggre[low:high][ravel_mask[
+                                                      low:high]].shape[0]:
+            			    aggre[low:high][ravel_mask[low:high]] = np.squeeze(
+                                                sub_data)[ravel_mask[low:high]]
                         else:
-                            aggre[low:high][ravel_mask[low:high]] = np.squeeze(sub_data)
+                            aggre[low:high][ravel_mask[low:high]] = np.squeeze(
+                                                                      sub_data)
                     else:
                         mask = np.zeros(mask_data_file.shape)
-                        mask[mask_idx[0][low:high],
-                             mask_idx[1][low:high],
-                             mask_idx[2][low:high]] = 1
+                        mask[mask_idx[0][low:high][ravel_mask[low:high]],
+                             mask_idx[1][low:high][ravel_mask[low:high]],
+                             mask_idx[2][low:high]][ravel_mask[low:high]] = 1
                         aggre[np.where(mask)] = sub_data
-                    # If the file is present, change its index within the tracking array to 0.    
+                    # If the file is present, change its index within the
+                    # tracking array to 0.
                     i_track[i] = 0
-        
+
         missing_files_list.append(np.squeeze(np.where(i_track)))
         aggre_list.append(aggre)
-        
+
         if save is True:
             if vol is False:
                 np.save("aggre_%s.npy"%fn, aggre)
             else:
                 aff = mask_data_file.get_affine()
-                ni.Nifti1Image(aggre, aff).to_filename("vol_%s.nii.gz"%fn)            
-    
+                ni.Nifti1Image(aggre, aff).to_filename("vol_%s.nii.gz"%fn)
+
     return missing_files_list, aggre_list
 
 def rm_ventricles(wm_data_file, bvals, bvecs, data, data_path):
     """
-    Removes the ventricles from the white matter mask
+    Removes the ventricles from the white matter mask and saves a new
+    white matter mask.
+
+    Parameters
+    ----------
+    wm_data_file: obj
+        File handle for the white matter mask
+    bvals: 1 dimensional array
+        All b values
+    bvecs: 2 dimensional array
+        All the b vectors
+    data: 4 dimensional array
+        The diffusion data
+    data_path: str
+        Path to the data directory with all the sub files.
+
+    Returns
+    -------
+    new_wm_mask: 3 dimensional array
+        A new white matter mask with the ventricles removed.
     """
     # Separate b-values and find the indices corresponding to the b0 and
     # bNk measurements where N = the lowest b-value other than 0
@@ -874,17 +910,17 @@ def rm_ventricles(wm_data_file, bvals, bvecs, data, data_path):
     bval_list, b_inds, unique_b, bvals_scaled = ozu.separate_bvals(bvals)
     all_b_idx = np.where(bvals_scaled != 0)
     bNk_b0_inds = np.concatenate((b_inds[0], b_inds[1]))
-    
-    # Fit a tensor model 
+
+    # Fit a tensor model
     tm = dti.TensorModel(data[..., bNk_b0_inds], bvecs[:, bNk_b0_inds],
                          bvals[bNk_b0_inds], mask=wm_data,
                          params_file = "temp")
-                         
+
     # Find the median, and 25th and 75th percentiles of mean diffusivities
     md_median = np.median(tm.mean_diffusivity[np.where(wm_data)])
     q1 = stats.scoreatpercentile(tm.mean_diffusivity[np.where(wm_data)],25)
     q3 = stats.scoreatpercentile(tm.mean_diffusivity[np.where(wm_data)],75)
-    
+
     # Exclude voxels with MDs above median + 2*interquartile range
     md_exclude = md_median + 2*(q3 - q1)
     md_include = np.where(tm.mean_diffusivity[np.where(wm_data)] < md_exclude)
@@ -895,4 +931,5 @@ def rm_ventricles(wm_data_file, bvals, bvecs, data, data_path):
 
     wm = ni.Nifti1Image(new_wm_mask, wm_data_file.get_affine())
     ni.save(wm, os.path.join(data_path, 'wm_mask_no_vent.nii.gz'))
+
     return new_wm_mask
