@@ -665,8 +665,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
             # only works if not predicting across b values.
             if b_idx2 == None:
                 if mean == "MD":
-                    (full_mod.tensor_model.mean_diffusivity =
-                                              mod.tensor_model.mean_diffusivity)
+                    full_mod.tensor_model.mean_diffusivity = mod.tensor_model.mean_diffusivity
 
                 if ((mean == "MD") & (fODF_mode == "multi")):
                     mod.regressors
