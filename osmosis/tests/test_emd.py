@@ -3,7 +3,7 @@ import numpy.testing as npt
 
 import osmosis.emd as emd
 import osmosis.utils as ozu
-import osmosis.predict_n2 as pn
+import osmosis.predict_n as pn
 
 
 

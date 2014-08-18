@@ -430,7 +430,7 @@ def kfold_xval(data, bvals, bvecs, mask, ad, rd, n, fODF_mode,
         'multi': if fitting to individual b values to create multiple fODFs
     mean: str
         'mean_model': Demean the design matrix and signals using one of the
-        mean models from the mean_diffusivity_models module
+        mean models from the model.isotropic module
         'empirical': Demean the design matrix and signals using the empirical mean
         'MD': Demean the design matrix and signals using the mean diffusivity
     precision: str

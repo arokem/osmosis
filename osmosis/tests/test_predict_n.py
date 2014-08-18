@@ -65,6 +65,8 @@ mask_pv[0, 0, 0:2] = 1
 
 actual_all = np.squeeze(data_pv[np.where(mask_pv)][:, all_b_inds])
 
+np.random.seed(1975)
+
 def test_regressors():
     full_mod_t = sfm.SparseDeconvolutionModelMultiB(data_t, bvecs_t, bvals_t,
                                                     mask = mask_t,
@@ -158,16 +160,21 @@ def test_all_predict_gen():
     
 def test_predict_bvals():
     [actual1, actual2, predicted11,
-    predicted12, predicted22, predicted21] = pn.predict_bvals(data_pv, bvals_pv, bvecs_pv,
-                                            mask_pv, ad, rd, 0, 2, n = 10,
-                                            solver = "nnls", mode = "kfold_xval")
+    predicted12, predicted22, predicted21] = pn.predict_bvals(data_pv,
+                                                              bvals_pv,
+                                                              bvecs_pv,
+                                                              mask_pv,
+                                                              ad, rd, 0, 2,
+                                                              n = 10,
+                                                              solver = "nnls",
+                                                          mode = "kfold_xval")
 
     rmse00 = np.sqrt(np.mean((actual1 - predicted11)**2))
     rmse02 = np.sqrt(np.mean((actual2 - predicted12)**2))
     rmse22 = np.sqrt(np.mean((actual2 - predicted22)**2))
     rmse20 = np.sqrt(np.mean((actual1 - predicted21)**2))
 
-    npt.assert_equal(rmse00<300, 1)
-    npt.assert_equal(rmse02<300, 1)
-    npt.assert_equal(rmse22<300, 1)
-    npt.assert_equal(rmse20<300, 1)
+    npt.assert_(rmse00<300)
+    npt.assert_(rmse02<300)
+    npt.assert_(rmse22<300)
+    npt.assert_(rmse20<300)

@@ -10,7 +10,7 @@ Template for finding the model parameters to the different diffusion models.
 import time
 import osmosis.model.sparse_deconvolution as sfm
 import osmosis.model.dti as dti
-import osmosis.predict_n2 as pn
+import osmosis.predict_n as pn
 from osmosis.utils import separate_bvals
 import osmosis.utils as ozu
 import nibabel as nib

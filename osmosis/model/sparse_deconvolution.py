@@ -47,7 +47,7 @@ import osmosis.utils as ozu
 import osmosis.descriptors as desc
 import osmosis.cluster as ozc
 import osmosis.tensor as ozt
-import osmosis.mean_diffusivity_models as mdm
+import osmosis.model.isotropic as mdm
 import osmosis.leastsqbound as lsq
 from osmosis.utils import separate_bvals
 
@@ -1125,9 +1125,9 @@ class SparseDeconvolutionModelMultiB(SparseDeconvolutionModel):
                                         args=(bvals, input_sig, self.func))
             else:
                 lsq_b_out = lsq.leastsqbound(mdm.err_func, this_initial,
-                                                    args=(bvals, input_sig, self.func),
+                                           args=(bvals, input_sig, self.func),
                                                     bounds = self.bounds)
-                params = lsq_b_out[0]                                             
+                params = lsq_b_out[0] 
             params_out[vox] = np.squeeze(params)
             
             if self.mm_signal == "log":

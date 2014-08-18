@@ -12,7 +12,7 @@ import osmosis.multi_bvals as sfm_mb
 import osmosis.model.dti as dti
 import osmosis.predict_n as pn
 from osmosis.utils import separate_bvals
-import osmosis.mean_diffusivity_models as mdm
+import osmosis.model.isotropic as mdm
 import nibabel as nib
 import os
 import numpy as np

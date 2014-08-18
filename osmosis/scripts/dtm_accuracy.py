@@ -1,6 +1,6 @@
 import time
 import osmosis.model.dti as dti
-import osmosis.predict_n2 as pn
+import osmosis.predict_n as pn
 from osmosis.utils import separate_bvals
 import nibabel as nib
 import os
