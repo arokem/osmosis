@@ -34,6 +34,7 @@ def err_func(params, b, s_prime, func):
     """
     return s_prime - func(b, *params)
 
+
 def decaying_exp(b, D):
     """
     Just one decaying exponential representation of the mean diffusivity.  Used
@@ -51,6 +52,7 @@ def decaying_exp(b, D):
     The fitted diffusion signal in log form
     """
     return b*D
+
 
 def decaying_exp_plus_const(b, c, D):
     """
@@ -76,6 +78,7 @@ def decaying_exp_plus_const(b, c, D):
                                                                      -1),-1)
 
     return this_sig
+
 
 def two_decaying_exp(b, a, D1, D2):
     """
@@ -104,6 +107,7 @@ def two_decaying_exp(b, a, D1, D2):
 
     return this_sig
 
+
 def two_decaying_exp_plus_const(b, a, c, D1, D2):
     """
     Two decaying exponentials plus a constant.  Used if fitting to the log of
@@ -126,10 +130,11 @@ def two_decaying_exp_plus_const(b, a, c, D1, D2):
     """
 
     b_extra_dim = b[..., None]
-    this_sig = np.max(np.concatenate([b_extra_dim*D1, a + b_extra_dim*D2,
+    this_sig = np.max(np.concatenate([b_extra_dim * D1, a + b_extra_dim * D2,
                                           c*np.ones((len(b),1))],-1),-1)
 
     return this_sig
+
 
 def single_exp_rs(b, D):
     """
@@ -146,7 +151,8 @@ def single_exp_rs(b, D):
     -------
     The fitted relative diffusion signal
     """
-    return np.exp(-b*D)
+    return np.exp(-b * D)
+
 
 def single_exp_nf_rs(b, nf, D):
     """
@@ -244,6 +250,7 @@ def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
     """
     dti_mod = dti.TensorModel(data, bvecs, bvals, mask=mask,
                                     params_file=params_file)
+
     d = dti_mod.mean_diffusivity[np.where(mask)]
 
     # Find initial noise floor
@@ -251,21 +258,24 @@ def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
     b0_data = data[np.where(mask)][:, b_inds[0]]
     nf = np.std(b0_data, -1)/np.mean(b0_data, -1)
 
-    if model=="single_exp_rs":
+    if model == single_exp_rs:
         bounds = [(0, 4)]
         initial = d
-    elif model=="single_exp_nf_rs":
+
+    elif model == single_exp_nf_rs:
         bounds = [(0, 10000), (0, 4)]
         initial = np.concatenate([nf[..., None], d[...,None]], -1)
-    elif model=="bi_exp_rs":
+
+    elif model== bi_exp_rs:
         bounds = [(0, 1), (0, 4), (0, 4)]
         initial = np.concatenate([0.5*np.ones((len(d),1)), d[...,None],
                                                       d[...,None]], -1)
-    elif model=="bi_exp_nf_rs":
+    elif model== bi_exp_nf_rs:
         bounds = [(0, 10000), (0, 1), (0, 4), (0, 4)]
         initial = np.concatenate([nf[..., None], 0.5*np.ones((len(d),1)),
                                            d[...,None], d[...,None]], -1)
     return bounds, initial
+
 
 def _diffusion_inds(bvals, b_inds, rounded_bvals):
     """
@@ -301,7 +311,9 @@ def _diffusion_inds(bvals, b_inds, rounded_bvals):
         b0_inds = b_inds[0]
 
     return all_b_idx, b0_inds
-def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000,
+
+
+def isotropic_params(data, bvals, bvecs, mask, func, factor=1000,
                        initial="preset", bounds="preset", params_file='temp',
                        signal="relative_signal"):
     """
@@ -316,7 +328,7 @@ def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000,
         All b values
     mask: 3 dimensional array
         Brain mask of the data
-    func: str
+    func: str or callable
         String indicating the mean model function to perform kfold
         cross-validation on.
     initial: tuple
@@ -336,13 +348,15 @@ def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000,
     ss_err: 2 dimensional array
         Sum squared error between the model fitted means and the actual means
     """
-    # Grab the function handle for the desired mean model
-    func = globals()[func_str]
+    if isinstance(func, str):
+        # Grab the function handle for the desired mean model
+        func = globals()[func]
+    
 
     # Get the initial values for the desired mean model
     if (bounds == "preset") | (initial == "preset"):
-        all_params = initial_params(data, bvecs, bvals, func_str, mask=mask,
-                                                    params_file=params_file)
+        all_params = initial_params(data, bvecs, bvals, func, mask=mask,
+                                    params_file=params_file)
     if bounds == "preset":
         bounds = all_params[0]
     if initial == "preset":
@@ -391,7 +405,7 @@ def optimize_MD_params(data, bvals, bvecs, mask, func_str, factor=1000,
 
     return param_out, fit_out, cod
 
-def kfold_xval_MD_mod(data, bvals, bvecs, mask, func_str, n, factor = 1000,
+def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
                       initial="preset", bounds = "preset", params_file='temp',
                       signal="relative_signal"):
     """
@@ -427,12 +441,13 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func_str, n, factor = 1000,
     predicted: 2 dimensional array
         Predicted mean for the vertices left out of the fit
     """
-    # Grab the function handle for the desired mean model
-    func = globals()[func_str]
+    if isinstance(func, str):
+        # Grab the function handle for the desired mean model
+        func = globals()[func]
 
     # Get the initial values for the desired mean model
     if (bounds == "preset") | (initial == "preset"):
-        all_params = initial_params(data, bvecs, bvals, func_str, mask=mask,
+        all_params = initial_params(data, bvecs, bvals, func, mask=mask,
                                     params_file=params_file)
     if bounds == "preset":
         bounds = all_params[0]

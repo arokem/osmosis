@@ -5,7 +5,7 @@ import os
 
 import osmosis
 import osmosis.model.sparse_deconvolution as sfm
-import osmosis.mean_diffusivity_models as mdm
+import osmosis.model.isotropic as mdm
 import osmosis.utils as ozu
 
 data_path = os.path.join(osmosis.__path__[0], 'data')
@@ -20,8 +20,8 @@ all_b_inds = np.where(rounded_bvals != 0)
 mask_pv = np.zeros(data_pv.shape[:3])
 mask_pv[0, 0, 0:2] = 1
 
-def test_optimize_MD_params():
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv,
+def test_isotropic_params():
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv,
                                                         bvecs_pv, mask_pv,
                                                         "decaying_exp",
                                                         initial = -0.5,
@@ -33,7 +33,7 @@ def test_optimize_MD_params():
     # that we want.
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv,
                                                         "decaying_exp_plus_const",
                                                         initial=(-0.5, -0.5),
@@ -43,7 +43,7 @@ def test_optimize_MD_params():
     npt.assert_equal(np.shape(param_out) == (2,2), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv,
                                                         bvecs_pv, mask_pv,
                                                         "two_decaying_exp",
                                                         initial=(-0.5, -0.5, -0.5),
@@ -54,26 +54,26 @@ def test_optimize_MD_params():
     npt.assert_equal(np.shape(param_out) == (2,3), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "single_exp_rs",
                                                         signal="relative_signal")
     npt.assert_equal(np.shape(param_out) == (2,1), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv,
                                                         "single_exp_nf_rs",
                                                         signal="relative_signal")
     npt.assert_equal(np.shape(param_out) == (2,2), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "bi_exp_rs",
                                                         signal="relative_signal")
     npt.assert_equal(np.shape(param_out) == (2,3), 1)
     npt.assert_equal(np.mean(ss_err) < 200, 1)
 
-    param_out, fit_out, ss_err = mdm.optimize_MD_params(data_pv, bvals_pv, bvecs_pv,
+    param_out, fit_out, ss_err = mdm.isotropic_params(data_pv, bvals_pv, bvecs_pv,
                                                         mask_pv, "bi_exp_nf_rs",
                                                         signal="relative_signal")
     npt.assert_equal(np.shape(param_out) == (2,4), 1)
