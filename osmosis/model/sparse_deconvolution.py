@@ -82,7 +82,8 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
                  over_sample=None,
                  mode='relative_signal',
                  verbose=True,
-                 force_recompute=False):
+                 force_recompute=False,
+                 demean=True):
         """
         Initialize SparseDeconvolutionModel class instance.
         """
@@ -143,15 +144,24 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # base-class (all the way up?) and generalized in a wrapper to model
         # params, I believe. 
         self.force_recompute = force_recompute
+        self.demean = demean
 
+        
     def _fit_it(self, fit_to, design_matrix):
         """
         The core fitting routine
         """
         # Fit the deviations from the mean of the fitted signal: 
-        sig = fit_to - np.mean(fit_to)
+        if self.demean:
+            sig = fit_to - np.mean(fit_to)
+        else:
+            sig = fit_to 
         # Use the solver you created upon initialization:
-        return self.solver.fit(design_matrix, sig).coef_
+        if self.solver is opt.nnls:
+            return self.solver(design_matrix, sig)[0]
+        else:
+            return self.solver.fit(design_matrix, sig).coef_
+
 
     @desc.auto_attr
     def design_matrix(self):
@@ -161,7 +171,10 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         # We fit the deviations from the mean signal, so we demean each of the
         # basis functions and we transpose, so that we have the  regressors on
         # columns, instead of on the rows (which is how they are generated): 
-        return self.rotations.T - np.mean(self.rotations, -1)
+        if self.demean:
+            return self.rotations.T - np.mean(self.rotations, -1)
+        else:
+            return self.rotations.T
 
 
     @desc.auto_attr
