@@ -249,7 +249,7 @@ def initial_params(data, bvecs, bvals, model, mask=None, params_file='temp'):
         squares fitting.
     """
     dti_mod = dti.TensorModel(data, bvecs, bvals, mask=mask,
-                                    params_file=params_file)
+                              params_file=params_file)
 
     d = dti_mod.mean_diffusivity[np.where(mask)]
 
@@ -442,10 +442,10 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
         Predicted mean for the vertices left out of the fit
     """
     if isinstance(func, str):
-        # Grab the function handle for the desired mean model
+        # Grab the function handle for the desired isotropic model
         func = globals()[func]
 
-    # Get the initial values for the desired mean model
+    # Get the initial values for the desired isotropic model
     if (bounds == "preset") | (initial == "preset"):
         all_params = initial_params(data, bvecs, bvals, func, mask=mask,
                                     params_file=params_file)
@@ -486,11 +486,10 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
                                                     np.arange(len(all_b_idx)),
                                                     all_b_idx, vec_pool,
                                                     num_choose, combo_num)
-        this_flat_data = this_data[np.where(mask)]
 
+        these_b = b_scaled[vec_combo] # b values to predict
         for vox in np.arange(np.sum(mask)).astype(int):
             s0 = np.mean(flat_data[vox, b0_inds], -1)
-            these_b = b_scaled[vec_combo] # b values to predict
 
             if initial == "preset":
                 this_initial = func_initial[vox]
@@ -514,9 +513,6 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
                                                      input_signal, func),
                                              bounds = bounds)
                 params = lsq_b_out[0]
-            # Predict the mean values of the left out b values using the
-            # parameters from fitting to part of the b values.
-            predict = func(these_b, *params)
             predict_out[vox, vec_combo_rm0] = func(these_b, *params)
 
     # Find the relative diffusion signal.
