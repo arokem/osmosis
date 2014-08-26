@@ -380,7 +380,10 @@ def isotropic_params(data, bvals, bvecs, mask, func, factor=1000,
     cod = ozu.nans(np.sum(mask))
     fit_out = ozu.nans(cod.shape + (len(all_b_idx),))
 
+    prog_bar = ozu.ProgressBar(flat_data.shape[0])
+
     for vox in np.arange(np.sum(mask)).astype(int):
+        prog_bar.animate(vox)
         s0 = np.mean(flat_data[vox, b0_inds], -1)
 
         if initial == "preset":
@@ -402,7 +405,7 @@ def isotropic_params(data, bvals, bvecs, mask, func, factor=1000,
         param_out[vox] = np.squeeze(params)
         fit_out[vox] = func(b, *params)
         cod[vox] = ozu.coeff_of_determination(input_signal, fit_out[vox])
-
+        
     return param_out, fit_out, cod
 
 def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
@@ -449,10 +452,10 @@ def kfold_xval_MD_mod(data, bvals, bvecs, mask, func, n, factor = 1000,
     if (bounds == "preset") | (initial == "preset"):
         all_params = initial_params(data, bvecs, bvals, func, mask=mask,
                                     params_file=params_file)
-    if bounds == "preset":
-        bounds = all_params[0]
-    if initial == "preset":
-        func_initial = all_params[1]
+        if bounds == "preset":
+            bounds = all_params[0]
+        if initial == "preset":
+            func_initial = all_params[1]
     else:
         this_initial = initial
 
