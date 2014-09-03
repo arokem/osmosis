@@ -24,6 +24,7 @@ DSI515_mask = nib.load(data_path +
                            '/DSI515/mask_mask_hand.nii.gz').get_data()
 
 vox_per_job = 10
+print(np.sum(DSI515_mask)/vox_per_job)
 
 for i in range(np.sum(DSI515_mask)/vox_per_job):
     
