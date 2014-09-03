@@ -53,7 +53,7 @@ if __name__=="__main__":
 
     for isotropic_model, label in zip(models, labels):
         print("Fitting %s"%label)
-        fname_params = os.path.join(data_name, label, "-params-wm.npy"
+        fname_params = os.path.join(data_name, label, "-params-wm.npy")
         fname_predictions = os.path.join(data_name, label, "-predictions-wm.npy")
         param_out, fit_out, _ = mdm.isotropic_params(DSI515,
                                                      DSI515_gtab.bvals,
