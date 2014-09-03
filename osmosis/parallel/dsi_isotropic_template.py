@@ -43,7 +43,7 @@ if __name__=="__main__":
 
     low = i*10
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 10, int(np.sum(wm_data))])
+    high = np.min([(i+1) * 10, int(np.sum(DSI515_mask))])
 
     # Set the part of the mask to use here 
     mask = np.zeros(DSI515_mask.shape)
