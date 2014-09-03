@@ -19,7 +19,7 @@ template = sge.getsourcelines(template)[0]
 ssh = sge.SSH(hostname='proclus.stanford.edu',username='arokem', port=22)
 
 
-data_path = data_path = '/biac4/wandell/data/qytian/DSIProject/'
+data_path = '/biac4/wandell/data/qytian/DSIProject/'
 DSI515_mask = nib.load(data_path +
                            '/DSI515/mask_mask_hand.nii.gz').get_data()
 
