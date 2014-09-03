@@ -49,11 +49,12 @@ if __name__=="__main__":
     mask = np.zeros(DSI515_mask.shape)
     mask[wm_idx[0][low:high], wm_idx[1][low:high], wm_idx[2][low:high]] = 1
 
-    data_name = "DSI515_%i_"%i
+    data_name = os.path.join(data_path, "xval", "DSI515_%i_"%i)
+
     for isotropic_model, label in zip(models, labels):
         print("Fitting %s"%label)
-        fname_params = data_name + label + "-params-brain.npy"
-        fname_predictions = data_name + label + "-predictions-brain.npy"
+        fname_params = os.path.join(data_name, label, "-params-wm.npy"
+        fname_predictions = os.path.join(data_name, label, "-predictions-wm.npy")
         param_out, fit_out, _ = mdm.isotropic_params(DSI515,
                                                      DSI515_gtab.bvals,
                                                      DSI515_gtab.bvecs,
