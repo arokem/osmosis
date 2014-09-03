@@ -25,7 +25,7 @@ DSI515_mask = nib.load(data_path +
 
 vox_per_job = 10
 
-for i in xrange(np.sum(DSI515_mask)/vox_per_job):
+for i in xrange(np.ceil(np.sum(DSI515_mask)/vox_per_job)):
     
     params_dict =  dict(i=i)
     code = sge.add_params(template, params_dict)
