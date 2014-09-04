@@ -34,7 +34,7 @@ if __name__=="__main__":
     DSI515_gtab = grad.gradient_table(data_path + "DSI515/bvals_515_standard.txt", data_path + "DSI515/bvecs_prs_515_standard.txt")
 
     models = [mdm.single_exp_rs, mdm.bi_exp_rs, mdm.single_exp_nf_rs]
-    labels = ["mono-exponential", "bi-exponential", "mono-exponential + noise"]
+    labels = ["mono-exponential", "bi-exponential", "mono-exponential_w_noise"]
     
     DSI515_mask = nib.load(data_path +
                            "/DSI515/mask_mask_hand.nii.gz").get_data()
