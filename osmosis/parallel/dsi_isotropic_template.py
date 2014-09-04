@@ -41,9 +41,9 @@ if __name__=="__main__":
 
     wm_idx = np.where(DSI515_mask==1)
 
-    low = i*51
+    low = i*100
     # Make sure not to go over the edge of the mask:
-    high = np.min([(i+1) * 51, int(np.sum(DSI515_mask))])
+    high = np.min([(i+1) * 100, int(np.sum(DSI515_mask))])
 
     # Set the part of the mask to use here 
     mask = np.zeros(DSI515_mask.shape)
