@@ -24,7 +24,7 @@ data_path = '/biac4/wandell/data/qytian/DSIProject/'
 DSI515_mask = nib.load(data_path +
                            '/DSI515/mask_mask_hand.nii.gz').get_data()
 
-vox_per_job = 10
+vox_per_job = 51
 batch_sge = []
 for i in xrange(int(np.ceil(np.sum(DSI515_mask)/vox_per_job))):
     
