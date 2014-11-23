@@ -526,7 +526,7 @@ class SparseDeconvolutionModel(CanonicalTensorModel):
         the mean of $\frac{S}{S_0}$.
        
         """
-        raise NotImplementedError
+        return np.sum(self.model_params, -1)/np.mean(self.relative_signal, -1)
 
     
     @desc.auto_attr
