@@ -1,6 +1,8 @@
 # Osmosis
 ## Modeling diffusion data. 
 
+[![Join the chat at https://gitter.im/arokem/osmosis](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/arokem/osmosis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Osmosis is copyright of the [VISTA lab](http://white.stanford.edu/) at Stanford
 University and is released under the terms of the [CC-BY license](http://creativecommons.org/licenses/by-sa/3.0/)
 
