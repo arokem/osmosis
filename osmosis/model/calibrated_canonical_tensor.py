@@ -16,7 +16,7 @@ from osmosis.model.base import SCALE_FACTOR
 class CalibratedCanonicalTensorModel(CanonicalTensorModel):
     """
     This is another extension of the CanonicalTensorModel, which extends the
-    interpertation of the different weights, by calibrating the weights to a
+    interpretation of the different weights, by calibrating the weights to a
     particular ROI.
 
     Classically, we will use Corpus Callosum, or some part of it as our
